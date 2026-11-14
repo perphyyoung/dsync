@@ -1,0 +1,213 @@
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { join } from "node:path";
+import { executeActions } from "../src/lib/execute";
+import { runScan } from "../src/lib/pipeline";
+import { mergeRecentPair, readRecentPairs, writeRecentPairs } from "../src/lib/recent";
+import type { ExecuteRequest, RecentPair, ScanRequest, SyncAction } from "../src/lib/types";
+import { log, logPath } from "./logger";
+import { applyAppMenu } from "./menu";
+
+const devUrl = process.env["ELECTRON_RENDERER_URL"];
+const LOG_LEVELS = new Set(["error", "warn", "info", "debug"]);
+
+let mainWindow: BrowserWindow | null = null;
+let recentPairs: RecentPair[] = [];
+
+/** dev 写项目根 ds-data；e2e 通过 DSYNC_DATA_DIR 隔离；release 用 userData */
+function dataRoot(): string {
+  const override = process.env["DSYNC_DATA_DIR"];
+  if (override) return override;
+  return devUrl ? join(app.getAppPath(), "ds-data") : app.getPath("userData");
+}
+
+function recentFilePath(): string {
+  return join(dataRoot(), "recent-pairs.json");
+}
+
+function notifyRecentLoad(pair: RecentPair): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("recent:load", pair);
+  }
+}
+
+function refreshMenu(): void {
+  applyAppMenu(recentPairs, { onLoadRecent: notifyRecentLoad });
+}
+
+/** 扫描成功才记录，失败或参数非法不留痕 */
+async function rememberPair(left: string, right: string): Promise<void> {
+  recentPairs = mergeRecentPair(recentPairs, { left, right });
+  try {
+    await writeRecentPairs(recentFilePath(), recentPairs);
+  } catch (error) {
+    log.warn(`[recent] 写入失败：${(error as Error).message}`);
+  }
+  refreshMenu();
+}
+
+async function handleIpc<T>(channel: string, task: () => Promise<T>): Promise<T> {
+  try {
+    return await task();
+  } catch (error) {
+    log.error(`[ipc ${channel}] ${error instanceof Error ? error.message : String(error)}`);
+    throw error;
+  }
+}
+
+function parseScanRequest(value: unknown): ScanRequest {
+  if (typeof value !== "object" || value === null) throw new Error("无效扫描参数");
+  const input = value as Record<string, unknown>;
+  const leftRoot = input["leftRoot"];
+  const rightRoot = input["rightRoot"];
+  if (typeof leftRoot !== "string" || typeof rightRoot !== "string") throw new Error("无效目录");
+
+  const direction = input["direction"];
+  const align = input["align"];
+  const includeExts = input["includeExts"];
+  const excludeExts = input["excludeExts"];
+
+  return {
+    leftRoot,
+    rightRoot,
+    minSize: typeof input["minSize"] === "number" ? input["minSize"] : 0,
+    includeExts: Array.isArray(includeExts)
+      ? includeExts.filter((item): item is string => typeof item === "string")
+      : [],
+    excludeExts: Array.isArray(excludeExts)
+      ? excludeExts.filter((item): item is string => typeof item === "string")
+      : [],
+    direction: direction === "left-to-right" || direction === "right-to-left" ? direction : "none",
+    align: align === "align-left" || align === "align-right" ? align : "keep",
+    ignoreCache: input["ignoreCache"] === true,
+  };
+}
+
+function parseExecuteRequest(value: unknown): ExecuteRequest {
+  if (typeof value !== "object" || value === null) throw new Error("无效执行参数");
+  const input = value as Record<string, unknown>;
+  const leftRoot = input["leftRoot"];
+  const rightRoot = input["rightRoot"];
+  const actions = input["actions"];
+  if (typeof leftRoot !== "string" || typeof rightRoot !== "string") throw new Error("无效目录");
+  if (!Array.isArray(actions)) throw new Error("无效动作列表");
+
+  const valid = actions.filter((item): item is SyncAction => {
+    if (typeof item !== "object" || item === null) return false;
+    const action = item as Record<string, unknown>;
+    const kind = action["kind"];
+    return (
+      (kind === "copy" || kind === "move" || kind === "delete") &&
+      (action["side"] === "left" || action["side"] === "right") &&
+      typeof action["toPath"] === "string"
+    );
+  });
+
+  return { leftRoot, rightRoot, actions: valid };
+}
+
+ipcMain.handle("dir:pick", async (): Promise<string | null> => {
+  const result = await dialog.showOpenDialog({
+    title: "选择目录",
+    properties: ["openDirectory"],
+  });
+  return result.canceled ? null : (result.filePaths[0] ?? null);
+});
+
+ipcMain.handle("recent:list", (): RecentPair[] => recentPairs);
+
+ipcMain.handle("sync:scan", async (event, raw: unknown) => {
+  return handleIpc("sync:scan", async () => {
+    const request = parseScanRequest(raw);
+    const sender = event.sender;
+    const result = await runScan(request, {
+      onProgress: (progress) => {
+        if (!sender.isDestroyed()) sender.send("sync:progress", progress);
+      },
+    });
+    await rememberPair(request.leftRoot, request.rightRoot);
+    log.info(
+      `[scan] left=${request.leftRoot} right=${request.rightRoot} ` +
+        `rows=${result.rows.length} actions=${result.actions.length} warnings=${result.warnings.length}`,
+    );
+    return result;
+  });
+});
+
+ipcMain.handle("sync:execute", async (_event, raw: unknown) => {
+  return handleIpc("sync:execute", async () => {
+    const request = parseExecuteRequest(raw);
+    const result = await executeActions(request, {
+      /* 只进回收站，失败即报错，绝不降级为永久删除 */
+      trash: async (fullPath) => {
+        await shell.trashItem(fullPath);
+      },
+    });
+    log.info(
+      `[execute] copied=${result.copied} moved=${result.moved} ` +
+        `deleted=${result.deleted} failed=${result.failed.length}`,
+    );
+    return result;
+  });
+});
+
+ipcMain.handle("log:renderer", (_event, level: unknown, message: unknown): void => {
+  if (typeof level !== "string" || !LOG_LEVELS.has(level)) throw new Error("无效日志级别");
+  if (typeof message !== "string") throw new Error("无效日志内容");
+  log[level as "error" | "warn" | "info" | "debug"](`[renderer] ${message}`);
+});
+
+function createWindow(): BrowserWindow {
+  const win = new BrowserWindow({
+    width: 1360,
+    height: 880,
+    minWidth: 1080,
+    minHeight: 680,
+    title: "dsync",
+    backgroundColor: "#0b0d12",
+    webPreferences: {
+      preload: join(app.getAppPath(), "out/preload/preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+
+  if (devUrl) {
+    void win.loadURL(devUrl);
+  } else {
+    void win.loadFile(join(app.getAppPath(), "out/renderer/index.html"));
+  }
+
+  win.webContents.on("preload-error", (_event, preloadPath, error) => {
+    log.error(`[preload] ${preloadPath} ${error.message}`);
+  });
+  win.webContents.on("render-process-gone", (_event, details) => {
+    log.error(`[renderer gone] reason=${details.reason} exitCode=${details.exitCode}`);
+  });
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    void shell.openExternal(url);
+    return { action: "deny" };
+  });
+  win.on("closed", () => {
+    if (mainWindow === win) mainWindow = null;
+  });
+
+  return win;
+}
+
+app.whenReady().then(async () => {
+  recentPairs = await readRecentPairs(recentFilePath());
+  log.info(
+    `[start] electron=${process.versions.electron} node=${process.versions.node} ` +
+      `recent=${recentPairs.length} log=${logPath}`,
+  );
+  refreshMenu();
+  mainWindow = createWindow();
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) mainWindow = createWindow();
+  });
+});
+
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
+});
