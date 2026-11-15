@@ -535,10 +535,10 @@ MVP 已实现并通过质量门与 e2e。
 
 验证结果：
 
-- `pnpm test`：76 条通过（10 个文件）
+- `pnpm test`：81 条通过（10 个文件）
 - `pnpm check`：format / oxlint / eslint / type-check / test / build 全绿，0 warning
 - `pnpm e2e`：2 条通过（启动冒烟含菜单检查 + 通过 IPC 对真实目录做结构对齐，并验证最近目录对落盘、菜单重建与重启后自动回填）
-- 未执行：`pnpm release` 打 NSIS 包
+- 已执行：`pnpm release` 打出 NSIS 安装包 `release/dsync Setup 0.1.0.exe`（约 118 MiB）
 
 落地时确认的细节：
 
@@ -549,7 +549,7 @@ MVP 已实现并通过质量门与 e2e。
 - 扫描时记录 `.dsync` 的**父目录**而不是 `.dsync` 自身，否则索引继承会拼出 `<dir>/.dsync/.dsync/` 这种错误路径。
 - renderer 不能 import 任何带 `node:` 的模块；后缀解析因此抽到 `src/lib/exts.ts`，`scan.ts` 只做 re-export。
 - oxlint 的 `no-await-in-loop` 对目录递归与动作串行执行是刻意设计，已在 `.oxlintrc.json` 关闭；`lib` 提到 ES2023 以使用 `toSorted`。
-- `resources/icon.png` 尚未提供，`pnpm release` 会因缺图标失败。
+- `resources/icon.png` 是 512×512 RGBA，electron-builder 会从它生成 `.ico`；窗口图标在 `createWindow()` 里按 dev（项目根 `resources/`）与打包后（`process.resourcesPath`）分别取。
 - 应用数据目录：dev 为项目根 `ds-data/`，release 为 `userData/`；e2e 用 `DSYNC_DATA_DIR` 覆盖到临时目录，不污染本机配置。
 - 最近目录对存 `recent-pairs.json`（普通 JSON）：它是可重建的便利数据，损坏不影响索引与配对。
 - P0 界面减负已完成：方向与路径策略移入批量执行页，主界面只保留目录按钮、过滤行（含扫描与强制重算）、双列表与状态栏。

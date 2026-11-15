@@ -256,6 +256,11 @@ ipcMain.handle("log:renderer", (_event, level: unknown, message: unknown): void 
 });
 
 function createWindow(): BrowserWindow {
+  // dev 读项目根 resources；打包后 extraResources 把它复制到 resourcesPath 顶层
+  const iconPath = devUrl
+    ? join(app.getAppPath(), "resources/icon.png")
+    : join(process.resourcesPath, "icon.png");
+
   const win = new BrowserWindow({
     width: 1360,
     height: 880,
@@ -263,6 +268,7 @@ function createWindow(): BrowserWindow {
     minHeight: 680,
     title: "dsync",
     backgroundColor: "#0b0d12",
+    icon: iconPath,
     webPreferences: {
       preload: join(app.getAppPath(), "out/preload/preload.js"),
       contextIsolation: true,
