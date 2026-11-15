@@ -1,12 +1,6 @@
 import { RateTracker, ScanCancelledError, ScanController } from "./controller";
 import { hashFile, HASH_CONCURRENCY, mapLimit } from "./hash";
-import {
-  cacheFromIndex,
-  collectInherited,
-  loadIndexPair,
-  mergePairs,
-  writeIndex,
-} from "./index-file";
+import { cacheFromIndex, collectInherited, loadIndexPair, writeIndex } from "./index-file";
 import { pairFiles } from "./pair";
 import { assertValidRootPair, resolveInsideRoot } from "./path-guard";
 import { planSync } from "./plan";
@@ -188,17 +182,18 @@ export async function runScan(request: ScanRequest, hooks: ScanHooks = {}): Prom
     request.rightRoot,
     leftScan.nestedIndexDirs,
   );
-  const indexPairs = mergePairs(loaded.data.pairs, inherited.pairs);
+  // 索引只提供哈希缓存；配对每次现算，不读回历史配对
+  const cacheData = { ...loaded.data, pairs: [...inherited.pairs, ...loaded.data.pairs] };
 
   // 哈希：先预筛，再按字节推进
   const leftSplit = splitCache(
     leftScan.files,
-    cacheFromIndex(loaded.data, "left"),
+    cacheFromIndex(cacheData, "left"),
     request.forceRehash,
   );
   const rightSplit = splitCache(
     rightScan.files,
-    cacheFromIndex(loaded.data, "right"),
+    cacheFromIndex(cacheData, "right"),
     request.forceRehash,
   );
   const hashTotal = leftSplit.bytes + rightSplit.bytes;
@@ -248,7 +243,7 @@ export async function runScan(request: ScanRequest, hooks: ScanHooks = {}): Prom
   if (controller.cancelled) throw new ScanCancelledError();
 
   emit({ phase: "pair", done: 0, total: 1, current: "" }, true);
-  const pairing = pairFiles(leftHashed.entries, rightHashed.entries, indexPairs);
+  const pairing = pairFiles(leftHashed.entries, rightHashed.entries);
 
   const ignoredByPath = new Map<RelPath, IgnoredFile>();
   for (const item of [

@@ -4,7 +4,7 @@ import type { DiffRow } from "./types";
 
 function makeRow(overrides: Partial<DiffRow>): DiffRow {
   return {
-    status: "diff",
+    status: "target-blocked",
     left: null,
     right: null,
     leftSize: 1,
@@ -19,24 +19,22 @@ function makeRow(overrides: Partial<DiffRow>): DiffRow {
 }
 
 describe("批量统计", () => {
-  it("以左为准时，右侧的新增 / 修改 / 删除分别计数", () => {
+  it("以左为准时，右侧的新增 / 删除分别计数", () => {
     const rows = [
-      makeRow({ status: "diff", left: "a.md", right: "a.md" }),
       makeRow({ status: "left-only", left: "b.md" }),
       makeRow({ status: "right-only", right: "c.md" }),
     ];
-    const stats = computeBatchStats(rows, new Set([0, 1, 2]), "right", false);
-    expect(stats).toEqual({ rows: 3, added: 1, modified: 1, deleted: 1, blocked: 0 });
+    const stats = computeBatchStats(rows, new Set([0, 1]), "right", false);
+    expect(stats).toEqual({ rows: 2, added: 1, modified: 0, deleted: 1, blocked: 0 });
   });
 
   it("以右为准时改算左侧", () => {
     const rows = [
-      makeRow({ status: "diff", left: "a.md", right: "a.md" }),
       makeRow({ status: "left-only", left: "b.md" }),
       makeRow({ status: "right-only", right: "c.md" }),
     ];
-    const stats = computeBatchStats(rows, new Set([0, 1, 2]), "left", false);
-    expect(stats).toEqual({ rows: 3, added: 1, modified: 1, deleted: 1, blocked: 0 });
+    const stats = computeBatchStats(rows, new Set([0, 1]), "left", false);
+    expect(stats).toEqual({ rows: 2, added: 1, modified: 0, deleted: 1, blocked: 0 });
   });
 
   it("moved 行只有重排路径时才算修改", () => {
@@ -58,12 +56,12 @@ describe("批量统计", () => {
 
   it("只统计选中的行", () => {
     const rows = [
-      makeRow({ status: "diff", left: "a.md", right: "a.md" }),
-      makeRow({ status: "diff", left: "b.md", right: "b.md" }),
+      makeRow({ status: "left-only", left: "a.md" }),
+      makeRow({ status: "left-only", left: "b.md" }),
     ];
     expect(computeBatchStats(rows, new Set([1]), "right", false)).toMatchObject({
       rows: 1,
-      modified: 1,
+      added: 1,
     });
   });
 });
@@ -80,7 +78,7 @@ describe("目标路径冲突", () => {
   });
 
   it("原地覆盖不算冲突", () => {
-    const rows = [makeRow({ status: "diff", left: "a.md", right: "a.md" })];
+    const rows = [makeRow({ status: "moved", left: "a.md", right: "a.md" })];
     expect(detectTargetConflicts(rows, new Set([0]), "right").size).toBe(0);
   });
 

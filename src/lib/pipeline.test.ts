@@ -64,13 +64,12 @@ describe("端到端扫描与执行", () => {
     expect(after.rows[0].status).toBe("same");
   });
 
-  it("内容不同时按左到右覆盖", async () => {
+  it("对侧独有时复制过去", async () => {
     const { left, right } = await setup();
     await writeRel(left, "a.md", "v2");
-    await writeRel(right, "a.md", "v1");
 
     const scan = await runScan(request(left, right));
-    expect(scan.rows[0].status).toBe("diff");
+    expect(scan.rows[0].status).toBe("left-only");
 
     const actions = actionForRow(scan.rows[0], "right", 0, "keep");
     await executeActions({ leftRoot: left, rightRoot: right, actions }, { trash });
@@ -100,7 +99,7 @@ describe("端到端扫描与执行", () => {
     expect(cached.rows[0].status).toBe("same");
 
     const forced = await runScan(request(left, right, { forceRehash: true }));
-    expect(forced.rows[0].status).toBe("diff");
+    expect(forced.rows[0].status).toBe("target-blocked");
   });
 
   it("排除后缀与最小大小只影响可见性", async () => {
@@ -121,7 +120,7 @@ describe("端到端扫描与执行", () => {
     await expect(runScan(request(left, join(left, "inner")))).rejects.toThrow();
   });
 
-  it("父目录重新比较时复用子目录索引", async () => {
+  it("父目录重新比较时按哈希重新配对", async () => {
     const base = await makeBase("dsync-inherit-");
     const work = join(base, "work");
     const backup = join(base, "backup");
@@ -140,7 +139,7 @@ describe("端到端扫描与执行", () => {
     const row = second.rows.find((item) => item.left === "a/x.md");
     expect(row).toBeDefined();
     expect(row?.right).toBe("b/y.md");
-    expect(row?.pairedBy).toBe("inherited");
+    expect(row?.pairedBy).toBe("hash");
   });
 
   it("进度回调覆盖扫描、哈希、配对、索引四个阶段", async () => {
@@ -232,7 +231,7 @@ describe("端到端扫描与执行", () => {
             side: "right",
             fromPath: "a.md",
             toPath: "a.md",
-            status: "diff",
+            status: "left-only",
             rowIndex: 0,
           },
         ],
@@ -281,7 +280,7 @@ describe("端到端扫描与执行", () => {
           side: "left",
           fromPath: "a.md",
           toPath: "a.md",
-          status: "diff",
+          status: "right-only",
           rowIndex: 0,
         },
       ],

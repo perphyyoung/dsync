@@ -69,7 +69,7 @@ const statsTooltip = computed(() => {
   const stats = result.value?.stats;
   if (!stats) return "";
   return (
-    `一致 ${stats.same} · 仅路径 ${stats.moved} · 差异 ${stats.diff} · ` +
+    `一致 ${stats.same} · 仅路径 ${stats.moved} · 重复 ${stats.duplicate} · ` +
     `仅左 ${stats.leftOnly} · 仅右 ${stats.rightOnly} · 忽略 ${stats.ignored}`
   );
 });
@@ -246,7 +246,7 @@ function buildTargets(actions: SyncAction[]): RefreshTarget[] {
       left: row.left,
       right: row.right,
     };
-    if (action.kind === "delete") {
+    if (action.kind === "soft-delete") {
       if (action.side === "left") current.left = null;
       else current.right = null;
     } else if (action.side === "left") {
@@ -264,7 +264,7 @@ function statusOf(left: RefreshedFile | null, right: RefreshedFile | null): Diff
     if (left.hash === right.hash) {
       return left.path.toLowerCase() === right.path.toLowerCase() ? "same" : "moved";
     }
-    return "diff";
+    return "target-blocked";
   }
   if (left) return "left-only";
   if (right) return "right-only";
@@ -272,12 +272,27 @@ function statusOf(left: RefreshedFile | null, right: RefreshedFile | null): Diff
 }
 
 function recountStats(rows: DiffRow[]): ScanStats {
-  const stats: ScanStats = { same: 0, moved: 0, diff: 0, leftOnly: 0, rightOnly: 0, ignored: 0 };
+  const stats: ScanStats = {
+    same: 0,
+    moved: 0,
+    duplicate: 0,
+    leftOnly: 0,
+    rightOnly: 0,
+    ignored: 0,
+  };
   for (const row of rows) {
-    if (row.status === "left-only") stats.leftOnly += 1;
-    else if (row.status === "right-only") stats.rightOnly += 1;
-    else if (row.status === "target-blocked") stats.diff += 1;
-    else stats[row.status] += 1;
+    switch (row.status) {
+      case "left-only":
+        stats.leftOnly += 1;
+        break;
+      case "right-only":
+        stats.rightOnly += 1;
+        break;
+      case "target-blocked":
+        break;
+      default:
+        stats[row.status] += 1;
+    }
   }
   return stats;
 }
@@ -399,7 +414,7 @@ async function rehashRow(index: number): Promise<void> {
         if (leftHash && rightHash) {
           const sameHash = leftHash === rightHash;
           const samePath = (target.left ?? "").toLowerCase() === (target.right ?? "").toLowerCase();
-          status = sameHash ? (samePath ? "same" : "moved") : "diff";
+          status = sameHash ? (samePath ? "same" : "moved") : "target-blocked";
         }
         current.rows[index] = { ...target, leftHash, rightHash, status };
       }

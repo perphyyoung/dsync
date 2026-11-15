@@ -50,7 +50,7 @@ export interface IndexData {
 export type RowStatus =
   | "same"
   | "moved"
-  | "diff"
+  | "duplicate"
   | "left-only"
   | "right-only"
   | "ignored"
@@ -90,7 +90,8 @@ export interface ScanRequest extends FilterOptions {
 export interface ScanStats {
   same: number;
   moved: number;
-  diff: number;
+  /** 本侧存在多个内容相同的文件，无法确定配对对象 */
+  duplicate: number;
   leftOnly: number;
   rightOnly: number;
   ignored: number;
@@ -139,11 +140,11 @@ export interface ScanProgress {
 }
 
 /**
- * side 是「被修改的一侧」，fromPath 是对侧（或同侧的旧路径）。
- * copy: 从对侧复制到 side；move: 在 side 内改名；delete: 删除 side 上的文件。
+ * side 是「被改写的一侧」，fromPath 是对侧（或同侧的旧路径）。
+ * copy: 从对侧复制到 side；move: 在 side 内改名；soft-delete: 把 side 上的文件移入内置回收站。
  */
 export interface SyncAction {
-  kind: "copy" | "move" | "delete";
+  kind: "copy" | "move" | "soft-delete";
   side: Side;
   fromPath: RelPath | null;
   toPath: RelPath;

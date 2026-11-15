@@ -5,7 +5,6 @@ import type {
   FileEntry,
   PairRecord,
   RelPath,
-  RowStatus,
   ScanStats,
   Side,
   SyncAction,
@@ -38,6 +37,14 @@ function otherSide(side: Side): Side {
   return side === "left" ? "right" : "left";
 }
 
+function hashCount(files: Map<RelPath, FileEntry>): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const entry of files.values()) {
+    counts.set(entry.hash, (counts.get(entry.hash) ?? 0) + 1);
+  }
+  return counts;
+}
+
 /** 扫描只负责出差异行，不含任何方向与路径改写信息 */
 function buildRows(input: PlanInput): DiffRow[] {
   const rows: DiffRow[] = [];
@@ -47,12 +54,9 @@ function buildRows(input: PlanInput): DiffRow[] {
     const rightEntry = input.right.get(pair.right);
     if (!leftEntry || !rightEntry) continue;
 
-    const sameHash = leftEntry.hash === rightEntry.hash;
     const samePath = pair.left.toLowerCase() === pair.right.toLowerCase();
-    const status: RowStatus = sameHash ? (samePath ? "same" : "moved") : "diff";
-
     rows.push({
-      status,
+      status: samePath ? "same" : "moved",
       left: pair.left,
       right: pair.right,
       leftSize: leftEntry.size,
@@ -65,10 +69,38 @@ function buildRows(input: PlanInput): DiffRow[] {
     });
   }
 
+  // 两侧同路径、内容不同且都没配上：互相占位，谁都动不了
+  const rightOnlySet = new Set(input.rightOnly);
+  const blocked = new Set<RelPath>();
   for (const path of input.leftOnly) {
-    const entry = input.left.get(path);
+    if (!rightOnlySet.has(path)) continue;
+    const leftEntry = input.left.get(path);
+    const rightEntry = input.right.get(path);
+    if (!leftEntry || !rightEntry) continue;
+    blocked.add(path);
     rows.push({
-      status: "left-only",
+      status: "target-blocked",
+      left: path,
+      right: path,
+      leftSize: leftEntry.size,
+      rightSize: rightEntry.size,
+      leftHash: leftEntry.hash,
+      rightHash: rightEntry.hash,
+      base: null,
+      pairedBy: null,
+      note: "两侧同名但内容不同",
+    });
+  }
+
+  const leftCounts = hashCount(input.left);
+  const rightCounts = hashCount(input.right);
+
+  for (const path of input.leftOnly) {
+    if (blocked.has(path)) continue;
+    const entry = input.left.get(path);
+    const duplicated = entry ? (leftCounts.get(entry.hash) ?? 0) > 1 : false;
+    rows.push({
+      status: duplicated ? "duplicate" : "left-only",
       left: path,
       right: null,
       leftSize: entry?.size ?? null,
@@ -77,14 +109,16 @@ function buildRows(input: PlanInput): DiffRow[] {
       rightHash: null,
       base: null,
       pairedBy: null,
-      note: null,
+      note: duplicated ? "本侧有多个内容相同的文件" : null,
     });
   }
 
   for (const path of input.rightOnly) {
+    if (blocked.has(path)) continue;
     const entry = input.right.get(path);
+    const duplicated = entry ? (rightCounts.get(entry.hash) ?? 0) > 1 : false;
     rows.push({
-      status: "right-only",
+      status: duplicated ? "duplicate" : "right-only",
       left: null,
       right: path,
       leftSize: null,
@@ -93,7 +127,7 @@ function buildRows(input: PlanInput): DiffRow[] {
       rightHash: entry?.hash ?? null,
       base: null,
       pairedBy: null,
-      note: null,
+      note: duplicated ? "本侧有多个内容相同的文件" : null,
     });
   }
 
@@ -125,7 +159,12 @@ export function actionForRow(
   rowIndex: number,
   align: AlignMode = "keep",
 ): SyncAction[] {
-  if (row.status === "same" || row.status === "ignored" || row.status === "target-blocked") {
+  if (
+    row.status === "same" ||
+    row.status === "ignored" ||
+    row.status === "target-blocked" ||
+    row.status === "duplicate"
+  ) {
     return [];
   }
 
@@ -148,32 +187,21 @@ export function actionForRow(
     ];
   }
 
-  if (row.status === "diff") {
-    if (!sourcePath || !targetPath) return [];
-    const actions: SyncAction[] = [
+  // 本侧有、对侧没有：以对侧为准时本侧多余，软删除
+  if (currentPath && !sourcePath) {
+    return [
       {
-        kind: "copy",
-        side,
-        fromPath: sourcePath,
-        toPath: targetPath,
-        status: row.status,
-        rowIndex,
-      },
-    ];
-    if (align !== "keep" && currentPath && currentPath.toLowerCase() !== targetPath.toLowerCase()) {
-      actions.push({
-        kind: "delete",
+        kind: "soft-delete",
         side,
         fromPath: null,
         toPath: currentPath,
         status: row.status,
         rowIndex,
-      });
-    }
-    return actions;
+      },
+    ];
   }
 
-  // 只有对侧存在才需要复制；本侧独有属于「多余」，默认保留不动
+  // 本侧没有、对侧有：复制过来
   if (!currentPath && sourcePath) {
     return [
       {
@@ -193,7 +221,7 @@ function countStats(rows: DiffRow[]): ScanStats {
   const stats: ScanStats = {
     same: 0,
     moved: 0,
-    diff: 0,
+    duplicate: 0,
     leftOnly: 0,
     rightOnly: 0,
     ignored: 0,
@@ -206,8 +234,8 @@ function countStats(rows: DiffRow[]): ScanStats {
       case "moved":
         stats.moved += 1;
         break;
-      case "diff":
-        stats.diff += 1;
+      case "duplicate":
+        stats.duplicate += 1;
         break;
       case "left-only":
         stats.leftOnly += 1;

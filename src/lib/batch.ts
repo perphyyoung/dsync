@@ -57,7 +57,10 @@ export function computeBatchStats(
 
   for (const index of selected) {
     const row = rows[index];
-    if (!row || row.status === "ignored" || conflicts.has(index)) continue;
+    if (!row || conflicts.has(index)) continue;
+    if (row.status === "ignored" || row.status === "duplicate" || row.status === "target-blocked") {
+      continue;
+    }
 
     const current = row[side];
     const source = row[other];
@@ -71,11 +74,6 @@ export function computeBatchStats(
     }
     if (!current) {
       stats.added += 1;
-      stats.rows += 1;
-      continue;
-    }
-    if (row.status === "diff") {
-      stats.modified += 1;
       stats.rows += 1;
       continue;
     }

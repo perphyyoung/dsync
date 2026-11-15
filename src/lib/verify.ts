@@ -13,10 +13,10 @@ export function verifyOutcome(actions: SyncAction[], refreshed: RefreshedRow[]):
     const action = lastByRow.get(row.rowIndex);
     if (!action) continue;
 
-    if (action.kind === "delete") {
+    if (action.kind === "soft-delete") {
       const gone = action.side === "left" ? !row.left : !row.right;
       if (!gone) {
-        mismatched.push({ path: action.toPath, expected: "该侧已删除", actual: "文件仍在" });
+        mismatched.push({ path: action.toPath, expected: "该侧已软删除", actual: "文件仍在" });
       }
       continue;
     }

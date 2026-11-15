@@ -52,7 +52,7 @@ export function etaHint(seconds: number | null | undefined): EtaHint | null {
 export function describeAction(action: SyncAction): string {
   if (action.kind === "copy") return `复制 ${action.fromPath ?? ""} → ${action.toPath}`;
   if (action.kind === "move") return `改名 ${action.fromPath ?? ""} → ${action.toPath}`;
-  return `删除到回收站：${action.toPath}`;
+  return `软删除：${action.toPath}`;
 }
 
 /** 取路径末段作为列标题，根目录为空时返回空串 */

@@ -12,7 +12,7 @@ const emit = defineEmits<{ toggle: [index: number] }>();
 const STATUS_DOT: Record<RowStatus, string> = {
   same: "bg-slate-600",
   moved: "bg-sky-400",
-  diff: "bg-amber-400",
+  duplicate: "bg-fuchsia-400",
   "left-only": "bg-emerald-400",
   "right-only": "bg-emerald-400",
   ignored: "bg-slate-700",
@@ -22,7 +22,7 @@ const STATUS_DOT: Record<RowStatus, string> = {
 const STATUS_TEXT: Record<RowStatus, string> = {
   same: "一致",
   moved: "仅路径不同",
-  diff: "内容不同",
+  duplicate: "重复",
   "left-only": "仅左侧",
   "right-only": "仅右侧",
   ignored: "已忽略",

@@ -29,7 +29,7 @@ function makeInput(overrides: Partial<PlanInput>): PlanInput {
 
 function makeRow(overrides: Partial<DiffRow>): DiffRow {
   return {
-    status: "diff",
+    status: "target-blocked",
     left: null,
     right: null,
     leftSize: 1,
@@ -68,16 +68,17 @@ describe("差异行生成", () => {
     expect(outcome.stats.moved).toBe(1);
   });
 
-  it("哈希不同 → 内容不同", () => {
+  it("同路径内容不同 → 目标占用", () => {
     const outcome = planSync(
       makeInput({
-        pairs: [pair("a.md", "a.md", "h1")],
+        leftOnly: ["a.md"],
+        rightOnly: ["a.md"],
         left: collection(entry("a.md", "h2")),
         right: collection(entry("a.md", "h1")),
       }),
     );
-    expect(outcome.rows[0]?.status).toBe("diff");
-    expect(outcome.stats.diff).toBe(1);
+    expect(outcome.rows).toHaveLength(1);
+    expect(outcome.rows[0]?.status).toBe("target-blocked");
   });
 
   it("单侧文件分别标记", () => {
@@ -140,28 +141,20 @@ describe("单行动作", () => {
     ).toEqual([]);
   });
 
-  it("内容不同时以左为准会复制并清掉右侧旧路径", () => {
+  it("本侧独有且以对侧为准 → 软删除", () => {
     const actions = actionForRow(
-      makeRow({ status: "diff", left: "a.md", right: "old.md" }),
-      "right",
+      makeRow({ status: "left-only", left: "a.md" }),
+      "left",
       1,
-      "align-left",
+      "align-right",
     );
     expect(actions).toEqual([
       {
-        kind: "copy",
-        side: "right",
-        fromPath: "a.md",
-        toPath: "a.md",
-        status: "diff",
-        rowIndex: 1,
-      },
-      {
-        kind: "delete",
-        side: "right",
+        kind: "soft-delete",
+        side: "left",
         fromPath: null,
-        toPath: "old.md",
-        status: "diff",
+        toPath: "a.md",
+        status: "left-only",
         rowIndex: 1,
       },
     ]);

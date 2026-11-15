@@ -49,7 +49,8 @@ export async function executeActions(
         await rename(sourceFull, targetFull);
         result.moved += 1;
         result.moves.push({ side: action.side, from, to: action.toPath });
-      } else {
+      } else if (action.kind === "soft-delete") {
+        // ponytail: 暂时仍进系统回收站，内置回收站（.dsync/deleted）在第二批替换
         await deps.trash(targetFull);
         result.deleted += 1;
       }

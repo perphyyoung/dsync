@@ -4,7 +4,7 @@ import type { DiffRow } from "./types";
 
 function makeRow(overrides: Partial<DiffRow>): DiffRow {
   return {
-    status: "diff",
+    status: "target-blocked",
     left: null,
     right: null,
     leftSize: 1,
@@ -19,12 +19,13 @@ function makeRow(overrides: Partial<DiffRow>): DiffRow {
 }
 
 describe("单行方向", () => {
-  it("两侧都有且内容不同：两个方向都是复制，不涉及删除", () => {
-    const dirs = rowDirections(makeRow({ left: "a.md", right: "a.md" }), 0);
-    expect(dirs.right.actions[0]).toMatchObject({ kind: "copy", side: "right" });
-    expect(dirs.left.actions[0]).toMatchObject({ kind: "copy", side: "left" });
-    expect(dirs.right.deletes).toBe(false);
-    expect(dirs.left.deletes).toBe(false);
+  it("同路径内容不同：两侧都被占用，无动作", () => {
+    const dirs = rowDirections(
+      makeRow({ status: "target-blocked", left: "a.md", right: "a.md" }),
+      0,
+    );
+    expect(dirs.left.actions).toEqual([]);
+    expect(dirs.right.actions).toEqual([]);
   });
 
   it("仅左侧存在：向右是复制，向左等于删除左侧", () => {
@@ -32,7 +33,7 @@ describe("单行方向", () => {
     expect(dirs.right.actions[0]).toMatchObject({ kind: "copy", side: "right" });
     expect(dirs.right.deletes).toBe(false);
     expect(dirs.left.actions[0]).toMatchObject({
-      kind: "delete",
+      kind: "soft-delete",
       side: "left",
       toPath: "a.md",
       rowIndex: 2,
@@ -43,15 +44,18 @@ describe("单行方向", () => {
   it("仅右侧存在：向左是复制，向右等于删除右侧", () => {
     const dirs = rowDirections(makeRow({ status: "right-only", right: "b.md" }), 0);
     expect(dirs.left.actions[0]).toMatchObject({ kind: "copy", side: "left" });
-    expect(dirs.right.actions[0]).toMatchObject({ kind: "delete", side: "right", toPath: "b.md" });
+    expect(dirs.right.actions[0]).toMatchObject({
+      kind: "soft-delete",
+      side: "right",
+      toPath: "b.md",
+    });
     expect(dirs.right.deletes).toBe(true);
   });
 
-  it("路径不同的差异：改写会顺带清掉旧路径，算删除", () => {
-    const dirs = rowDirections(makeRow({ left: "a.md", right: "old.md" }), 1);
-    expect(dirs.right.actions.map((action) => action.kind)).toEqual(["copy", "delete"]);
-    expect(dirs.right.deletes).toBe(true);
-    expect(dirs.left.actions.map((action) => action.kind)).toEqual(["copy", "delete"]);
+  it("重复行不产生动作", () => {
+    const dirs = rowDirections(makeRow({ status: "duplicate", left: "a.md" }), 1);
+    expect(dirs.left.actions).toEqual([]);
+    expect(dirs.right.actions).toEqual([]);
   });
 
   it("moved 行两个方向都是改名", () => {
