@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import BatchPage from "./components/BatchPage.vue";
 import ConfirmBubble from "./components/ConfirmBubble.vue";
 import DirPicker from "./components/DirPicker.vue";
 import FileList from "./components/FileList.vue";
@@ -9,15 +8,12 @@ import ProgressPage from "./components/ProgressPage.vue";
 import RecyclePage from "./components/RecyclePage.vue";
 import RowActions from "./components/RowActions.vue";
 import ToastBubble from "./components/ToastBubble.vue";
-import { computeBatchStats, detectTargetConflicts } from "./lib/batch";
 import { parseExtInput } from "./lib/exts";
 import { baseName } from "./lib/format";
-import { actionForRow } from "./lib/plan";
+import { buildPreview } from "./lib/preview";
 import { rowDirections } from "./lib/row-actions";
 import { verifyOutcome } from "./lib/verify";
 import type {
-  AlignMode,
-  BatchStats,
   DeletedRecord,
   DiffRow,
   MismatchEntry,
@@ -50,9 +46,7 @@ const toast = ref<string | null>(null);
 const alerts = ref<string[]>([]);
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
-const batchOpen = ref(false);
-const batchBaseline = ref<Side>("left");
-const batchReorder = ref(false);
+const previewSide = ref<Side | null>(null);
 
 const recycleOpen = ref(false);
 const recycleItems = ref<DeletedRecord[]>([]);
@@ -91,11 +85,10 @@ const statsTooltip = computed(() => {
   );
 });
 
-const batchTargetSide = computed<Side>(() => (batchBaseline.value === "left" ? "right" : "left"));
-
-const batchStats = computed<BatchStats>(() => {
-  const rows = result.value?.rows ?? [];
-  return computeBatchStats(rows, selected.value, batchTargetSide.value, batchReorder.value);
+const preview = computed(() => {
+  const side = previewSide.value;
+  if (!side) return null;
+  return buildPreview(result.value?.rows ?? [], selected.value, side);
 });
 
 const progressStatus = computed<"running" | "paused" | "cancelled">(() =>
@@ -175,7 +168,7 @@ async function scan(forceRehash = false): Promise<void> {
     pushAlert("请先选择左右两个目录");
     return;
   }
-  batchOpen.value = false;
+  previewSide.value = null;
   scanning.value = true;
   forceRehashActive.value = forceRehash;
   progressView.value = "running";
@@ -526,34 +519,21 @@ function rehashFromMenu(): void {
   void rehashRow(menu.rowIndex);
 }
 
-function openBatch(): void {
-  if (selected.value.size === 0) return;
-  batchOpen.value = true;
+function startPreview(side: Side): void {
+  if (selected.value.size === 0) {
+    pushAlert("先勾选要执行的行");
+    return;
+  }
+  previewSide.value = side;
 }
 
-/** 批量执行的动作全部按当前选择现算，不复用扫描结果 */
-async function executeBatch(): Promise<void> {
-  const rows = result.value?.rows ?? [];
-  const side = batchTargetSide.value;
-  const mode: AlignMode = batchReorder.value
-    ? side === "right"
-      ? "align-left"
-      : "align-right"
-    : "keep";
-  const conflicts = batchReorder.value
-    ? detectTargetConflicts(rows, selected.value, side)
-    : new Set<number>();
-
-  const actions: SyncAction[] = [];
-  for (const index of [...selected.value].toSorted((a, b) => a - b)) {
-    if (conflicts.has(index)) continue;
-    const row = rows[index];
-    if (!row) continue;
-    actions.push(...actionForRow(row, side, index, mode));
-  }
-
-  batchOpen.value = false;
-  await runActions(actions, "批量执行");
+/** 预览定型：进入预览时把动作算好并固定，执行直接落地 */
+async function executePreview(): Promise<void> {
+  const side = previewSide.value;
+  if (!side) return;
+  const built = buildPreview(result.value?.rows ?? [], selected.value, side);
+  previewSide.value = null;
+  await runActions(built.actions, side === "left" ? "同步到左侧" : "同步到右侧");
 }
 </script>
 
@@ -578,7 +558,7 @@ async function executeBatch(): Promise<void> {
       @close="recycleOpen = false"
     />
 
-    <template v-else-if="!batchOpen">
+    <template v-else>
       <div v-if="alerts.length > 0" class="border-b border-amber-900/60 bg-amber-950/40">
         <div
           v-for="(alert, index) in alerts"
@@ -642,9 +622,9 @@ async function executeBatch(): Promise<void> {
                 :items="items"
                 :selected="selected"
                 :busy="busy"
+                :highlight="previewSide"
                 @run-left="runRow($event, 'left')"
                 @run-right="runRow($event, 'right')"
-                @rehash="rehashRow"
                 @toggle="toggle"
               />
             </div>
@@ -662,35 +642,54 @@ async function executeBatch(): Promise<void> {
           >
           <button
             type="button"
-            class="ml-auto rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+            class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
             @click="openRecycle"
           >
             回收站
           </button>
-          <button
-            type="button"
-            class="rounded bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="busy || selected.size === 0"
-            :title="selected.size === 0 ? '先勾选要执行的差异行' : ''"
-            @click="openBatch"
-          >
-            批量执行（{{ selected.size }}）
-          </button>
+          <template v-if="previewSide === null">
+            <button
+              type="button"
+              class="ml-auto rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="busy || selected.size === 0"
+              :title="selected.size === 0 ? '先勾选要执行的行' : ''"
+              @click="startPreview('left')"
+            >
+              向左同步预览
+            </button>
+            <button
+              type="button"
+              class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="busy || selected.size === 0"
+              @click="startPreview('right')"
+            >
+              向右同步预览
+            </button>
+          </template>
+          <template v-else>
+            <span class="text-slate-300">
+              复制 {{ preview?.stats.copy ?? 0 }} · 改名 {{ preview?.stats.rename ?? 0 }} · 软删除
+              {{ preview?.stats.softDelete ?? 0 }} · 忽略 {{ preview?.stats.ignored ?? 0 }}
+            </span>
+            <button
+              type="button"
+              class="ml-auto rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+              @click="previewSide = null"
+            >
+              退出预览
+            </button>
+            <button
+              type="button"
+              class="rounded bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="busy || !preview || preview.actions.length === 0"
+              @click="executePreview"
+            >
+              执行同步
+            </button>
+          </template>
         </div>
       </footer>
     </template>
-
-    <BatchPage
-      v-else
-      :stats="batchStats"
-      :baseline="batchBaseline"
-      :reorder="batchReorder"
-      :busy="executing"
-      @update:baseline="batchBaseline = $event"
-      @update:reorder="batchReorder = $event"
-      @execute="executeBatch"
-      @close="batchOpen = false"
-    />
 
     <div
       v-if="rowMenu"

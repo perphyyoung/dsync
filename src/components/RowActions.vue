@@ -3,13 +3,15 @@ import { computed, ref } from "vue";
 import { describeAction } from "../lib/format";
 import type { RowDirection } from "../lib/row-actions";
 import { rowDirections } from "../lib/row-actions";
-import type { DiffRow } from "../lib/types";
+import type { DiffRow, Side } from "../lib/types";
 import ConfirmBubble from "./ConfirmBubble.vue";
 
 const props = defineProps<{
   items: { row: DiffRow; index: number }[];
   selected: Set<number>;
   busy: boolean;
+  /** 预览模式：只亮这一侧，另一侧置灰 */
+  highlight?: Side | null;
 }>();
 
 const emit = defineEmits<{
@@ -42,9 +44,14 @@ function arrowClass(direction: RowDirection): string {
 function arrowTitle(direction: RowDirection, side: "left" | "right"): string {
   if (direction.actions.length === 0) return "无内容可同步";
   if (direction.deletes) {
-    return side === "left" ? "删除左侧文件到回收站" : "删除右侧文件到回收站";
+    return side === "left" ? "软删除左侧文件到回收站" : "软删除右侧文件到回收站";
   }
   return side === "left" ? "以右侧为准同步到左侧" : "以左侧为准同步到右侧";
+}
+
+/** 预览模式下，非目标方向淡出 */
+function dimmed(side: "left" | "right"): string {
+  return props.highlight && props.highlight !== side ? "opacity-20" : "";
 }
 
 /** defineEmits 的重载不接受联合事件名，拆成两个字面量分支 */
@@ -93,7 +100,7 @@ function confirmRun(): void {
       <button
         type="button"
         class="flex h-5 w-5 items-center justify-center rounded text-[11px] leading-none disabled:cursor-not-allowed"
-        :class="arrowClass(entry.dirs.left)"
+        :class="[arrowClass(entry.dirs.left), dimmed('left')]"
         :disabled="busy || entry.dirs.left.actions.length === 0"
         :title="arrowTitle(entry.dirs.left, 'left')"
         @click="onArrow($event, entry.index, 'left')"
@@ -111,7 +118,7 @@ function confirmRun(): void {
       <button
         type="button"
         class="flex h-5 w-5 items-center justify-center rounded text-[11px] leading-none disabled:cursor-not-allowed"
-        :class="arrowClass(entry.dirs.right)"
+        :class="[arrowClass(entry.dirs.right), dimmed('right')]"
         :disabled="busy || entry.dirs.right.actions.length === 0"
         :title="arrowTitle(entry.dirs.right, 'right')"
         @click="onArrow($event, entry.index, 'right')"

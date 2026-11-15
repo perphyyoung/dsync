@@ -50,7 +50,8 @@ function sizeOf(row: DiffRow): number | null {
       class="flex h-8 w-full items-center gap-2 border-b border-slate-900 px-3 text-left text-xs hover:bg-slate-900/70"
       :class="[
         item.row.status === 'ignored' ? 'opacity-50' : '',
-        item.row.status === 'target-blocked' ? 'bg-rose-950/30' : '',
+        item.row.status === 'duplicate' ? 'opacity-40' : '',
+        item.row.status === 'target-blocked' ? 'bg-rose-950/30 opacity-60' : '',
       ]"
       :title="STATUS_TEXT[item.row.status]"
       @click="emit('toggle', item.index)"

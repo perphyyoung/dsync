@@ -28,7 +28,8 @@ test("应用可以启动并显示左右双栏与操作栏", async () => {
   await expect(page.getByText("右侧文件", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "扫描", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "强制重算", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: /^批量执行（\d+）$/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "向左同步预览", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "向右同步预览", exact: true })).toBeVisible();
 
   const menu = await app.evaluate(({ Menu }) =>
     (Menu.getApplicationMenu()?.items ?? []).map((item) => item.label),
