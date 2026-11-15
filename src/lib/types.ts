@@ -216,6 +216,28 @@ export interface ExecuteResult {
   stale: StaleEntry[];
 }
 
+export interface RecycleListRequest {
+  leftRoot: string;
+  rightRoot: string;
+}
+
+export interface RecycleRestoreRequest {
+  root: string;
+  id: number;
+}
+
+/** 内置回收站的一条记录 */
+export interface DeletedRecord {
+  id: number;
+  side: Side;
+  /** 删除前的相对路径 */
+  path: RelPath;
+  deletedAt: string;
+  size: number;
+  /** 回收站目录里的文件名 */
+  blob: string;
+}
+
 /** 最近使用的目录对，供「文件 → 最近目录对」菜单加载 */
 export interface RecentPair {
   left: string;

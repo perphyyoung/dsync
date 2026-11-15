@@ -1,7 +1,10 @@
 import type {
+  DeletedRecord,
   ExecuteRequest,
   ExecuteResult,
   RecentPair,
+  RecycleListRequest,
+  RecycleRestoreRequest,
   RefreshRequest,
   RefreshedRow,
   RehashRequest,
@@ -21,6 +24,8 @@ export interface Api {
   rehash(request: RehashRequest): Promise<RehashResult>;
   refresh(request: RefreshRequest): Promise<RefreshedRow[]>;
   listRecent(): Promise<RecentPair[]>;
+  listRecycle(request: RecycleListRequest): Promise<DeletedRecord[]>;
+  restoreRecycle(request: RecycleRestoreRequest): Promise<string>;
   onProgress(callback: (progress: ScanProgress) => void): () => void;
   onLoadRecent(callback: (pair: RecentPair) => void): () => void;
   log(level: string, message: string): Promise<void>;

@@ -5,6 +5,7 @@ import { ScanCancelledError, ScanController } from "../src/lib/controller";
 import { runScan } from "../src/lib/pipeline";
 import { migrateMoveCaches } from "../src/lib/index-migrate";
 import { loadIndexPair } from "../src/lib/index-file";
+import { listDeleted, restoreDeleted, softDelete } from "../src/lib/recycle";
 import { mergeRecentPair, readRecentPairs, writeRecentPairs } from "../src/lib/recent";
 import { detectStale, refreshPaths } from "../src/lib/refresh";
 import { rehashPair } from "../src/lib/rehash";
@@ -220,6 +221,39 @@ ipcMain.handle("sync:refresh", async (_event, raw: unknown) => {
   });
 });
 
+function parseRootsPair(value: unknown): { leftRoot: string; rightRoot: string } {
+  if (typeof value !== "object" || value === null) throw new Error("无效参数");
+  const input = value as Record<string, unknown>;
+  const leftRoot = input["leftRoot"];
+  const rightRoot = input["rightRoot"];
+  if (typeof leftRoot !== "string" || typeof rightRoot !== "string") throw new Error("无效目录");
+  return { leftRoot, rightRoot };
+}
+
+ipcMain.handle("recycle:list", async (_event, raw: unknown) => {
+  return handleIpc("recycle:list", async () => {
+    const { leftRoot, rightRoot } = parseRootsPair(raw);
+    const [left, right] = await Promise.all([
+      listDeleted(leftRoot, "left"),
+      listDeleted(rightRoot, "right"),
+    ]);
+    return [...left, ...right].toSorted((a, b) => b.deletedAt.localeCompare(a.deletedAt));
+  });
+});
+
+ipcMain.handle("recycle:restore", async (_event, raw: unknown) => {
+  return handleIpc("recycle:restore", async () => {
+    if (typeof raw !== "object" || raw === null) throw new Error("无效参数");
+    const input = raw as Record<string, unknown>;
+    const root = input["root"];
+    const id = input["id"];
+    if (typeof root !== "string" || typeof id !== "number") throw new Error("无效参数");
+    const path = await restoreDeleted(root, id);
+    log.info(`[recycle] 还原 ${path}`);
+    return path;
+  });
+});
+
 ipcMain.handle("sync:execute", async (_event, raw: unknown) => {
   return handleIpc("sync:execute", async () => {
     const request = parseExecuteRequest(raw);
@@ -230,15 +264,7 @@ ipcMain.handle("sync:execute", async (_event, raw: unknown) => {
     const staleSet = new Set(stale.map((item) => item.path));
     const actions = request.actions.filter((action) => !staleSet.has(action.toPath));
 
-    const result = await executeActions(
-      { ...request, actions },
-      {
-        /* 只进回收站，失败即报错，绝不降级为永久删除 */
-        trash: async (fullPath) => {
-          await shell.trashItem(fullPath);
-        },
-      },
-    );
+    const result = await executeActions({ ...request, actions }, { softDelete });
     result.stale = stale;
     await migrateMoveCaches(request.leftRoot, request.rightRoot, result.moves);
     log.info(

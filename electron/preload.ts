@@ -1,8 +1,11 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { ScanProgress } from "../src/lib/types";
 import type {
+  DeletedRecord,
   ExecuteRequest,
   RecentPair,
+  RecycleListRequest,
+  RecycleRestoreRequest,
   RefreshRequest,
   RefreshedRow,
   RehashRequest,
@@ -23,6 +26,10 @@ contextBridge.exposeInMainWorld("api", {
   refresh: (request: RefreshRequest): Promise<RefreshedRow[]> =>
     ipcRenderer.invoke("sync:refresh", request),
   listRecent: (): Promise<RecentPair[]> => ipcRenderer.invoke("recent:list"),
+  listRecycle: (request: RecycleListRequest): Promise<DeletedRecord[]> =>
+    ipcRenderer.invoke("recycle:list", request),
+  restoreRecycle: (request: RecycleRestoreRequest): Promise<string> =>
+    ipcRenderer.invoke("recycle:restore", request),
   onProgress: (callback: (progress: ScanProgress) => void): (() => void) => {
     const handler = (_event: unknown, progress: ScanProgress): void => callback(progress);
     ipcRenderer.on("sync:progress", handler);

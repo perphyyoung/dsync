@@ -2,11 +2,11 @@ import { copyFile, mkdir, rename } from "node:fs/promises";
 import { dirname } from "node:path";
 import { resolveInsideRoot } from "./path-guard";
 import { TMP_SUFFIX } from "./scan";
-import type { ExecuteRequest, ExecuteResult, Side } from "./types";
+import type { ExecuteRequest, ExecuteResult, RelPath, Side } from "./types";
 
 export interface ExecuteDeps {
-  /** 删除实现，桌面端注入回收站，测试注入 rm */
-  trash: (fullPath: string) => Promise<void>;
+  /** 软删除：桌面端移入内置回收站，测试注入假实现 */
+  softDelete: (root: string, relPath: RelPath) => Promise<void>;
 }
 
 async function copyAtomic(source: string, target: string): Promise<void> {
@@ -50,8 +50,7 @@ export async function executeActions(
         result.moved += 1;
         result.moves.push({ side: action.side, from, to: action.toPath });
       } else if (action.kind === "soft-delete") {
-        // ponytail: 暂时仍进系统回收站，内置回收站（.dsync/deleted）在第二批替换
-        await deps.trash(targetFull);
+        await deps.softDelete(targetRoot, action.toPath);
         result.deleted += 1;
       }
     } catch (error) {

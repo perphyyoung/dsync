@@ -33,8 +33,8 @@ function request(left: string, right: string, overrides: Partial<ScanRequest> = 
   };
 }
 
-const trash = async (fullPath: string): Promise<void> => {
-  await rm(fullPath, { force: true });
+const softDelete = async (root: string, relPath: string): Promise<void> => {
+  await rm(join(root, relPath), { force: true });
 };
 
 describe("端到端扫描与执行", () => {
@@ -54,7 +54,10 @@ describe("端到端扫描与执行", () => {
     const actions = actionForRow(scan.rows[0], "left", 0, "align-right");
     expect(actions).toHaveLength(1);
 
-    const result = await executeActions({ leftRoot: left, rightRoot: right, actions }, { trash });
+    const result = await executeActions(
+      { leftRoot: left, rightRoot: right, actions },
+      { softDelete },
+    );
     expect(result.moved).toBe(1);
     expect(result.failed).toHaveLength(0);
     expect(await readFile(join(left, "notes.md"), "utf8")).toBe("hello");
@@ -72,7 +75,7 @@ describe("端到端扫描与执行", () => {
     expect(scan.rows[0].status).toBe("left-only");
 
     const actions = actionForRow(scan.rows[0], "right", 0, "keep");
-    await executeActions({ leftRoot: left, rightRoot: right, actions }, { trash });
+    await executeActions({ leftRoot: left, rightRoot: right, actions }, { softDelete });
     expect(await readFile(join(right, "a.md"), "utf8")).toBe("v2");
   });
 
@@ -189,7 +192,7 @@ describe("端到端扫描与执行", () => {
           },
         ],
       },
-      { trash: async () => {} },
+      { softDelete: async () => {} },
     );
 
     expect(outcome.moves).toEqual([{ side: "right", from: "b/a.md", to: "a.md" }]);

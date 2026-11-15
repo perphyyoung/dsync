@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import BatchPage from "./components/BatchPage.vue";
+import ConfirmBubble from "./components/ConfirmBubble.vue";
 import DirPicker from "./components/DirPicker.vue";
 import FileList from "./components/FileList.vue";
 import FilterPanel from "./components/FilterPanel.vue";
 import ProgressPage from "./components/ProgressPage.vue";
+import RecyclePage from "./components/RecyclePage.vue";
 import RowActions from "./components/RowActions.vue";
 import ToastBubble from "./components/ToastBubble.vue";
 import { computeBatchStats, detectTargetConflicts } from "./lib/batch";
@@ -16,6 +18,7 @@ import { verifyOutcome } from "./lib/verify";
 import type {
   AlignMode,
   BatchStats,
+  DeletedRecord,
   DiffRow,
   MismatchEntry,
   RefreshTarget,
@@ -51,7 +54,21 @@ const batchOpen = ref(false);
 const batchBaseline = ref<Side>("left");
 const batchReorder = ref(false);
 
+const recycleOpen = ref(false);
+const recycleItems = ref<DeletedRecord[]>([]);
+const recycleBusy = ref(false);
+const rowMenu = ref<{ rowIndex: number; side: Side; x: number; y: number } | null>(null);
+const softDeleteConfirm = ref<{ rowIndex: number; side: Side } | null>(null);
+
 const busy = computed(() => scanning.value || executing.value);
+
+const softDeleteMessage = computed(() => {
+  const target = softDeleteConfirm.value;
+  if (!target) return "";
+  const row = result.value?.rows[target.rowIndex];
+  const path = row?.[target.side] ?? "";
+  return `${path}\n移入回收站后可以还原；dsync 不会真正删除文件。`;
+});
 
 const items = computed(() => {
   const rows = result.value?.rows ?? [];
@@ -425,6 +442,90 @@ async function rehashRow(index: number): Promise<void> {
   }
 }
 
+async function loadRecycle(): Promise<void> {
+  if (!leftRoot.value || !rightRoot.value) return;
+  recycleItems.value = await window.api.listRecycle({
+    leftRoot: leftRoot.value,
+    rightRoot: rightRoot.value,
+  });
+}
+
+async function openRecycle(): Promise<void> {
+  if (!leftRoot.value || !rightRoot.value) {
+    pushAlert("请先选择左右两个目录");
+    return;
+  }
+  try {
+    await loadRecycle();
+    recycleOpen.value = true;
+  } catch (error) {
+    pushAlert(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function restoreItem(item: DeletedRecord): Promise<void> {
+  const root = item.side === "left" ? leftRoot.value : rightRoot.value;
+  recycleBusy.value = true;
+  try {
+    await window.api.restoreRecycle({ root, id: item.id });
+    await loadRecycle();
+    showToast(`已还原：${item.path}`);
+  } catch (error) {
+    pushAlert(error instanceof Error ? error.message : String(error));
+  } finally {
+    recycleBusy.value = false;
+  }
+}
+
+/** 文件右键：挂在文件列表上，不是操作列 */
+function onRowMenu(side: Side, index: number, event: MouseEvent): void {
+  const row = result.value?.rows[index];
+  if (!row || !row[side]) return;
+  event.preventDefault();
+  rowMenu.value = {
+    rowIndex: index,
+    side,
+    x: Math.min(event.clientX, window.innerWidth - 170),
+    y: Math.min(event.clientY, window.innerHeight - 90),
+  };
+}
+
+function requestSoftDelete(): void {
+  const menu = rowMenu.value;
+  rowMenu.value = null;
+  if (!menu) return;
+  softDeleteConfirm.value = { rowIndex: menu.rowIndex, side: menu.side };
+}
+
+async function confirmSoftDelete(): Promise<void> {
+  const target = softDeleteConfirm.value;
+  softDeleteConfirm.value = null;
+  if (!target) return;
+  const row = result.value?.rows[target.rowIndex];
+  const path = row?.[target.side];
+  if (!row || !path) return;
+  await runActions(
+    [
+      {
+        kind: "soft-delete",
+        side: target.side,
+        fromPath: null,
+        toPath: path,
+        status: row.status,
+        rowIndex: target.rowIndex,
+      },
+    ],
+    "软删除",
+  );
+}
+
+function rehashFromMenu(): void {
+  const menu = rowMenu.value;
+  rowMenu.value = null;
+  if (!menu) return;
+  void rehashRow(menu.rowIndex);
+}
+
 function openBatch(): void {
   if (selected.value.size === 0) return;
   batchOpen.value = true;
@@ -467,6 +568,14 @@ async function executeBatch(): Promise<void> {
       @resume="resumeScan"
       @cancel="cancelScan"
       @back="closeProgress"
+    />
+
+    <RecyclePage
+      v-else-if="recycleOpen"
+      :items="recycleItems"
+      :busy="recycleBusy"
+      @restore="restoreItem"
+      @close="recycleOpen = false"
     />
 
     <template v-else-if="!batchOpen">
@@ -526,7 +635,7 @@ async function executeBatch(): Promise<void> {
           </div>
           <div v-else class="flex">
             <div class="min-w-0 flex-1">
-              <FileList side="left" :items="items" @toggle="toggle" />
+              <FileList side="left" :items="items" @toggle="toggle" @menu="onRowMenu" />
             </div>
             <div class="w-24 shrink-0 border-x border-slate-800 bg-slate-900/30">
               <RowActions
@@ -540,7 +649,7 @@ async function executeBatch(): Promise<void> {
               />
             </div>
             <div class="min-w-0 flex-1">
-              <FileList side="right" :items="items" @toggle="toggle" />
+              <FileList side="right" :items="items" @toggle="toggle" @menu="onRowMenu" />
             </div>
           </div>
         </div>
@@ -553,7 +662,14 @@ async function executeBatch(): Promise<void> {
           >
           <button
             type="button"
-            class="ml-auto rounded bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+            class="ml-auto rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+            @click="openRecycle"
+          >
+            回收站
+          </button>
+          <button
+            type="button"
+            class="rounded bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="busy || selected.size === 0"
             :title="selected.size === 0 ? '先勾选要执行的差异行' : ''"
             @click="openBatch"
@@ -575,6 +691,49 @@ async function executeBatch(): Promise<void> {
       @execute="executeBatch"
       @close="batchOpen = false"
     />
+
+    <div
+      v-if="rowMenu"
+      class="fixed inset-0 z-40"
+      @click="rowMenu = null"
+      @contextmenu.prevent="rowMenu = null"
+    ></div>
+    <div
+      v-if="rowMenu"
+      class="fixed z-50 w-44 rounded border border-slate-700 bg-slate-900 py-1 text-xs shadow-xl"
+      :style="{ top: `${rowMenu.y}px`, left: `${rowMenu.x}px` }"
+    >
+      <button
+        type="button"
+        class="block w-full px-3 py-1.5 text-left text-slate-300 hover:bg-slate-800"
+        @click="requestSoftDelete"
+      >
+        软删除{{ rowMenu.side === "left" ? "左侧" : "右侧" }}文件
+      </button>
+      <button
+        type="button"
+        class="block w-full px-3 py-1.5 text-left text-slate-300 hover:bg-slate-800"
+        @click="rehashFromMenu"
+      >
+        重算哈希
+      </button>
+    </div>
+
+    <div
+      v-if="softDeleteConfirm"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60"
+      @click.self="softDeleteConfirm = null"
+    >
+      <ConfirmBubble
+        floating
+        title="软删除"
+        :message="softDeleteMessage"
+        confirm-text="移入回收站"
+        danger
+        @confirm="confirmSoftDelete"
+        @cancel="softDeleteConfirm = null"
+      />
+    </div>
 
     <ToastBubble v-if="toast" :message="toast" />
   </div>

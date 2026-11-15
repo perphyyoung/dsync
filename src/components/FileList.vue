@@ -7,7 +7,10 @@ const props = defineProps<{
   items: { row: DiffRow; index: number }[];
 }>();
 
-const emit = defineEmits<{ toggle: [index: number] }>();
+const emit = defineEmits<{
+  toggle: [index: number];
+  menu: [side: Side, index: number, event: MouseEvent];
+}>();
 
 const STATUS_DOT: Record<RowStatus, string> = {
   same: "bg-slate-600",
@@ -51,6 +54,7 @@ function sizeOf(row: DiffRow): number | null {
       ]"
       :title="STATUS_TEXT[item.row.status]"
       @click="emit('toggle', item.index)"
+      @contextmenu="emit('menu', side, item.index, $event)"
     >
       <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="STATUS_DOT[item.row.status]"></span>
       <span

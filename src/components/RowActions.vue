@@ -15,7 +15,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   runLeft: [index: number];
   runRight: [index: number];
-  rehash: [index: number];
   toggle: [index: number];
 }>();
 
@@ -82,30 +81,6 @@ function confirmRun(): void {
   if (!state) return;
   emitRun(state.side, state.index);
 }
-
-interface MenuState {
-  index: number;
-  top: number;
-  left: number;
-}
-
-const menuState = ref<MenuState | null>(null);
-
-function onContextMenu(event: MouseEvent, index: number): void {
-  event.preventDefault();
-  menuState.value = {
-    index,
-    top: event.clientY,
-    left: Math.min(event.clientX, window.innerWidth - 160),
-  };
-}
-
-function runRehash(): void {
-  const state = menuState.value;
-  menuState.value = null;
-  if (!state) return;
-  emit("rehash", state.index);
-}
 </script>
 
 <template>
@@ -114,7 +89,6 @@ function runRehash(): void {
       v-for="entry in rows"
       :key="entry.index"
       class="flex h-8 items-center justify-center gap-1 border-b border-slate-900"
-      @contextmenu="onContextMenu($event, entry.index)"
     >
       <button
         type="button"
@@ -161,26 +135,6 @@ function runRehash(): void {
         @confirm="confirmRun"
         @cancel="confirmState = null"
       />
-    </div>
-
-    <div
-      v-if="menuState"
-      class="fixed inset-0 z-40"
-      @click="menuState = null"
-      @contextmenu.prevent="menuState = null"
-    ></div>
-    <div
-      v-if="menuState"
-      class="fixed z-50 w-36 rounded border border-slate-700 bg-slate-900 py-1 text-xs shadow-xl"
-      :style="{ top: `${menuState.top}px`, left: `${menuState.left}px` }"
-    >
-      <button
-        type="button"
-        class="block w-full px-3 py-1.5 text-left text-slate-300 hover:bg-slate-800"
-        @click="runRehash"
-      >
-        重算这一行
-      </button>
     </div>
   </div>
 </template>
