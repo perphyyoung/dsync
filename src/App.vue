@@ -5,13 +5,20 @@ import ConfirmDialog from "./components/ConfirmDialog.vue";
 import DirPicker from "./components/DirPicker.vue";
 import FileList from "./components/FileList.vue";
 import FilterPanel from "./components/FilterPanel.vue";
+import ProgressPage from "./components/ProgressPage.vue";
 import RowActions from "./components/RowActions.vue";
 import { computeBatchStats, detectTargetConflicts } from "./lib/batch";
 import { parseExtInput } from "./lib/exts";
-import type { ScanProgress } from "./lib/pipeline";
 import { actionForRow } from "./lib/plan";
 import { rowDirections } from "./lib/row-actions";
-import type { AlignMode, BatchStats, ScanResult, Side, SyncAction } from "./lib/types";
+import type {
+  AlignMode,
+  BatchStats,
+  ScanProgress,
+  ScanResult,
+  Side,
+  SyncAction,
+} from "./lib/types";
 
 interface DialogState {
   title: string;
@@ -20,13 +27,6 @@ interface DialogState {
   danger: boolean;
   onConfirm: () => void;
 }
-
-const PHASE_LABEL: Record<ScanProgress["phase"], string> = {
-  scan: "扫描目录",
-  hash: "计算哈希",
-  pair: "配对",
-  index: "写入索引",
-};
 
 const leftRoot = ref("");
 const rightRoot = ref("");
@@ -39,6 +39,7 @@ const scanning = ref(false);
 const executing = ref(false);
 const progress = ref<ScanProgress | null>(null);
 const forceRehashActive = ref(false);
+const progressView = ref<"hidden" | "running" | "paused" | "cancelled">("hidden");
 const result = ref<ScanResult | null>(null);
 const errorMessage = ref("");
 const statusMessage = ref("");
@@ -79,15 +80,9 @@ const batchStats = computed<BatchStats>(() => {
   return computeBatchStats(rows, selected.value, batchTargetSide.value, batchReorder.value);
 });
 
-const progressText = computed(() => {
-  const current = progress.value;
-  if (!current) return "";
-  const prefix = forceRehashActive.value ? "强制重算 · " : "";
-  const label = PHASE_LABEL[current.phase];
-  if (current.total <= 0) return `${prefix}${label}…`;
-  const percent = Math.round((current.done / current.total) * 100);
-  return `${prefix}${label} ${percent}% (${current.done}/${current.total})`;
-});
+const progressStatus = computed<"running" | "paused" | "cancelled">(() =>
+  progressView.value === "hidden" ? "running" : progressView.value,
+);
 
 let unsubscribeProgress: (() => void) | null = null;
 let unsubscribeRecent: (() => void) | null = null;
@@ -149,10 +144,11 @@ async function scan(forceRehash = false): Promise<void> {
   batchOpen.value = false;
   scanning.value = true;
   forceRehashActive.value = forceRehash;
+  progressView.value = "running";
   errorMessage.value = "";
   statusMessage.value = "";
   try {
-    const scanned = await window.api.scan({
+    const outcome = await window.api.scan({
       leftRoot: leftRoot.value,
       rightRoot: rightRoot.value,
       minSize: Math.max(0, Math.round(minSizeKb.value * 1024)),
@@ -160,17 +156,42 @@ async function scan(forceRehash = false): Promise<void> {
       excludeExts: parseExtInput(excludeInput.value),
       forceRehash,
     });
+    if (outcome.cancelled || !outcome.result) {
+      progressView.value = "cancelled";
+      return;
+    }
+    const scanned = outcome.result;
     result.value = scanned;
     selected.value = defaultSelection(scanned);
     statusMessage.value = `扫描完成：共 ${scanned.rows.length} 项`;
+    progressView.value = "hidden";
     await window.api.log("info", `scan rows=${scanned.rows.length} forceRehash=${forceRehash}`);
   } catch (error) {
     result.value = null;
+    progressView.value = "hidden";
     errorMessage.value = error instanceof Error ? error.message : String(error);
   } finally {
     scanning.value = false;
     progress.value = null;
   }
+}
+
+async function pauseScan(): Promise<void> {
+  await window.api.pauseScan();
+  progressView.value = "paused";
+}
+
+async function resumeScan(): Promise<void> {
+  await window.api.resumeScan();
+  progressView.value = "running";
+}
+
+async function cancelScan(): Promise<void> {
+  await window.api.cancelScan();
+}
+
+function closeProgress(): void {
+  progressView.value = "hidden";
 }
 
 function toggle(index: number): void {
@@ -282,7 +303,18 @@ const warnings = computed(() => result.value?.warnings ?? []);
 
 <template>
   <div class="flex h-full flex-col bg-slate-950 text-slate-200">
-    <template v-if="!batchOpen">
+    <ProgressPage
+      v-if="progressView !== 'hidden'"
+      :progress="progress"
+      :status="progressStatus"
+      :force-rehash="forceRehashActive"
+      @pause="pauseScan"
+      @resume="resumeScan"
+      @cancel="cancelScan"
+      @back="closeProgress"
+    />
+
+    <template v-else-if="!batchOpen">
       <header class="border-b border-slate-800 px-4 py-3">
         <div class="flex items-center gap-3">
           <DirPicker label="左侧目录" :path="leftRoot" @pick="pick('left')" />
@@ -300,14 +332,6 @@ const warnings = computed(() => result.value?.warnings ?? []);
         @scan="scan()"
         @force-rehash="scan(true)"
       />
-
-      <div
-        v-if="progressText"
-        class="border-b border-slate-800 px-4 py-1 text-[11px]"
-        :class="forceRehashActive ? 'text-rose-400' : 'text-sky-400'"
-      >
-        {{ progressText }}
-      </div>
 
       <main class="flex min-h-0 flex-1 flex-col">
         <div

@@ -1,10 +1,13 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { ScanProgress } from "../src/lib/pipeline";
-import type { ExecuteRequest, RecentPair, ScanRequest, ScanResult } from "../src/lib/types";
+import type { ScanProgress } from "../src/lib/types";
+import type { ExecuteRequest, RecentPair, ScanOutcome, ScanRequest } from "../src/lib/types";
 
 contextBridge.exposeInMainWorld("api", {
   pickDirectory: (): Promise<string | null> => ipcRenderer.invoke("dir:pick"),
-  scan: (request: ScanRequest): Promise<ScanResult> => ipcRenderer.invoke("sync:scan", request),
+  scan: (request: ScanRequest): Promise<ScanOutcome> => ipcRenderer.invoke("sync:scan", request),
+  pauseScan: (): Promise<void> => ipcRenderer.invoke("sync:pause"),
+  resumeScan: (): Promise<void> => ipcRenderer.invoke("sync:resume"),
+  cancelScan: (): Promise<void> => ipcRenderer.invoke("sync:cancel"),
   execute: (request: ExecuteRequest) => ipcRenderer.invoke("sync:execute", request),
   listRecent: (): Promise<RecentPair[]> => ipcRenderer.invoke("recent:list"),
   onProgress: (callback: (progress: ScanProgress) => void): (() => void) => {

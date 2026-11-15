@@ -1,5 +1,6 @@
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
+import { ScanCancelledError, type ScanController } from "./controller";
 import { extMatch } from "./exts";
 import { relativePosix } from "./path-guard";
 import type { FileStat, FilterOptions, RelPath } from "./types";
@@ -34,7 +35,52 @@ function filterReason(name: string, size: number, options: FilterOptions): Ignor
   return null;
 }
 
-export async function scanDirectory(root: string, options: FilterOptions): Promise<ScanOutcome> {
+/** 每个条目都检查一次中断，让扫描阶段也能暂停与取消 */
+async function gate(controller?: ScanController): Promise<void> {
+  if (!controller) return;
+  if (controller.cancelled) throw new ScanCancelledError();
+  await controller.waitIfPaused();
+  if (controller.cancelled) throw new ScanCancelledError();
+}
+
+/**
+ * 第一遍：只递归列目录数文件，不读元信息。
+ * 作用是给第二遍提供分母，让扫描阶段也能给出真实百分比。
+ */
+export async function countFiles(
+  root: string,
+  onDiscover?: (found: number) => void,
+  controller?: ScanController,
+): Promise<number> {
+  let count = 0;
+
+  async function walk(dir: string): Promise<void> {
+    const entries = await readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      await gate(controller);
+      if (entry.isSymbolicLink()) continue;
+      if (entry.isDirectory()) {
+        if (entry.name === DSYNC_DIR) continue;
+        await walk(join(dir, entry.name));
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      count += 1;
+      onDiscover?.(count);
+    }
+  }
+
+  await walk(root);
+  return count;
+}
+
+/** 第二遍：逐个读取元信息并套用过滤规则 */
+export async function collectFiles(
+  root: string,
+  options: FilterOptions,
+  onFile?: () => void,
+  controller?: ScanController,
+): Promise<ScanOutcome> {
   const files = new Map<RelPath, FileStat>();
   const ignored: IgnoredFile[] = [];
   const nestedIndexDirs: RelPath[] = [];
@@ -42,6 +88,7 @@ export async function scanDirectory(root: string, options: FilterOptions): Promi
   async function walk(dir: string): Promise<void> {
     const entries = await readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
+      await gate(controller);
       const full = join(dir, entry.name);
       const rel = relativePosix(root, full);
 
@@ -67,7 +114,16 @@ export async function scanDirectory(root: string, options: FilterOptions): Promi
         continue;
       }
 
-      const info = await stat(full);
+      onFile?.();
+
+      let info;
+      try {
+        info = await stat(full);
+      } catch {
+        ignored.push({ path: rel, reason: "unreadable", size: 0 });
+        continue;
+      }
+
       const reason = filterReason(entry.name, info.size, options);
       if (reason) {
         ignored.push({ path: rel, reason, size: info.size });

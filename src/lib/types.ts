@@ -103,6 +103,28 @@ export interface ScanResult {
   warnings: string[];
 }
 
+/** sync:scan 的返回：用户取消时没有结果 */
+export interface ScanOutcome {
+  cancelled: boolean;
+  result?: ScanResult;
+}
+
+export type ScanPhase = "scan" | "hash" | "pair" | "index";
+
+export interface ScanProgress {
+  phase: ScanPhase;
+  /** 阶段内已完成计数：扫描是文件数，哈希是字节数 */
+  done: number;
+  /** 阶段总计数；扫描收集期没有分母，为 0 */
+  total: number;
+  /** 当前处理的相对路径 */
+  current: string;
+  /** 收集阶段已发现的文件数 */
+  discovered?: number;
+  /** 预计剩余秒数；null 表示样本不足 */
+  etaSeconds?: number | null;
+}
+
 /**
  * side 是「被修改的一侧」，fromPath 是对侧（或同侧的旧路径）。
  * copy: 从对侧复制到 side；move: 在 side 内改名；delete: 删除 side 上的文件。

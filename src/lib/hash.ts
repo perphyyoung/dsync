@@ -9,11 +9,23 @@ export function hashText(input: string): string {
   return createHash("sha256").update(input, "utf8").digest("hex");
 }
 
-export async function hashFile(fullPath: string): Promise<string> {
+export interface HashFileOptions {
+  /** 暂停或取消时中止当前读取 */
+  signal?: AbortSignal;
+  /** 每读到一个分片回报字节数，用于按字节推进进度 */
+  onChunk?: (bytes: number) => void;
+}
+
+export async function hashFile(fullPath: string, options: HashFileOptions = {}): Promise<string> {
   const digest = createHash("sha256");
-  const stream = createReadStream(fullPath, { highWaterMark: READ_CHUNK });
+  const stream = createReadStream(fullPath, {
+    highWaterMark: READ_CHUNK,
+    signal: options.signal,
+  });
   for await (const chunk of stream) {
-    digest.update(chunk as Buffer);
+    const buffer = chunk as Buffer;
+    digest.update(buffer);
+    options.onChunk?.(buffer.length);
   }
   return digest.digest("hex");
 }

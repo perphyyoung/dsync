@@ -1,6 +1,7 @@
 import { mkdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { ScanCancelledError, ScanController } from "./controller";
 import { executeActions } from "./execute";
 import { readIndex } from "./index-file";
 import { runScan } from "./pipeline";
@@ -137,5 +138,32 @@ describe("端到端扫描与执行", () => {
     expect(row).toBeDefined();
     expect(row?.right).toBe("b/y.md");
     expect(row?.pairedBy).toBe("inherited");
+  });
+
+  it("进度回调覆盖扫描、哈希、配对、索引四个阶段", async () => {
+    const { left, right } = await setup();
+    await writeRel(left, "a.md", "abc");
+    await writeRel(right, "a.md", "abc");
+
+    const phases: string[] = [];
+    await runScan(request(left, right), {
+      onProgress: (progress) => {
+        if (phases[phases.length - 1] !== progress.phase) phases.push(progress.phase);
+      },
+    });
+
+    expect(phases).toEqual(["scan", "hash", "pair", "index"]);
+  });
+
+  it("已取消时抛出 ScanCancelledError", async () => {
+    const { left, right } = await setup();
+    await writeRel(left, "a.md", "abc");
+
+    const controller = new ScanController();
+    controller.cancel();
+
+    await expect(runScan(request(left, right), { controller })).rejects.toBeInstanceOf(
+      ScanCancelledError,
+    );
   });
 });

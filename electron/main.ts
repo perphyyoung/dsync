@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { join } from "node:path";
 import { executeActions } from "../src/lib/execute";
+import { ScanCancelledError, ScanController } from "../src/lib/controller";
 import { runScan } from "../src/lib/pipeline";
 import { mergeRecentPair, readRecentPairs, writeRecentPairs } from "../src/lib/recent";
 import type { ExecuteRequest, RecentPair, ScanRequest, SyncAction } from "../src/lib/types";
@@ -12,6 +13,7 @@ const LOG_LEVELS = new Set(["error", "warn", "info", "debug"]);
 
 let mainWindow: BrowserWindow | null = null;
 let recentPairs: RecentPair[] = [];
+let currentController: ScanController | null = null;
 
 /** dev 写项目根 ds-data；e2e 通过 DSYNC_DATA_DIR 隔离；release 用 userData */
 function dataRoot(): string {
@@ -115,18 +117,43 @@ ipcMain.handle("sync:scan", async (event, raw: unknown) => {
   return handleIpc("sync:scan", async () => {
     const request = parseScanRequest(raw);
     const sender = event.sender;
-    const result = await runScan(request, {
-      onProgress: (progress) => {
-        if (!sender.isDestroyed()) sender.send("sync:progress", progress);
-      },
-    });
-    await rememberPair(request.leftRoot, request.rightRoot);
-    log.info(
-      `[scan] left=${request.leftRoot} right=${request.rightRoot} ` +
-        `rows=${result.rows.length} warnings=${result.warnings.length}`,
-    );
-    return result;
+    const controller = new ScanController();
+    currentController = controller;
+    try {
+      const result = await runScan(request, {
+        controller,
+        onProgress: (progress) => {
+          if (!sender.isDestroyed()) sender.send("sync:progress", progress);
+        },
+      });
+      await rememberPair(request.leftRoot, request.rightRoot);
+      log.info(
+        `[scan] left=${request.leftRoot} right=${request.rightRoot} ` +
+          `rows=${result.rows.length} warnings=${result.warnings.length}`,
+      );
+      return { cancelled: false, result };
+    } catch (error) {
+      if (error instanceof ScanCancelledError) {
+        log.info(`[scan] 用户取消 left=${request.leftRoot} right=${request.rightRoot}`);
+        return { cancelled: true };
+      }
+      throw error;
+    } finally {
+      currentController = null;
+    }
   });
+});
+
+ipcMain.handle("sync:pause", (): void => {
+  currentController?.pause();
+});
+
+ipcMain.handle("sync:resume", (): void => {
+  currentController?.resume();
+});
+
+ipcMain.handle("sync:cancel", (): void => {
+  currentController?.cancel();
 });
 
 ipcMain.handle("sync:execute", async (_event, raw: unknown) => {

@@ -367,9 +367,11 @@ dsync/
 | --- | --- | --- |
 | `dir:pick` | — | `string \| null` |
 | `recent:list` | — | `RecentPair[]` |
-| `sync:scan` | `ScanRequest` | `ScanResult` |
+| `sync:scan` | `ScanRequest` | `ScanOutcome`（取消时只有 `cancelled: true`） |
+| `sync:pause` | — | `void` |
+| `sync:resume` | — | `void` |
+| `sync:cancel` | — | `void` |
 | `sync:execute` | `ExecuteRequest` | `ExecuteResult` |
-| `sync:cancel` | — | `void`（未实现，见 `todo.md`） |
 | `log:renderer` | level, message | `void` |
 
 主进程 → 渲染进程事件：
@@ -381,7 +383,7 @@ dsync/
 
 `ScanRequest` 只有 `leftRoot` / `rightRoot` / `minSize` / `includeExts` / `excludeExts` / `forceRehash`，**不含方向与结构基准**。
 
-`ScanResult` 只有 `rows` / `stats` / `warnings`，**不含 `actions`**；所有执行动作由前端 `actionForRow` 现算。
+`ScanResult` 只有 `rows` / `stats` / `warnings`，**不含 `actions`**；所有执行动作由前端 `actionForRow` 现算。外层包一层 `ScanOutcome`：用户取消时返回 `{ cancelled: true }`，没有结果。
 
 流程：
 
@@ -509,7 +511,7 @@ MVP 已实现并通过质量门与 e2e。
 
 验证结果：
 
-- `pnpm test`：58 条通过（8 个文件）
+- `pnpm test`：71 条通过（10 个文件）
 - `pnpm check`：format / oxlint / eslint / type-check / test / build 全绿，0 warning
 - `pnpm e2e`：2 条通过（启动冒烟含菜单检查 + 通过 IPC 对真实目录做结构对齐，并验证最近目录对落盘、菜单重建与重启后自动回填）
 - 未执行：`pnpm release` 打 NSIS 包
@@ -527,3 +529,4 @@ MVP 已实现并通过质量门与 e2e。
 - 应用数据目录：dev 为项目根 `ds-data/`，release 为 `userData/`；e2e 用 `DSYNC_DATA_DIR` 覆盖到临时目录，不污染本机配置。
 - 最近目录对存 `recent-pairs.json`（普通 JSON）：它是可重建的便利数据，损坏不影响索引与配对。
 - P0 界面减负已完成：方向与路径策略移入批量执行页，主界面只保留目录按钮、过滤行（含扫描与强制重算）、双列表与状态栏。
+- P1 进度页已完成：扫描先数后读（两遍），哈希先预筛再按字节推进；两阶段各自从 0% 起，暂停立即中断当前文件、取消回到进度页等用户返回。

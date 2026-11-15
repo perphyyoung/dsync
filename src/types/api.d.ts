@@ -1,15 +1,18 @@
-import type { ScanProgress } from "../lib/pipeline";
 import type {
   ExecuteRequest,
   ExecuteResult,
   RecentPair,
+  ScanOutcome,
+  ScanProgress,
   ScanRequest,
-  ScanResult,
 } from "../lib/types";
 
 export interface Api {
   pickDirectory(): Promise<string | null>;
-  scan(request: ScanRequest): Promise<ScanResult>;
+  scan(request: ScanRequest): Promise<ScanOutcome>;
+  pauseScan(): Promise<void>;
+  resumeScan(): Promise<void>;
+  cancelScan(): Promise<void>;
   execute(request: ExecuteRequest): Promise<ExecuteResult>;
   listRecent(): Promise<RecentPair[]>;
   onProgress(callback: (progress: ScanProgress) => void): () => void;

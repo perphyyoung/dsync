@@ -1,3 +1,4 @@
+import { RateTracker, ScanCancelledError, ScanController } from "./controller";
 import { hashFile, HASH_CONCURRENCY, mapLimit } from "./hash";
 import {
   cacheFromIndex,
@@ -9,18 +10,21 @@ import {
 import { pairFiles } from "./pair";
 import { assertValidRootPair, resolveInsideRoot } from "./path-guard";
 import { planSync } from "./plan";
-import { normalizeExts, scanDirectory, type IgnoredFile } from "./scan";
-import type { FileEntry, FileStat, HashCache, RelPath, ScanRequest, ScanResult } from "./types";
-
-export interface ScanProgress {
-  phase: "scan" | "hash" | "pair" | "index";
-  done: number;
-  total: number;
-  current: string;
-}
+import { collectFiles, countFiles, normalizeExts, type IgnoredFile } from "./scan";
+import type {
+  FileEntry,
+  FileStat,
+  HashCache,
+  RelPath,
+  ScanProgress,
+  ScanRequest,
+  ScanResult,
+} from "./types";
 
 export interface ScanHooks {
   onProgress?: (progress: ScanProgress) => void;
+  /** 外部注入的中断控制器；不传则本次扫描不可暂停 */
+  controller?: ScanController;
 }
 
 interface HashSideOutcome {
@@ -28,31 +32,90 @@ interface HashSideOutcome {
   failed: IgnoredFile[];
 }
 
-async function hashSide(
-  root: string,
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+/** 按 100ms 节流，避免十万级文件把 IPC 打满 */
+function createEmitter(hooks: ScanHooks): (progress: ScanProgress, force?: boolean) => void {
+  let lastAt = 0;
+  return (progress, force = false) => {
+    const now = Date.now();
+    if (!force && now - lastAt < 100) return;
+    lastAt = now;
+    hooks.onProgress?.(progress);
+  };
+}
+
+interface CacheSplit {
+  cached: Map<RelPath, FileEntry>;
+  pending: FileStat[];
+  /** 真正需要读取的字节数，作为哈希进度的分母 */
+  bytes: number;
+}
+
+/** 预筛：缓存命中的直接出结果，其余计入待读；缓存命中不算工作量 */
+function splitCache(
   files: Map<RelPath, FileStat>,
   cache: Map<RelPath, HashCache>,
-  ignoreCache: boolean,
-  onDone: (current: string) => void,
-): Promise<HashSideOutcome> {
-  const list = [...files.values()];
-  const entries = new Map<RelPath, FileEntry>();
+  forceRehash: boolean,
+): CacheSplit {
+  const cached = new Map<RelPath, FileEntry>();
+  const pending: FileStat[] = [];
+  let bytes = 0;
+
+  for (const file of files.values()) {
+    const hit = forceRehash ? undefined : cache.get(file.path);
+    if (hit && hit.size === file.size && hit.mtimeMs === file.mtimeMs) {
+      cached.set(file.path, { ...file, hash: hit.hash });
+      continue;
+    }
+    pending.push(file);
+    bytes += file.size;
+  }
+
+  return { cached, pending, bytes };
+}
+
+interface HashInput {
+  root: string;
+  split: CacheSplit;
+  controller: ScanController;
+  onBytes: (delta: number) => void;
+}
+
+async function hashPending(input: HashInput): Promise<HashSideOutcome> {
+  const { root, split, controller, onBytes } = input;
+  const entries = new Map(split.cached);
   const failed: IgnoredFile[] = [];
 
-  await mapLimit(list, HASH_CONCURRENCY, async (file) => {
-    const cached = cache.get(file.path);
-    try {
-      const reusable =
-        !ignoreCache &&
-        cached !== undefined &&
-        cached.size === file.size &&
-        cached.mtimeMs === file.mtimeMs;
-      const hash = reusable ? cached.hash : await hashFile(resolveInsideRoot(root, file.path));
-      entries.set(file.path, { ...file, hash });
-    } catch {
-      failed.push({ path: file.path, reason: "unreadable", size: file.size });
+  await mapLimit(split.pending, HASH_CONCURRENCY, async (file) => {
+    for (;;) {
+      if (controller.cancelled) throw new ScanCancelledError();
+      await controller.waitIfPaused();
+      if (controller.cancelled) throw new ScanCancelledError();
+
+      let attemptBytes = 0;
+      try {
+        const hash = await hashFile(resolveInsideRoot(root, file.path), {
+          signal: controller.signal,
+          onChunk: (size) => {
+            attemptBytes += size;
+            onBytes(size);
+          },
+        });
+        entries.set(file.path, { ...file, hash });
+        return;
+      } catch (error) {
+        if (isAbortError(error) && !controller.cancelled) {
+          // 暂停中断：回滚本次已读字节，恢复后从头重读这个文件
+          onBytes(-attemptBytes);
+          continue;
+        }
+        failed.push({ path: file.path, reason: "unreadable", size: file.size });
+        return;
+      }
     }
-    onDone(file.path);
   });
 
   return {
@@ -65,16 +128,59 @@ async function hashSide(
 export async function runScan(request: ScanRequest, hooks: ScanHooks = {}): Promise<ScanResult> {
   assertValidRootPair(request.leftRoot, request.rightRoot);
 
+  const controller = hooks.controller ?? new ScanController();
+  const emit = createEmitter(hooks);
+
   const filters = {
     minSize: Math.max(0, Number.isFinite(request.minSize) ? request.minSize : 0),
     includeExts: normalizeExts(request.includeExts),
     excludeExts: normalizeExts(request.excludeExts),
   };
 
-  hooks.onProgress?.({ phase: "scan", done: 0, total: 2, current: request.leftRoot });
-  const leftScan = await scanDirectory(request.leftRoot, filters);
-  hooks.onProgress?.({ phase: "scan", done: 1, total: 2, current: request.rightRoot });
-  const rightScan = await scanDirectory(request.rightRoot, filters);
+  // 第一遍：两侧并行数文件，给扫描阶段一个真实分母
+  let discoveredLeft = 0;
+  let discoveredRight = 0;
+  const emitDiscover = (): void => {
+    emit({
+      phase: "scan",
+      done: 0,
+      total: 0,
+      current: "",
+      discovered: discoveredLeft + discoveredRight,
+    });
+  };
+
+  const [leftCount, rightCount] = await Promise.all([
+    countFiles(
+      request.leftRoot,
+      (found) => {
+        discoveredLeft = found;
+        emitDiscover();
+      },
+      controller,
+    ),
+    countFiles(
+      request.rightRoot,
+      (found) => {
+        discoveredRight = found;
+        emitDiscover();
+      },
+      controller,
+    ),
+  ]);
+
+  // 第二遍：逐个读取元信息并过滤
+  const scanTotal = leftCount + rightCount;
+  let scanned = 0;
+  const onFile = (): void => {
+    scanned += 1;
+    emit({ phase: "scan", done: scanned, total: scanTotal, current: "" });
+  };
+
+  const [leftScan, rightScan] = await Promise.all([
+    collectFiles(request.leftRoot, filters, onFile, controller),
+    collectFiles(request.rightRoot, filters, onFile, controller),
+  ]);
 
   const loaded = await loadIndexPair(request.leftRoot, request.rightRoot);
   const inherited = await collectInherited(
@@ -84,29 +190,64 @@ export async function runScan(request: ScanRequest, hooks: ScanHooks = {}): Prom
   );
   const indexPairs = mergePairs(loaded.data.pairs, inherited.pairs);
 
-  const total = leftScan.files.size + rightScan.files.size;
-  let done = 0;
-  const onHashed = (current: string): void => {
-    done += 1;
-    hooks.onProgress?.({ phase: "hash", done, total, current });
-  };
-
-  const leftHashed = await hashSide(
-    request.leftRoot,
+  // 哈希：先预筛，再按字节推进
+  const leftSplit = splitCache(
     leftScan.files,
     cacheFromIndex(loaded.data, "left"),
     request.forceRehash,
-    onHashed,
   );
-  const rightHashed = await hashSide(
-    request.rightRoot,
+  const rightSplit = splitCache(
     rightScan.files,
     cacheFromIndex(loaded.data, "right"),
     request.forceRehash,
-    onHashed,
   );
+  const hashTotal = leftSplit.bytes + rightSplit.bytes;
 
-  hooks.onProgress?.({ phase: "pair", done: 0, total: 1, current: "" });
+  let hashDone = 0;
+  let lastResume = controller.resumeCount;
+  const tracker = new RateTracker();
+  const emitHash = (force = false): void => {
+    tracker.record(hashDone);
+    emit(
+      {
+        phase: "hash",
+        done: hashDone,
+        total: hashTotal,
+        current: "",
+        etaSeconds: tracker.eta(hashTotal),
+      },
+      force,
+    );
+  };
+
+  const onBytes = (delta: number): void => {
+    // 恢复后清空速度窗口，避免把暂停时长算进去
+    if (controller.resumeCount !== lastResume) {
+      lastResume = controller.resumeCount;
+      tracker.reset();
+    }
+    hashDone += delta;
+    emitHash();
+  };
+
+  emitHash(true);
+
+  const leftHashed = await hashPending({
+    root: request.leftRoot,
+    split: leftSplit,
+    controller,
+    onBytes,
+  });
+  const rightHashed = await hashPending({
+    root: request.rightRoot,
+    split: rightSplit,
+    controller,
+    onBytes,
+  });
+
+  if (controller.cancelled) throw new ScanCancelledError();
+
+  emit({ phase: "pair", done: 0, total: 1, current: "" }, true);
   const pairing = pairFiles(leftHashed.entries, rightHashed.entries, indexPairs);
 
   const ignoredByPath = new Map<RelPath, IgnoredFile>();
@@ -128,7 +269,7 @@ export async function runScan(request: ScanRequest, hooks: ScanHooks = {}): Prom
     ignored: [...ignoredByPath.values()],
   });
 
-  hooks.onProgress?.({ phase: "index", done: 0, total: 1, current: "" });
+  emit({ phase: "index", done: 0, total: 1, current: "" }, true);
   const nextIndex = {
     ...loaded.data,
     updatedAt: new Date().toISOString(),

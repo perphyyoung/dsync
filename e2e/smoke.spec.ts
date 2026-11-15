@@ -62,9 +62,11 @@ test("通过 IPC 扫描真实目录并完成结构对齐", async () => {
     forceRehash: false,
   };
 
-  const scanned = await page.evaluate((input: ScanRequest) => window.api.scan(input), request);
-  expect(scanned.rows).toHaveLength(1);
-  expect(scanned.rows[0].status).toBe("moved");
+  const outcome = await page.evaluate((input: ScanRequest) => window.api.scan(input), request);
+  expect(outcome.cancelled).toBe(false);
+  const scanned = outcome.result;
+  expect(scanned?.rows).toHaveLength(1);
+  expect(scanned?.rows[0]?.status).toBe("moved");
 
   // 动作现在由界面现算，这里直接给出一条等价的重排动作
   const actions = [
