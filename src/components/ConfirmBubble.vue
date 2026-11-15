@@ -5,6 +5,8 @@ defineProps<{
   confirmText: string;
   cancelText?: string;
   danger?: boolean;
+  /** 为 true 时不自带定位，由外层容器摆在触发点附近 */
+  floating?: boolean;
 }>();
 
 const emit = defineEmits<{ confirm: []; cancel: [] }>();
@@ -12,7 +14,8 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>();
 
 <template>
   <div
-    class="absolute top-full right-0 z-40 mt-2 w-72 rounded-lg border border-slate-700 bg-slate-900 p-3 text-left shadow-2xl"
+    class="w-72 rounded-lg border border-slate-700 bg-slate-900 p-3 text-left shadow-2xl"
+    :class="floating ? '' : 'absolute top-full right-0 z-40 mt-2'"
   >
     <p v-if="title" class="text-xs font-medium text-slate-100">{{ title }}</p>
     <p class="mt-1 text-xs leading-relaxed whitespace-pre-line text-slate-400">{{ message }}</p>

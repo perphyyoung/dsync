@@ -4,7 +4,14 @@ import { executeActions } from "../src/lib/execute";
 import { ScanCancelledError, ScanController } from "../src/lib/controller";
 import { runScan } from "../src/lib/pipeline";
 import { mergeRecentPair, readRecentPairs, writeRecentPairs } from "../src/lib/recent";
-import type { ExecuteRequest, RecentPair, ScanRequest, SyncAction } from "../src/lib/types";
+import { rehashPair } from "../src/lib/rehash";
+import type {
+  ExecuteRequest,
+  RecentPair,
+  RehashRequest,
+  ScanRequest,
+  SyncAction,
+} from "../src/lib/types";
 import { log, logPath } from "./logger";
 import { applyAppMenu } from "./menu";
 
@@ -154,6 +161,29 @@ ipcMain.handle("sync:resume", (): void => {
 
 ipcMain.handle("sync:cancel", (): void => {
   currentController?.cancel();
+});
+
+function parseRehashRequest(value: unknown): RehashRequest {
+  if (typeof value !== "object" || value === null) throw new Error("无效重算参数");
+  const input = value as Record<string, unknown>;
+  const leftRoot = input["leftRoot"];
+  const rightRoot = input["rightRoot"];
+  const left = input["left"];
+  const right = input["right"];
+  if (typeof leftRoot !== "string" || typeof rightRoot !== "string") throw new Error("无效目录");
+  if (left !== null && typeof left !== "string") throw new Error("无效左侧路径");
+  if (right !== null && typeof right !== "string") throw new Error("无效右侧路径");
+  if (left === null && right === null) throw new Error("没有可重算的文件");
+  return { leftRoot, rightRoot, left, right };
+}
+
+ipcMain.handle("sync:rehash", async (_event, raw: unknown) => {
+  return handleIpc("sync:rehash", async () => {
+    const request = parseRehashRequest(raw);
+    const result = await rehashPair(request);
+    log.info(`[rehash] left=${request.left ?? "-"} right=${request.right ?? "-"}`);
+    return result;
+  });
 });
 
 ipcMain.handle("sync:execute", async (_event, raw: unknown) => {

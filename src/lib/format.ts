@@ -1,3 +1,5 @@
+import type { SyncAction } from "./types";
+
 export function formatSize(size: number | null): string {
   if (size === null) return "";
   if (size < 1024) return `${size} B`;
@@ -44,4 +46,17 @@ export function etaHint(seconds: number | null | undefined): EtaHint | null {
     return { text: "耗时较长，可用过滤条件缩小范围，或随时暂停", level: "tip" };
   }
   return null;
+}
+
+/** 把一条动作写成可读的一行，用于确认框逐条列出 */
+export function describeAction(action: SyncAction): string {
+  if (action.kind === "copy") return `复制 ${action.fromPath ?? ""} → ${action.toPath}`;
+  if (action.kind === "move") return `改名 ${action.fromPath ?? ""} → ${action.toPath}`;
+  return `删除到回收站：${action.toPath}`;
+}
+
+/** 取路径末段作为列标题，根目录为空时返回空串 */
+export function baseName(path: string): string {
+  const parts = path.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] ?? "";
 }

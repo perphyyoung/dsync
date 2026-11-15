@@ -1,6 +1,13 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { ScanProgress } from "../src/lib/types";
-import type { ExecuteRequest, RecentPair, ScanOutcome, ScanRequest } from "../src/lib/types";
+import type {
+  ExecuteRequest,
+  RecentPair,
+  RehashRequest,
+  RehashResult,
+  ScanOutcome,
+  ScanRequest,
+} from "../src/lib/types";
 
 contextBridge.exposeInMainWorld("api", {
   pickDirectory: (): Promise<string | null> => ipcRenderer.invoke("dir:pick"),
@@ -9,6 +16,8 @@ contextBridge.exposeInMainWorld("api", {
   resumeScan: (): Promise<void> => ipcRenderer.invoke("sync:resume"),
   cancelScan: (): Promise<void> => ipcRenderer.invoke("sync:cancel"),
   execute: (request: ExecuteRequest) => ipcRenderer.invoke("sync:execute", request),
+  rehash: (request: RehashRequest): Promise<RehashResult> =>
+    ipcRenderer.invoke("sync:rehash", request),
   listRecent: (): Promise<RecentPair[]> => ipcRenderer.invoke("recent:list"),
   onProgress: (callback: (progress: ScanProgress) => void): (() => void) => {
     const handler = (_event: unknown, progress: ScanProgress): void => callback(progress);

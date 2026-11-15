@@ -33,7 +33,7 @@ const targetLabel = computed(() => (props.baseline === "left" ? "右侧" : "左�
         class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
         @click="emit('close')"
       >
-        返回
+        先不执行
       </button>
     </header>
 
@@ -86,6 +86,10 @@ const targetLabel = computed(() => (props.baseline === "left" ? "右侧" : "左�
             </div>
           </dl>
         </section>
+
+        <p v-if="stats.deleted > 0" class="text-xs text-slate-500">
+          {{ stats.deleted }} 个文件会删除到回收站，可从回收站还原
+        </p>
 
         <p v-if="stats.blocked > 0" class="text-xs text-rose-400">
           {{ stats.blocked }} 行的目标路径被其他文件占用，执行时会跳过

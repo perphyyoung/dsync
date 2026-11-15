@@ -109,6 +109,19 @@ export interface ScanOutcome {
   result?: ScanResult;
 }
 
+/** 单行重算：路径可为 null，表示该侧不存在 */
+export interface RehashRequest {
+  leftRoot: string;
+  rightRoot: string;
+  left: RelPath | null;
+  right: RelPath | null;
+}
+
+export interface RehashResult {
+  leftHash: string | null;
+  rightHash: string | null;
+}
+
 export type ScanPhase = "scan" | "hash" | "pair" | "index";
 
 export interface ScanProgress {

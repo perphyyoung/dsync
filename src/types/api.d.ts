@@ -2,6 +2,8 @@ import type {
   ExecuteRequest,
   ExecuteResult,
   RecentPair,
+  RehashRequest,
+  RehashResult,
   ScanOutcome,
   ScanProgress,
   ScanRequest,
@@ -14,6 +16,7 @@ export interface Api {
   resumeScan(): Promise<void>;
   cancelScan(): Promise<void>;
   execute(request: ExecuteRequest): Promise<ExecuteResult>;
+  rehash(request: RehashRequest): Promise<RehashResult>;
   listRecent(): Promise<RecentPair[]>;
   onProgress(callback: (progress: ScanProgress) => void): () => void;
   onLoadRecent(callback: (pair: RecentPair) => void): () => void;
