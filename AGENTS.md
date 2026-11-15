@@ -47,7 +47,6 @@ Electron 45 · electron-vite 6 · Vue 3 + TypeScript 6 · Tailwind CSS 4 · Vite
 | `通用语言.md`       | 术语、界面元素标准名称、中英文对照、避免使用的旧叫法       |
 | `design.md`         | 交互规范：弹窗选型、状态反馈、进度页三态、布局原则、符号约定 |
 | `dsync起步方案.md`  | 功能设计与实现状态                                         |
-| `todo.md`           | 临时进度追踪，不得被其它文件引用                           |
 
 新增术语先改 `通用语言.md`，新增交互决策先改 `design.md`，改完功能同步 `dsync起步方案.md`。
 
