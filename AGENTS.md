@@ -55,7 +55,7 @@ Electron 45 · electron-vite 6 · Vue 3 + TypeScript 6 · Tailwind CSS 4 · Vite
 - **判定只认内容哈希**，修改时间与大小只用于决定哈希缓存能否复用，不参与业务判定。
 - **MVP 只有单向同步**，索引里的 `base` 只写不读，冲突状态未启用。
 - **配对四级**：索引记忆 → 相对路径 → 文件名唯一 → 内容哈希唯一；后两级只在一对一时成立，避免重复内容张冠李戴。
-- **索引**：每个根目录下的 `.dsync/index`，自研二进制容器（魔数 + 版本 + 长度 + JSON + 尾部 SHA-256）。校验失败只报警不裁决，能否使用由 JSON 能否解析决定。
+- **索引**：每个根目录下的 `.dsync/dsync.db`，SQLite（Node 内置 `node:sqlite`，`journal_mode=DELETE` 单文件）。全量扫描用 `writeIndex`，局部刷新/迁移/单行重算用 `patchIndex` 只改对应行。损坏时当作空索引重建。
 - **扫描不含方向**：`sync:scan` 只返回差异行，所有执行动作由前端 `rowDirections` / `actionForRow` 现算，单行操作与批量执行共用同一套规则。
 - **不做链式腾挪**：重排路径时目标被其他文件占用就跳过该行，不排序、不搬两次，宁可让用户手工处理。
 - **删除只进回收站**，回收站不可用时报错，不降级为永久删除。
@@ -65,7 +65,7 @@ Electron 45 · electron-vite 6 · Vue 3 + TypeScript 6 · Tailwind CSS 4 · Vite
 
 - 应用数据：dev 为项目根 `ds-data/`，release 为 `userData/`；e2e 用环境变量 `DSYNC_DATA_DIR` 覆盖到临时目录。
 - 最近目录对：`recent-pairs.json`，最多 10 组、最新在前、同组去重；扫描成功后自动记录，启动时自动载入最近一组。
-- 索引：各同步根目录下的 `.dsync/index`；整个 `.dsync/` 强制排除，永不参与比较、复制、删除。
+- 索引：各同步根目录下的 `.dsync/dsync.db`；整个 `.dsync/` 强制排除，永不参与比较、复制、删除。
 - 日志：dev 与 e2e 写项目根 `ds.log`，release 写 `userData/ds.log`。
 
 ## 代码质量

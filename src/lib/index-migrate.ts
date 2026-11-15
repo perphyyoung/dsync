@@ -1,5 +1,5 @@
-import { loadIndexPair, writeIndex } from "./index-file";
-import type { MoveRecord, RelPath } from "./types";
+import { loadIndexPair, patchIndex, type PairKey } from "./index-file";
+import type { MoveRecord, PairRecord, RelPath } from "./types";
 
 /**
  * rename 不改变内容、大小与 mtime，旧路径的哈希缓存对新路径依然有效。
@@ -21,17 +21,21 @@ export async function migrateMoveCaches(
   }
 
   const loaded = await loadIndexPair(leftRoot, rightRoot);
-  let changed = false;
-  const pairs = loaded.data.pairs.map((pair) => {
+  const upserts: PairRecord[] = [];
+  const deletes: PairKey[] = [];
+
+  for (const pair of loaded.data.pairs) {
     const left = leftMap.get(pair.left) ?? pair.left;
     const right = rightMap.get(pair.right) ?? pair.right;
-    if (left === pair.left && right === pair.right) return pair;
-    changed = true;
-    return { ...pair, left, right };
-  });
+    if (left === pair.left && right === pair.right) continue;
+    deletes.push({ left: pair.left, right: pair.right });
+    upserts.push({ ...pair, left, right });
+  }
 
-  if (!changed) return;
+  if (upserts.length === 0) return;
 
-  const next = { ...loaded.data, updatedAt: new Date().toISOString(), pairs };
-  await Promise.all([writeIndex(leftRoot, next), writeIndex(rightRoot, next)]);
+  await Promise.all([
+    patchIndex(leftRoot, { upserts, deletes }),
+    patchIndex(rightRoot, { upserts, deletes }),
+  ]);
 }

@@ -1,17 +1,13 @@
-import { createHash } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, join, sep } from "node:path";
+import { existsSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
+import { join, sep } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { normalizeRoot, pathKey, resolveInsideRoot, toPosix } from "./path-guard";
 import { DSYNC_DIR } from "./scan";
 import type { HashCache, IndexData, PairRecord, PairedBy, RelPath, Side } from "./types";
 
-const MAGIC = "DSYNCIDX";
-const MAGIC_BYTES = Buffer.from(MAGIC, "ascii");
-const HEADER_SIZE = 16;
-const DIGEST_SIZE = 32;
-export const INDEX_FORMAT_VERSION = 1;
 export const INDEX_SCHEMA_VERSION = 1;
-export const INDEX_FILE_NAME = "index";
+export const INDEX_FILE_NAME = "dsync.db";
 
 export function indexFilePath(root: string): string {
   return join(root, DSYNC_DIR, INDEX_FILE_NAME);
@@ -26,102 +22,88 @@ export function emptyIndex(leftRoot: string, rightRoot: string): IndexData {
   };
 }
 
-/** 容器布局：8 字节魔数 + 4 版本 + 4 长度 + JSON 体 + 32 字节 SHA-256 */
-export function encodeIndex(data: IndexData): Buffer {
-  const body = Buffer.from(JSON.stringify(data), "utf8");
-  const header = Buffer.alloc(HEADER_SIZE);
-  MAGIC_BYTES.copy(header, 0);
-  header.writeUInt32LE(INDEX_FORMAT_VERSION, 8);
-  header.writeUInt32LE(body.length, 12);
-  const digest = createHash("sha256").update(header).update(body).digest();
-  return Buffer.concat([header, body, digest]);
-}
+const SCHEMA = `
+CREATE TABLE IF NOT EXISTS meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS pairs (
+  left_path  TEXT NOT NULL,
+  right_path TEXT NOT NULL,
+  paired_by  TEXT NOT NULL,
+  base       TEXT,
+  left_hash  TEXT, left_size INTEGER, left_mtime INTEGER,
+  right_hash TEXT, right_size INTEGER, right_mtime INTEGER,
+  synced_at  TEXT,
+  PRIMARY KEY (left_path, right_path)
+);
+CREATE INDEX IF NOT EXISTS idx_pairs_left  ON pairs(left_path);
+CREATE INDEX IF NOT EXISTS idx_pairs_right ON pairs(right_path);
+`;
 
-export type DecodeResult =
-  | { ok: true; data: IndexData; verified: boolean }
-  | { ok: false; error: string };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+interface PairRow {
+  left_path: string;
+  right_path: string;
+  paired_by: string;
+  base: string | null;
+  left_hash: string | null;
+  left_size: number | null;
+  left_mtime: number | null;
+  right_hash: string | null;
+  right_size: number | null;
+  right_mtime: number | null;
+  synced_at: string | null;
 }
 
 const PAIRED_BY = new Set<string>(["index", "path", "name", "hash", "manual", "inherited"]);
 
-function validateCache(value: unknown): HashCache | null {
-  if (!isRecord(value)) return null;
-  const { hash, size, mtimeMs } = value;
-  if (typeof hash !== "string" || typeof size !== "number" || typeof mtimeMs !== "number") {
-    return null;
-  }
-  return { hash, size, mtimeMs };
-}
-
-function validateIndex(value: unknown): IndexData | null {
-  if (!isRecord(value)) return null;
-  const { version, updatedAt, roots, pairs } = value;
-  if (typeof version !== "number" || typeof updatedAt !== "string") return null;
-  if (!isRecord(roots)) return null;
-  if (typeof roots["left"] !== "string" || typeof roots["right"] !== "string") return null;
-  if (!Array.isArray(pairs)) return null;
-
-  const validPairs: PairRecord[] = [];
-  for (const item of pairs) {
-    if (!isRecord(item)) continue;
-    const left = item["left"];
-    const right = item["right"];
-    if (typeof left !== "string" || typeof right !== "string") continue;
-    const pairedBy = item["pairedBy"];
-    validPairs.push({
-      left,
-      right,
-      base: typeof item["base"] === "string" ? item["base"] : null,
-      leftCache: validateCache(item["leftCache"]),
-      rightCache: validateCache(item["rightCache"]),
-      pairedBy:
-        typeof pairedBy === "string" && PAIRED_BY.has(pairedBy) ? (pairedBy as PairedBy) : "index",
-      syncedAt: typeof item["syncedAt"] === "string" ? item["syncedAt"] : null,
-    });
-  }
-
+function toPair(row: PairRow): PairRecord {
   return {
-    version,
-    updatedAt,
-    roots: { left: roots["left"], right: roots["right"] },
-    pairs: validPairs,
+    left: row.left_path,
+    right: row.right_path,
+    pairedBy: PAIRED_BY.has(row.paired_by) ? (row.paired_by as PairedBy) : "index",
+    base: row.base,
+    syncedAt: row.synced_at,
+    leftCache:
+      row.left_hash !== null && row.left_size !== null && row.left_mtime !== null
+        ? { hash: row.left_hash, size: row.left_size, mtimeMs: row.left_mtime }
+        : null,
+    rightCache:
+      row.right_hash !== null && row.right_size !== null && row.right_mtime !== null
+        ? { hash: row.right_hash, size: row.right_size, mtimeMs: row.right_mtime }
+        : null,
   };
 }
 
-export function decodeIndex(buffer: Buffer): DecodeResult {
-  if (buffer.length < HEADER_SIZE + DIGEST_SIZE) {
-    return { ok: false, error: "索引文件长度不足" };
-  }
-  if (buffer.subarray(0, MAGIC_BYTES.length).toString("ascii") !== MAGIC) {
-    return { ok: false, error: "索引魔数不匹配" };
-  }
-  const formatVersion = buffer.readUInt32LE(8);
-  if (formatVersion !== INDEX_FORMAT_VERSION) {
-    return { ok: false, error: `索引容器版本不支持：${formatVersion}` };
-  }
-  const bodyLength = buffer.readUInt32LE(12);
-  if (HEADER_SIZE + bodyLength + DIGEST_SIZE !== buffer.length) {
-    return { ok: false, error: "索引长度字段与实际文件不符" };
-  }
+function pairParams(pair: PairRecord): (string | number | null)[] {
+  return [
+    pair.left,
+    pair.right,
+    pair.pairedBy,
+    pair.base ?? null,
+    pair.leftCache?.hash ?? null,
+    pair.leftCache?.size ?? null,
+    pair.leftCache?.mtimeMs ?? null,
+    pair.rightCache?.hash ?? null,
+    pair.rightCache?.size ?? null,
+    pair.rightCache?.mtimeMs ?? null,
+    pair.syncedAt ?? null,
+  ];
+}
 
-  const header = buffer.subarray(0, HEADER_SIZE);
-  const body = buffer.subarray(HEADER_SIZE, HEADER_SIZE + bodyLength);
-  const expected = createHash("sha256").update(header).update(body).digest();
-  const actual = buffer.subarray(HEADER_SIZE + bodyLength);
-  const verified = expected.equals(actual);
+const UPSERT_SQL = `INSERT OR REPLACE INTO pairs
+  (left_path, right_path, paired_by, base,
+   left_hash, left_size, left_mtime, right_hash, right_size, right_mtime, synced_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(body.toString("utf8"));
-  } catch (error) {
-    return { ok: false, error: `索引内容无法解析：${(error as Error).message}` };
-  }
-  const data = validateIndex(parsed);
-  if (!data) return { ok: false, error: "索引结构不合法" };
-  return { ok: true, data, verified };
+async function openForWrite(root: string): Promise<DatabaseSync> {
+  await mkdir(join(root, DSYNC_DIR), { recursive: true });
+  const db = new DatabaseSync(indexFilePath(root));
+  // 网盘同步场景不要 WAL：多出的 -wal/-shm 文件更容易被同步成不一致状态
+  db.exec("PRAGMA journal_mode = DELETE");
+  db.exec("PRAGMA synchronous = NORMAL");
+  db.exec(SCHEMA);
+  return db;
 }
 
 export interface ReadIndexOutcome {
@@ -130,28 +112,90 @@ export interface ReadIndexOutcome {
 }
 
 export async function readIndex(root: string): Promise<ReadIndexOutcome> {
-  let buffer: Buffer;
-  try {
-    buffer = await readFile(indexFilePath(root));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { data: null, warnings: [] };
-    return { data: null, warnings: [`读取索引失败：${(error as Error).message}`] };
-  }
+  const file = indexFilePath(root);
+  if (!existsSync(file)) return { data: null, warnings: [] };
 
-  const result = decodeIndex(buffer);
-  if (!result.ok) return { data: null, warnings: [`索引损坏：${result.error}`] };
-  if (!result.verified) {
-    return { data: result.data, warnings: ["索引校验值不符，已按当前内容接受"] };
+  let db: DatabaseSync | null = null;
+  try {
+    db = new DatabaseSync(file);
+    const metaRows = db.prepare("SELECT key, value FROM meta").all() as unknown as {
+      key: string;
+      value: string;
+    }[];
+    const meta = new Map(metaRows.map((row) => [row.key, row.value]));
+    const rows = db.prepare("SELECT * FROM pairs").all() as unknown as PairRow[];
+    return {
+      data: {
+        version: Number(meta.get("version") ?? INDEX_SCHEMA_VERSION),
+        roots: { left: meta.get("left") ?? "", right: meta.get("right") ?? "" },
+        updatedAt: meta.get("updatedAt") ?? "",
+        pairs: rows.map(toPair),
+      },
+      warnings: [],
+    };
+  } catch (error) {
+    return { data: null, warnings: [`索引不可用：${(error as Error).message}`] };
+  } finally {
+    db?.close();
   }
-  return { data: result.data, warnings: [] };
 }
 
+/** 全量替换：扫描结束后写一次 */
 export async function writeIndex(root: string, data: IndexData): Promise<void> {
-  const file = indexFilePath(root);
-  await mkdir(dirname(file), { recursive: true });
-  const tmp = `${file}.dsynctmp`;
-  await writeFile(tmp, encodeIndex(data));
-  await rename(tmp, file);
+  const db = await openForWrite(root);
+  try {
+    db.exec("BEGIN");
+    db.exec("DELETE FROM pairs");
+    const upsert = db.prepare(UPSERT_SQL);
+    for (const pair of data.pairs) upsert.run(...pairParams(pair));
+
+    const setMeta = db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)");
+    setMeta.run("version", String(data.version));
+    setMeta.run("left", data.roots.left);
+    setMeta.run("right", data.roots.right);
+    setMeta.run("updatedAt", data.updatedAt);
+    db.exec("COMMIT");
+  } finally {
+    // 未提交的事务在 close 时自动回滚
+    db.close();
+  }
+}
+
+export interface PairKey {
+  left: RelPath;
+  right: RelPath;
+}
+
+export interface IndexPatch {
+  upserts?: PairRecord[];
+  deletes?: PairKey[];
+}
+
+/** 局部写入：只动给定的配对，供刷新、迁移、单行重算使用 */
+export async function patchIndex(root: string, patch: IndexPatch): Promise<void> {
+  const upserts = patch.upserts ?? [];
+  const deletes = patch.deletes ?? [];
+  if (upserts.length === 0 && deletes.length === 0) return;
+
+  const db = await openForWrite(root);
+  try {
+    db.exec("BEGIN");
+    if (deletes.length > 0) {
+      const remove = db.prepare("DELETE FROM pairs WHERE left_path = ? AND right_path = ?");
+      for (const key of deletes) remove.run(key.left, key.right);
+    }
+    if (upserts.length > 0) {
+      const upsert = db.prepare(UPSERT_SQL);
+      for (const pair of upserts) upsert.run(...pairParams(pair));
+    }
+    db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)").run(
+      "updatedAt",
+      new Date().toISOString(),
+    );
+    db.exec("COMMIT");
+  } finally {
+    db.close();
+  }
 }
 
 export interface LoadIndexOutcome {
@@ -274,7 +318,7 @@ function depthOf(rel: RelPath): number {
   return rel.split("/").length;
 }
 
-/** 读取子孙目录里的 .dsync/index，重定基后并入当前索引 */
+/** 读取子孙目录里的 .dsync/dsync.db，重定基后并入当前索引 */
 export async function collectInherited(
   leftRoot: string,
   rightRoot: string,

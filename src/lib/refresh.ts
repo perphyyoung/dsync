@@ -1,6 +1,6 @@
 import { stat } from "node:fs/promises";
 import { hashFile } from "./hash";
-import { loadIndexPair, writeIndex } from "./index-file";
+import { loadIndexPair, patchIndex } from "./index-file";
 import { resolveInsideRoot } from "./path-guard";
 import type {
   ExecuteRequest,
@@ -101,12 +101,13 @@ export async function refreshPaths(
   }
 
   let changedAny = false;
-  const pairs = loaded.data.pairs.map((pair) => {
+  const upserts: PairRecord[] = [];
+  for (const pair of loaded.data.pairs) {
     const left = leftFiles.get(pair.left);
     const right = rightFiles.get(pair.right);
-    if (!left && !right) return pair;
+    if (!left && !right) continue;
     changedAny = true;
-    return {
+    upserts.push({
       ...pair,
       leftCache: left
         ? { hash: left.hash, size: left.size, mtimeMs: left.mtimeMs }
@@ -114,12 +115,11 @@ export async function refreshPaths(
       rightCache: right
         ? { hash: right.hash, size: right.size, mtimeMs: right.mtimeMs }
         : pair.rightCache,
-    };
-  });
+    });
+  }
 
   if (changedAny) {
-    const next = { ...loaded.data, updatedAt: new Date().toISOString(), pairs };
-    await Promise.all([writeIndex(leftRoot, next), writeIndex(rightRoot, next)]);
+    await Promise.all([patchIndex(leftRoot, { upserts }), patchIndex(rightRoot, { upserts })]);
   }
 
   return results;

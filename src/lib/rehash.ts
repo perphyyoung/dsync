@@ -1,6 +1,6 @@
 import { stat } from "node:fs/promises";
 import { hashFile } from "./hash";
-import { loadIndexPair, writeIndex } from "./index-file";
+import { loadIndexPair, patchIndex } from "./index-file";
 import { resolveInsideRoot } from "./path-guard";
 import type { HashCache, PairRecord, RehashRequest, RehashResult } from "./types";
 
@@ -23,25 +23,22 @@ export async function rehashPair(request: RehashRequest): Promise<RehashResult> 
   ]);
 
   const loaded = await loadIndexPair(request.leftRoot, request.rightRoot);
-  const pairs: PairRecord[] = [];
-  let changed = false;
+  const upserts: PairRecord[] = [];
 
   for (const pair of loaded.data.pairs) {
-    if (pair.left !== request.left || pair.right !== request.right) {
-      pairs.push(pair);
-      continue;
-    }
-    changed = true;
-    pairs.push({
+    if (pair.left !== request.left || pair.right !== request.right) continue;
+    upserts.push({
       ...pair,
       leftCache: leftFull && leftHash ? await cacheOf(leftFull, leftHash) : pair.leftCache,
       rightCache: rightFull && rightHash ? await cacheOf(rightFull, rightHash) : pair.rightCache,
     });
   }
 
-  if (changed) {
-    const next = { ...loaded.data, updatedAt: new Date().toISOString(), pairs };
-    await Promise.all([writeIndex(request.leftRoot, next), writeIndex(request.rightRoot, next)]);
+  if (upserts.length > 0) {
+    await Promise.all([
+      patchIndex(request.leftRoot, { upserts }),
+      patchIndex(request.rightRoot, { upserts }),
+    ]);
   }
 
   return { leftHash, rightHash };

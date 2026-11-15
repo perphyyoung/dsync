@@ -1,5 +1,15 @@
-import { describe, expect, it } from "vitest";
-import { decodeIndex, emptyIndex, encodeIndex, mergePairs, rebaseIndex } from "./index-file";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  emptyIndex,
+  mergePairs,
+  patchIndex,
+  readIndex,
+  rebaseIndex,
+  writeIndex,
+} from "./index-file";
 import type { IndexData, PairRecord } from "./types";
 
 function samplePair(left: string, right: string, base = "h1"): PairRecord {
@@ -23,37 +33,57 @@ function withPairs(left: string, right: string, pairs: PairRecord[]): IndexData 
   };
 }
 
-describe("索引容器", () => {
-  it("编解码往返一致", () => {
-    const data = withPairs("D:\\a", "E:\\b", [samplePair("x.md", "y.md")]);
-    const decoded = decodeIndex(encodeIndex(data));
-    expect(decoded.ok).toBe(true);
-    if (!decoded.ok) return;
-    expect(decoded.verified).toBe(true);
-    expect(decoded.data.pairs).toHaveLength(1);
-    expect(decoded.data.roots).toEqual({ left: "D:\\a", right: "E:\\b" });
+describe("索引读写（SQLite）", () => {
+  let work = "";
+
+  beforeEach(async () => {
+    work = await mkdtemp(join(tmpdir(), "dsync-idx-"));
   });
 
-  it("尾部被打了一个字节仍然能解析，只是校验不过", () => {
-    const buffer = encodeIndex(withPairs("D:\\a", "E:\\b", [samplePair("x.md", "y.md")]));
-    const tampered = Buffer.from(buffer);
-    tampered[tampered.length - 1] ^= 0xff;
-    const decoded = decodeIndex(tampered);
-    expect(decoded.ok).toBe(true);
-    if (!decoded.ok) return;
-    expect(decoded.verified).toBe(false);
-    expect(decoded.data.pairs).toHaveLength(1);
+  afterEach(async () => {
+    await rm(work, { recursive: true, force: true });
   });
 
-  it("长度不符直接拒绝", () => {
-    const buffer = encodeIndex(withPairs("D:\\a", "E:\\b", []));
-    expect(decodeIndex(buffer.subarray(0, buffer.length - 3)).ok).toBe(false);
+  it("写入后原样读回", async () => {
+    await writeIndex(work, withPairs(work, work, [samplePair("a.md", "b/a.md")]));
+
+    const outcome = await readIndex(work);
+    expect(outcome.warnings).toEqual([]);
+    expect(outcome.data?.pairs).toHaveLength(1);
+    expect(outcome.data?.pairs[0]).toMatchObject({ left: "a.md", right: "b/a.md" });
+    expect(outcome.data?.pairs[0]?.leftCache?.hash).toBe("h1");
+    expect(outcome.data?.pairs[0]?.rightCache?.size).toBe(1);
   });
 
-  it("乱码拒绝", () => {
-    expect(
-      decodeIndex(Buffer.from("这是一段完全不是索引的内容，长度足够但魔数不对。".repeat(3))).ok,
-    ).toBe(false);
+  it("patchIndex 只改给定配对", async () => {
+    await writeIndex(
+      work,
+      withPairs(work, work, [samplePair("a.md", "a.md"), samplePair("b.md", "b.md")]),
+    );
+
+    await patchIndex(work, {
+      upserts: [{ ...samplePair("a.md", "a.md"), leftCache: { hash: "new", size: 9, mtimeMs: 9 } }],
+      deletes: [{ left: "b.md", right: "b.md" }],
+    });
+
+    const outcome = await readIndex(work);
+    expect(outcome.data?.pairs).toHaveLength(1);
+    expect(outcome.data?.pairs[0]?.leftCache?.hash).toBe("new");
+  });
+
+  it("索引不存在时返回 null 且无警告", async () => {
+    const outcome = await readIndex(work);
+    expect(outcome.data).toBeNull();
+    expect(outcome.warnings).toEqual([]);
+  });
+
+  it("不是数据库的文件视为不可用", async () => {
+    await mkdir(join(work, ".dsync"), { recursive: true });
+    await writeFile(join(work, ".dsync", "dsync.db"), "这不是数据库内容");
+
+    const outcome = await readIndex(work);
+    expect(outcome.data).toBeNull();
+    expect(outcome.warnings).toHaveLength(1);
   });
 
   it("空索引可用", () => {
