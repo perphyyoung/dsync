@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { ref } from "vue";
+import ConfirmBubble from "./ConfirmBubble.vue";
+
 const minSizeKb = defineModel<number>("minSizeKb", { required: true });
 const includeInput = defineModel<string>("includeInput", { required: true });
 const excludeInput = defineModel<string>("excludeInput", { required: true });
@@ -13,6 +16,13 @@ const emit = defineEmits<{
   scan: [];
   forceRehash: [];
 }>();
+
+const rehashConfirmOpen = ref(false);
+
+function confirmForceRehash(): void {
+  rehashConfirmOpen.value = false;
+  emit("forceRehash");
+}
 </script>
 
 <template>
@@ -56,7 +66,7 @@ const emit = defineEmits<{
       <span>隐藏一致项</span>
     </label>
 
-    <div class="ml-auto flex items-center gap-2">
+    <div class="relative ml-auto flex items-center gap-2">
       <button
         type="button"
         class="rounded bg-sky-600 px-4 py-1 text-xs font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
@@ -65,15 +75,31 @@ const emit = defineEmits<{
       >
         {{ props.scanning ? "扫描中…" : "扫描" }}
       </button>
+
       <button
         type="button"
-        class="rounded border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+        class="rounded border border-rose-800 px-3 py-1 text-xs text-rose-300 hover:bg-rose-950/60 disabled:cursor-not-allowed disabled:opacity-50"
         :disabled="props.busy"
         title="不使用哈希缓存，重新读取所有文件内容"
-        @click="emit('forceRehash')"
+        @click="rehashConfirmOpen = true"
       >
         强制重算
       </button>
+
+      <div
+        v-if="rehashConfirmOpen"
+        class="fixed inset-0 z-30"
+        @click="rehashConfirmOpen = false"
+      ></div>
+      <ConfirmBubble
+        v-if="rehashConfirmOpen"
+        title="强制重算"
+        message="重新读取全部文件内容，耗时可能很长。&#10;不会修改任何文件，但之前因缓存被跳过的改动会重新出现。"
+        confirm-text="开始重算"
+        danger
+        @confirm="confirmForceRehash"
+        @cancel="rehashConfirmOpen = false"
+      />
     </div>
   </div>
 </template>

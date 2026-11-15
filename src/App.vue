@@ -38,6 +38,7 @@ const hideSame = ref(true);
 const scanning = ref(false);
 const executing = ref(false);
 const progress = ref<ScanProgress | null>(null);
+const forceRehashActive = ref(false);
 const result = ref<ScanResult | null>(null);
 const errorMessage = ref("");
 const statusMessage = ref("");
@@ -81,10 +82,11 @@ const batchStats = computed<BatchStats>(() => {
 const progressText = computed(() => {
   const current = progress.value;
   if (!current) return "";
+  const prefix = forceRehashActive.value ? "强制重算 · " : "";
   const label = PHASE_LABEL[current.phase];
-  if (current.total <= 0) return `${label}…`;
+  if (current.total <= 0) return `${prefix}${label}…`;
   const percent = Math.round((current.done / current.total) * 100);
-  return `${label} ${percent}% (${current.done}/${current.total})`;
+  return `${prefix}${label} ${percent}% (${current.done}/${current.total})`;
 });
 
 let unsubscribeProgress: (() => void) | null = null;
@@ -146,6 +148,7 @@ async function scan(forceRehash = false): Promise<void> {
   }
   batchOpen.value = false;
   scanning.value = true;
+  forceRehashActive.value = forceRehash;
   errorMessage.value = "";
   statusMessage.value = "";
   try {
@@ -298,7 +301,11 @@ const warnings = computed(() => result.value?.warnings ?? []);
         @force-rehash="scan(true)"
       />
 
-      <div v-if="progressText" class="border-b border-slate-800 px-4 py-1 text-[11px] text-sky-400">
+      <div
+        v-if="progressText"
+        class="border-b border-slate-800 px-4 py-1 text-[11px]"
+        :class="forceRehashActive ? 'text-rose-400' : 'text-sky-400'"
+      >
         {{ progressText }}
       </div>
 
