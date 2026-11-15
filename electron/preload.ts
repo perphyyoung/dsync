@@ -3,6 +3,8 @@ import type { ScanProgress } from "../src/lib/types";
 import type {
   ExecuteRequest,
   RecentPair,
+  RefreshRequest,
+  RefreshedRow,
   RehashRequest,
   RehashResult,
   ScanOutcome,
@@ -18,6 +20,8 @@ contextBridge.exposeInMainWorld("api", {
   execute: (request: ExecuteRequest) => ipcRenderer.invoke("sync:execute", request),
   rehash: (request: RehashRequest): Promise<RehashResult> =>
     ipcRenderer.invoke("sync:rehash", request),
+  refresh: (request: RefreshRequest): Promise<RefreshedRow[]> =>
+    ipcRenderer.invoke("sync:refresh", request),
   listRecent: (): Promise<RecentPair[]> => ipcRenderer.invoke("recent:list"),
   onProgress: (callback: (progress: ScanProgress) => void): (() => void) => {
     const handler = (_event: unknown, progress: ScanProgress): void => callback(progress);

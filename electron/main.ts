@@ -4,11 +4,14 @@ import { executeActions } from "../src/lib/execute";
 import { ScanCancelledError, ScanController } from "../src/lib/controller";
 import { runScan } from "../src/lib/pipeline";
 import { migrateMoveCaches } from "../src/lib/index-migrate";
+import { loadIndexPair } from "../src/lib/index-file";
 import { mergeRecentPair, readRecentPairs, writeRecentPairs } from "../src/lib/recent";
+import { detectStale, refreshPaths } from "../src/lib/refresh";
 import { rehashPair } from "../src/lib/rehash";
 import type {
   ExecuteRequest,
   RecentPair,
+  RefreshRequest,
   RehashRequest,
   ScanRequest,
   SyncAction,
@@ -187,19 +190,60 @@ ipcMain.handle("sync:rehash", async (_event, raw: unknown) => {
   });
 });
 
+function parseRefreshRequest(value: unknown): RefreshRequest {
+  if (typeof value !== "object" || value === null) throw new Error("无效刷新参数");
+  const input = value as Record<string, unknown>;
+  const leftRoot = input["leftRoot"];
+  const rightRoot = input["rightRoot"];
+  const targets = input["targets"];
+  if (typeof leftRoot !== "string" || typeof rightRoot !== "string") throw new Error("无效目录");
+  if (!Array.isArray(targets)) throw new Error("无效刷新目标");
+  const parsed = targets.map((item) => {
+    const entry = item as Record<string, unknown>;
+    const rowIndex = entry["rowIndex"];
+    const left = entry["left"];
+    const right = entry["right"];
+    if (typeof rowIndex !== "number") throw new Error("无效行号");
+    if (left !== null && typeof left !== "string") throw new Error("无效左侧路径");
+    if (right !== null && typeof right !== "string") throw new Error("无效右侧路径");
+    return { rowIndex, left, right };
+  });
+  return { leftRoot, rightRoot, targets: parsed };
+}
+
+ipcMain.handle("sync:refresh", async (_event, raw: unknown) => {
+  return handleIpc("sync:refresh", async () => {
+    const request = parseRefreshRequest(raw);
+    const result = await refreshPaths(request.leftRoot, request.rightRoot, request.targets);
+    log.info(`[refresh] rows=${result.length}`);
+    return result;
+  });
+});
+
 ipcMain.handle("sync:execute", async (_event, raw: unknown) => {
   return handleIpc("sync:execute", async () => {
     const request = parseExecuteRequest(raw);
-    const result = await executeActions(request, {
-      /* 只进回收站，失败即报错，绝不降级为永久删除 */
-      trash: async (fullPath) => {
-        await shell.trashItem(fullPath);
+
+    // 扫描后被外部改过的文件不执行，避免覆盖用户刚改的内容
+    const loaded = await loadIndexPair(request.leftRoot, request.rightRoot);
+    const stale = await detectStale(request, loaded.data.pairs);
+    const staleSet = new Set(stale.map((item) => item.path));
+    const actions = request.actions.filter((action) => !staleSet.has(action.toPath));
+
+    const result = await executeActions(
+      { ...request, actions },
+      {
+        /* 只进回收站，失败即报错，绝不降级为永久删除 */
+        trash: async (fullPath) => {
+          await shell.trashItem(fullPath);
+        },
       },
-    });
+    );
+    result.stale = stale;
     await migrateMoveCaches(request.leftRoot, request.rightRoot, result.moves);
     log.info(
       `[execute] copied=${result.copied} moved=${result.moved} ` +
-        `deleted=${result.deleted} failed=${result.failed.length}`,
+        `deleted=${result.deleted} failed=${result.failed.length} stale=${stale.length}`,
     );
     return result;
   });

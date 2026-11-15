@@ -158,6 +158,45 @@ export interface ExecuteRequest {
   actions: SyncAction[];
 }
 
+/** 局部刷新：只检查给定行的两侧文件 */
+export interface RefreshTarget {
+  rowIndex: number;
+  left: RelPath | null;
+  right: RelPath | null;
+}
+
+export interface RefreshedFile {
+  path: RelPath;
+  hash: string;
+  size: number;
+  mtimeMs: number;
+}
+
+export interface RefreshedRow {
+  rowIndex: number;
+  left: RefreshedFile | null;
+  right: RefreshedFile | null;
+}
+
+export interface RefreshRequest {
+  leftRoot: string;
+  rightRoot: string;
+  targets: RefreshTarget[];
+}
+
+/** 文件在扫描后已被外部改动，对应动作不执行 */
+export interface StaleEntry {
+  path: RelPath;
+  reason: "source-changed" | "target-changed" | "target-created";
+}
+
+/** 执行后校验：实际结果与动作预期不符 */
+export interface MismatchEntry {
+  path: RelPath;
+  expected: string;
+  actual: string;
+}
+
 /** 一次成功移动，供索引缓存迁移使用 */
 export interface MoveRecord {
   side: Side;
@@ -172,6 +211,8 @@ export interface ExecuteResult {
   failed: { path: string; message: string }[];
   /** 成功的移动；rename 不改内容，调用方据此迁移索引缓存 */
   moves: MoveRecord[];
+  /** 扫描后被外部改动、已跳过的动作 */
+  stale: StaleEntry[];
 }
 
 /** 最近使用的目录对，供「文件 → 最近目录对」菜单加载 */

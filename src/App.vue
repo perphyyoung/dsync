@@ -12,12 +12,20 @@ import { parseExtInput } from "./lib/exts";
 import { baseName } from "./lib/format";
 import { actionForRow } from "./lib/plan";
 import { rowDirections } from "./lib/row-actions";
+import { verifyOutcome } from "./lib/verify";
 import type {
   AlignMode,
   BatchStats,
+  DiffRow,
+  MismatchEntry,
+  RefreshTarget,
+  RefreshedFile,
+  RefreshedRow,
   ScanProgress,
   ScanResult,
+  ScanStats,
   Side,
+  StaleEntry,
   SyncAction,
 } from "./lib/types";
 
@@ -76,20 +84,6 @@ const batchStats = computed<BatchStats>(() => {
 const progressStatus = computed<"running" | "paused" | "cancelled">(() =>
   progressView.value === "hidden" ? "running" : progressView.value,
 );
-
-/** 静默刷新：执行完自动对齐数据，不抢全屏，只显示过滤行下沿的细条 */
-const inlineVisible = computed(() => scanning.value && progressView.value === "hidden");
-
-const inlineIndeterminate = computed(() => {
-  const current = progress.value;
-  return !current || current.total <= 0;
-});
-
-const inlinePercent = computed(() => {
-  const current = progress.value;
-  if (!current || current.total <= 0) return 30;
-  return Math.min(100, Math.round((current.done / current.total) * 100));
-});
 
 let unsubscribeProgress: (() => void) | null = null;
 let unsubscribeRecent: (() => void) | null = null;
@@ -159,7 +153,7 @@ function defaultSelection(scanned: ScanResult): Set<number> {
   return next;
 }
 
-async function scan(forceRehash = false, silent = false): Promise<void> {
+async function scan(forceRehash = false): Promise<void> {
   if (!leftRoot.value || !rightRoot.value) {
     pushAlert("请先选择左右两个目录");
     return;
@@ -167,7 +161,7 @@ async function scan(forceRehash = false, silent = false): Promise<void> {
   batchOpen.value = false;
   scanning.value = true;
   forceRehashActive.value = forceRehash;
-  if (!silent) progressView.value = "running";
+  progressView.value = "running";
   try {
     const outcome = await window.api.scan({
       leftRoot: leftRoot.value,
@@ -186,7 +180,7 @@ async function scan(forceRehash = false, silent = false): Promise<void> {
     selected.value = defaultSelection(scanned);
     alerts.value = [...scanned.warnings];
     progressView.value = "hidden";
-    if (!silent) showToast(`扫描完成：共 ${scanned.rows.length} 项`);
+    showToast(`扫描完成：共 ${scanned.rows.length} 项`);
     await window.api.log("info", `scan rows=${scanned.rows.length} forceRehash=${forceRehash}`);
   } catch (error) {
     result.value = null;
@@ -240,6 +234,90 @@ function dismissAlert(index: number): void {
   alerts.value = alerts.value.filter((_, i) => i !== index);
 }
 
+/** 从动作推导受影响行的最终两侧路径，供局部刷新使用 */
+function buildTargets(actions: SyncAction[]): RefreshTarget[] {
+  const rows = result.value?.rows ?? [];
+  const map = new Map<number, RefreshTarget>();
+  for (const action of actions) {
+    const row = rows[action.rowIndex];
+    if (!row) continue;
+    const current = map.get(action.rowIndex) ?? {
+      rowIndex: action.rowIndex,
+      left: row.left,
+      right: row.right,
+    };
+    if (action.kind === "delete") {
+      if (action.side === "left") current.left = null;
+      else current.right = null;
+    } else if (action.side === "left") {
+      current.left = action.toPath;
+    } else {
+      current.right = action.toPath;
+    }
+    map.set(action.rowIndex, current);
+  }
+  return [...map.values()];
+}
+
+function statusOf(left: RefreshedFile | null, right: RefreshedFile | null): DiffRow["status"] {
+  if (left && right) {
+    if (left.hash === right.hash) {
+      return left.path.toLowerCase() === right.path.toLowerCase() ? "same" : "moved";
+    }
+    return "diff";
+  }
+  if (left) return "left-only";
+  if (right) return "right-only";
+  return "ignored";
+}
+
+function recountStats(rows: DiffRow[]): ScanStats {
+  const stats: ScanStats = { same: 0, moved: 0, diff: 0, leftOnly: 0, rightOnly: 0, ignored: 0 };
+  for (const row of rows) {
+    if (row.status === "left-only") stats.leftOnly += 1;
+    else if (row.status === "right-only") stats.rightOnly += 1;
+    else if (row.status === "target-blocked") stats.diff += 1;
+    else stats[row.status] += 1;
+  }
+  return stats;
+}
+
+/** 局部刷新：只改受影响的行，不重扫目录 */
+function applyRefresh(rows: RefreshedRow[]): void {
+  const current = result.value;
+  if (!current) return;
+  for (const item of rows) {
+    const row = current.rows[item.rowIndex];
+    if (!row) continue;
+    current.rows[item.rowIndex] = {
+      ...row,
+      left: item.left?.path ?? null,
+      right: item.right?.path ?? null,
+      leftHash: item.left?.hash ?? null,
+      rightHash: item.right?.hash ?? null,
+      status: statusOf(item.left, item.right),
+    };
+  }
+  current.stats = recountStats(current.rows);
+}
+
+function formatStale(stale: StaleEntry[]): string {
+  const names = stale
+    .slice(0, 5)
+    .map((item) => item.path)
+    .join("、");
+  const suffix = stale.length > 5 ? ` 等 ${stale.length} 个` : "";
+  return `${stale.length} 个文件在扫描后已被修改，已跳过。重新扫描确认后再操作：${names}${suffix}`;
+}
+
+function formatMismatch(entries: MismatchEntry[]): string {
+  const detail = entries
+    .slice(0, 5)
+    .map((item) => `${item.path}（预期${item.expected}，实际${item.actual}）`)
+    .join("；");
+  return `${entries.length} 个文件执行结果与预期不符：${detail}`;
+}
+
 async function runActions(actions: SyncAction[], label: string): Promise<void> {
   if (!leftRoot.value || !rightRoot.value) return;
   if (actions.length === 0) {
@@ -253,8 +331,28 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
       rightRoot: rightRoot.value,
       actions,
     });
-    await scan(false, true);
+
+    const targets = buildTargets(actions);
+    const refreshed = targets.length
+      ? await window.api.refresh({
+          leftRoot: leftRoot.value,
+          rightRoot: rightRoot.value,
+          targets,
+        })
+      : [];
+    applyRefresh(refreshed);
+
     showToast(`${label}：复制 ${outcome.copied}，改名 ${outcome.moved}，删除 ${outcome.deleted}`);
+
+    if (outcome.stale.length > 0) {
+      pushAlert(formatStale(outcome.stale));
+    }
+    const stalePaths = new Set(outcome.stale.map((item) => item.path));
+    const executed = actions.filter((action) => !stalePaths.has(action.toPath));
+    const mismatched = verifyOutcome(executed, refreshed);
+    if (mismatched.length > 0) {
+      pushAlert(formatMismatch(mismatched));
+    }
     if (outcome.failed.length > 0) {
       pushAlert(
         outcome.failed
@@ -392,24 +490,6 @@ async function executeBatch(): Promise<void> {
           @scan="scan()"
           @force-rehash="scan(true)"
         />
-
-        <Transition
-          enter-active-class="transition-opacity duration-150"
-          enter-from-class="opacity-0"
-          leave-active-class="transition-opacity duration-200"
-          leave-to-class="opacity-0"
-        >
-          <div
-            v-if="inlineVisible"
-            class="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-0.5 bg-slate-800"
-          >
-            <div
-              class="h-full bg-sky-500 transition-all duration-300"
-              :class="inlineIndeterminate ? 'w-1/3 animate-pulse' : ''"
-              :style="inlineIndeterminate ? undefined : { width: `${inlinePercent}%` }"
-            ></div>
-          </div>
-        </Transition>
       </div>
 
       <main class="flex min-h-0 flex-1 flex-col">

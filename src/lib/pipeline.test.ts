@@ -5,6 +5,8 @@ import { ScanCancelledError, ScanController } from "./controller";
 import { executeActions } from "./execute";
 import { readIndex } from "./index-file";
 import { migrateMoveCaches } from "./index-migrate";
+import { detectStale } from "./refresh";
+import { verifyOutcome } from "./verify";
 import { runScan } from "./pipeline";
 import { actionForRow } from "./plan";
 import { makeBase, writeRel } from "./test-helpers";
@@ -209,5 +211,90 @@ describe("端到端扫描与执行", () => {
     const after = await readIndex(left);
     expect(after.data?.pairs[0]?.right).toBe("a.md");
     expect(after.data?.pairs[0]?.rightCache?.hash).toBe(hash);
+  });
+
+  it("扫描后源文件被改，detectStale 报 source-changed", async () => {
+    const { left, right } = await setup();
+    await writeRel(left, "a.md", "old");
+    await writeRel(right, "a.md", "old");
+    await runScan(request(left, right));
+
+    await writeRel(left, "a.md", "changed-after-scan");
+
+    const loaded = await readIndex(left);
+    const stale = await detectStale(
+      {
+        leftRoot: left,
+        rightRoot: right,
+        actions: [
+          {
+            kind: "copy",
+            side: "right",
+            fromPath: "a.md",
+            toPath: "a.md",
+            status: "diff",
+            rowIndex: 0,
+          },
+        ],
+      },
+      loaded.data?.pairs ?? [],
+    );
+
+    expect(stale).toEqual([{ path: "a.md", reason: "source-changed" }]);
+  });
+
+  it("目标路径被外部占用时 detectStale 报 target-created", async () => {
+    const { left, right } = await setup();
+    await writeRel(left, "a.md", "abc");
+    await writeRel(right, "b/a.md", "abc");
+    await runScan(request(left, right));
+
+    await writeRel(right, "a.md", "external");
+
+    const loaded = await readIndex(left);
+    const stale = await detectStale(
+      {
+        leftRoot: left,
+        rightRoot: right,
+        actions: [
+          {
+            kind: "move",
+            side: "right",
+            fromPath: "b/a.md",
+            toPath: "a.md",
+            status: "moved",
+            rowIndex: 0,
+          },
+        ],
+      },
+      loaded.data?.pairs ?? [],
+    );
+
+    expect(stale).toEqual([{ path: "a.md", reason: "target-created" }]);
+  });
+
+  it("执行后对账能发现内容不一致", () => {
+    const mismatched = verifyOutcome(
+      [
+        {
+          kind: "copy",
+          side: "left",
+          fromPath: "a.md",
+          toPath: "a.md",
+          status: "diff",
+          rowIndex: 0,
+        },
+      ],
+      [
+        {
+          rowIndex: 0,
+          left: { path: "a.md", hash: "h1", size: 3, mtimeMs: 1 },
+          right: { path: "a.md", hash: "h2", size: 3, mtimeMs: 1 },
+        },
+      ],
+    );
+
+    expect(mismatched).toHaveLength(1);
+    expect(mismatched[0]?.path).toBe("a.md");
   });
 });

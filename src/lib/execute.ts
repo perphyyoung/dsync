@@ -22,7 +22,14 @@ export async function executeActions(
   onProgress?: (done: number, total: number) => void,
 ): Promise<ExecuteResult> {
   const rootOf = (side: Side): string => (side === "left" ? request.leftRoot : request.rightRoot);
-  const result: ExecuteResult = { copied: 0, moved: 0, deleted: 0, failed: [], moves: [] };
+  const result: ExecuteResult = {
+    copied: 0,
+    moved: 0,
+    deleted: 0,
+    failed: [],
+    moves: [],
+    stale: [],
+  };
   const total = request.actions.length;
 
   for (const [index, action] of request.actions.entries()) {
