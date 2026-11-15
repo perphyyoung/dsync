@@ -6,6 +6,20 @@
 
 - 当前项目的框架为 electron，跨项目通用规则中的 tauri/rust 部分可忽略
 
+## 执行规则（省 token）
+
+- 定位一律用 `rg`（ripgrep）不用 `grep`：先 `rg -n` 拿行号，再只读那一段，不 Read 全文。
+- 不读全量 diff：提交信息用 `jj diff --stat` 确认文件范围，只对没把握的文件跑 `jj diff <路径>`；编辑工具返回的 diff 已经覆盖过一遍，不重复读。
+- 文档改动超过整篇三成时用一次 Write 覆盖；必须用 SearchReplace 时先读目标片段（30 行内）确认格式，避免因格式化差异反复重试。
+- 质量门只在收尾跑一次；中间自查用 `pnpm type-check` 或 `pnpm test <路径>`。
+- 输出量大时用命令自身的开关精简（如 `vitest run --reporter=dot`、Playwright 的 `--grep`），不做事后截断。
+- 命令输出必须完整读取：禁止用 `Select-Object -Last` / `rg` 过滤后下结论，失败信息常出现在中段。
+- 执行命令先 `cd` 到项目目录再跑，不用 `pnpm -C <路径>`。
+- `jj` 命令一律加 `--no-pager`（如 `jj --no-pager diff`），否则会进分页器卡住。
+- 一条消息只做一类事：独立文件的写入可并行，读 / 改 / 验证不混在同一条消息里。
+- 汇报只写结论、原因与未覆盖的风险，不复述工具已经输出的内容。
+- 不在任务中途建议新开会话；上下文压缩由用户决定时机。
+
 ## 技术栈
 
 Electron 45 · electron-vite 6 · Vue 3 + TypeScript 6 · Tailwind CSS 4 · Vitest · Playwright · oxlint · oxfmt · ESLint
