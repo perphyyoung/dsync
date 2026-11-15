@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { executeActions } from "./execute";
 import { readIndex } from "./index-file";
 import { runScan } from "./pipeline";
+import { actionForRow } from "./plan";
 import { makeBase, writeRel } from "./test-helpers";
 import type { ScanRequest } from "./types";
 
@@ -23,9 +24,7 @@ function request(left: string, right: string, overrides: Partial<ScanRequest> = 
     minSize: 0,
     includeExts: [],
     excludeExts: [],
-    direction: "none",
-    align: "keep",
-    ignoreCache: false,
+    forceRehash: false,
     ...overrides,
   };
 }
@@ -40,25 +39,24 @@ describe("端到端扫描与执行", () => {
     await writeRel(left, "deep/notes.md", "hello");
     await writeRel(right, "notes.md", "hello");
 
-    const scan = await runScan(request(left, right, { align: "align-right" }));
+    const scan = await runScan(request(left, right));
     expect(scan.rows).toHaveLength(1);
     expect(scan.rows[0]).toMatchObject({
       status: "moved",
       left: "deep/notes.md",
       right: "notes.md",
     });
-    expect(scan.actions).toHaveLength(1);
 
-    const result = await executeActions(
-      { leftRoot: left, rightRoot: right, actions: scan.actions },
-      { trash },
-    );
+    const actions = actionForRow(scan.rows[0], "left", 0, "align-right");
+    expect(actions).toHaveLength(1);
+
+    const result = await executeActions({ leftRoot: left, rightRoot: right, actions }, { trash });
     expect(result.moved).toBe(1);
     expect(result.failed).toHaveLength(0);
     expect(await readFile(join(left, "notes.md"), "utf8")).toBe("hello");
     await expect(readFile(join(left, "deep/notes.md"), "utf8")).rejects.toThrow();
 
-    const after = await runScan(request(left, right, { align: "align-right" }));
+    const after = await runScan(request(left, right));
     expect(after.rows[0].status).toBe("same");
   });
 
@@ -67,10 +65,11 @@ describe("端到端扫描与执行", () => {
     await writeRel(left, "a.md", "v2");
     await writeRel(right, "a.md", "v1");
 
-    const scan = await runScan(request(left, right, { direction: "left-to-right" }));
+    const scan = await runScan(request(left, right));
     expect(scan.rows[0].status).toBe("diff");
 
-    await executeActions({ leftRoot: left, rightRoot: right, actions: scan.actions }, { trash });
+    const actions = actionForRow(scan.rows[0], "right", 0, "keep");
+    await executeActions({ leftRoot: left, rightRoot: right, actions }, { trash });
     expect(await readFile(join(right, "a.md"), "utf8")).toBe("v2");
   });
 
@@ -96,7 +95,7 @@ describe("端到端扫描与执行", () => {
     const cached = await runScan(request(left, right));
     expect(cached.rows[0].status).toBe("same");
 
-    const forced = await runScan(request(left, right, { ignoreCache: true }));
+    const forced = await runScan(request(left, right, { forceRehash: true }));
     expect(forced.rows[0].status).toBe("diff");
   });
 
@@ -106,13 +105,10 @@ describe("端到端扫描与执行", () => {
     await writeRel(left, "skip.log", "0123456789");
     await writeRel(left, "tiny.md", "1");
 
-    const scan = await runScan(
-      request(left, right, { excludeExts: [".log"], minSize: 5, direction: "left-to-right" }),
-    );
+    const scan = await runScan(request(left, right, { excludeExts: [".log"], minSize: 5 }));
     expect(scan.rows.find((row) => row.left === "skip.log")?.status).toBe("ignored");
     expect(scan.rows.find((row) => row.left === "tiny.md")?.status).toBe("ignored");
     expect(scan.rows.find((row) => row.left === "keep.md")?.status).toBe("left-only");
-    expect(scan.actions.every((action) => !action.toPath.endsWith(".log"))).toBe(true);
   });
 
   it("拒绝相同或互相包含的根目录", async () => {

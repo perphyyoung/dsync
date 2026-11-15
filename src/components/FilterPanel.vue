@@ -2,8 +2,17 @@
 const minSizeKb = defineModel<number>("minSizeKb", { required: true });
 const includeInput = defineModel<string>("includeInput", { required: true });
 const excludeInput = defineModel<string>("excludeInput", { required: true });
-const ignoreCache = defineModel<boolean>("ignoreCache", { required: true });
 const hideSame = defineModel<boolean>("hideSame", { required: true });
+
+const props = defineProps<{
+  scanning: boolean;
+  busy: boolean;
+}>();
+
+const emit = defineEmits<{
+  scan: [];
+  forceRehash: [];
+}>();
 </script>
 
 <template>
@@ -43,13 +52,28 @@ const hideSame = defineModel<boolean>("hideSame", { required: true });
     </label>
 
     <label class="flex cursor-pointer items-center gap-2 text-slate-400">
-      <input v-model="ignoreCache" type="checkbox" class="accent-sky-500" />
-      <span>忽略哈希缓存</span>
-    </label>
-
-    <label class="flex cursor-pointer items-center gap-2 text-slate-400">
       <input v-model="hideSame" type="checkbox" class="accent-sky-500" />
       <span>隐藏一致项</span>
     </label>
+
+    <div class="ml-auto flex items-center gap-2">
+      <button
+        type="button"
+        class="rounded bg-sky-600 px-4 py-1 text-xs font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+        :disabled="props.busy"
+        @click="emit('scan')"
+      >
+        {{ props.scanning ? "扫描中…" : "扫描" }}
+      </button>
+      <button
+        type="button"
+        class="rounded border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+        :disabled="props.busy"
+        title="不使用哈希缓存，重新读取所有文件内容"
+        @click="emit('forceRehash')"
+      >
+        强制重算
+      </button>
+    </div>
   </div>
 </template>

@@ -83,10 +83,8 @@ export interface FilterOptions {
 export interface ScanRequest extends FilterOptions {
   leftRoot: string;
   rightRoot: string;
-  direction: Direction;
-  align: AlignMode;
-  /** 忽略哈希缓存，全部重算 */
-  ignoreCache: boolean;
+  /** 强制重算：不使用哈希缓存，本次重新读取所有文件 */
+  forceRehash: boolean;
 }
 
 export interface ScanStats {
@@ -96,12 +94,10 @@ export interface ScanStats {
   leftOnly: number;
   rightOnly: number;
   ignored: number;
-  blocked: number;
 }
 
 export interface ScanResult {
   rows: DiffRow[];
-  actions: SyncAction[];
   stats: ScanStats;
   /** 索引损坏、校验不符等提示，不阻断扫描 */
   warnings: string[];
@@ -139,4 +135,15 @@ export interface RecentPair {
   left: string;
   right: string;
   savedAt: string;
+}
+
+/** 批量执行的统计结果，数字都是「被改写那一侧」的变化 */
+export interface BatchStats {
+  /** 实际会执行的行数 */
+  rows: number;
+  added: number;
+  modified: number;
+  deleted: number;
+  /** 目标路径被其他行占用、无法执行的行数 */
+  blocked: number;
 }

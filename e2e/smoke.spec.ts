@@ -22,13 +22,13 @@ test("应用可以启动并显示左右双栏与操作栏", async () => {
   const app = await electron.launch({ args: ["."], env: launchEnv({ DSYNC_DATA_DIR: appData }) });
   const page = await app.firstWindow();
 
-  await expect(page.getByText("左侧目录")).toBeVisible();
-  await expect(page.getByText("右侧目录")).toBeVisible();
-  await expect(page.getByText("左侧文件")).toBeVisible();
-  await expect(page.getByText("右侧文件")).toBeVisible();
-  await expect(page.getByText("操作", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "扫描" })).toBeVisible();
-  await expect(page.getByText("批量执行", { exact: false })).toBeVisible();
+  await expect(page.getByText("选择左侧目录", { exact: true })).toBeVisible();
+  await expect(page.getByText("选择右侧目录", { exact: true })).toBeVisible();
+  await expect(page.getByText("左侧文件", { exact: true })).toBeVisible();
+  await expect(page.getByText("右侧文件", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "扫描", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "强制重算", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^批量执行（\d+）$/ })).toBeVisible();
 
   const menu = await app.evaluate(({ Menu }) =>
     (Menu.getApplicationMenu()?.items ?? []).map((item) => item.label),
@@ -59,20 +59,29 @@ test("通过 IPC 扫描真实目录并完成结构对齐", async () => {
     minSize: 0,
     includeExts: [],
     excludeExts: [],
-    direction: "none",
-    align: "align-right",
-    ignoreCache: false,
+    forceRehash: false,
   };
 
   const scanned = await page.evaluate((input: ScanRequest) => window.api.scan(input), request);
   expect(scanned.rows).toHaveLength(1);
   expect(scanned.rows[0].status).toBe("moved");
-  expect(scanned.actions).toHaveLength(1);
+
+  // 动作现在由界面现算，这里直接给出一条等价的重排动作
+  const actions = [
+    {
+      kind: "move" as const,
+      side: "left" as const,
+      fromPath: "deep/notes.md",
+      toPath: "notes.md",
+      status: "moved" as const,
+      rowIndex: 0,
+    },
+  ];
 
   const executed = await page.evaluate(
-    (input: { leftRoot: string; rightRoot: string; actions: typeof scanned.actions }) =>
+    (input: { leftRoot: string; rightRoot: string; actions: typeof actions }) =>
       window.api.execute(input),
-    { leftRoot: left, rightRoot: right, actions: scanned.actions },
+    { leftRoot: left, rightRoot: right, actions },
   );
   expect(executed.moved).toBe(1);
   expect(executed.failed).toHaveLength(0);

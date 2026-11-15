@@ -2,7 +2,6 @@ import type { IgnoredFile } from "./scan";
 import type {
   AlignMode,
   DiffRow,
-  Direction,
   FileEntry,
   PairRecord,
   RelPath,
@@ -19,13 +18,10 @@ export interface PlanInput {
   leftOnly: RelPath[];
   rightOnly: RelPath[];
   ignored: IgnoredFile[];
-  direction: Direction;
-  align: AlignMode;
 }
 
 export interface PlanOutcome {
   rows: DiffRow[];
-  actions: SyncAction[];
   stats: ScanStats;
 }
 
@@ -38,32 +34,13 @@ const IGNORE_NOTE: Record<IgnoredFile["reason"], string> = {
   unreadable: "读取失败",
 };
 
-export function targetSide(direction: Direction, align: AlignMode): Side | null {
-  if (align === "align-right") return "left";
-  if (align === "align-left") return "right";
-  if (direction === "left-to-right") return "right";
-  if (direction === "right-to-left") return "left";
-  return null;
-}
-
 function otherSide(side: Side): Side {
   return side === "left" ? "right" : "left";
 }
 
+/** 扫描只负责出差异行，不含任何方向与路径改写信息 */
 function buildRows(input: PlanInput): DiffRow[] {
   const rows: DiffRow[] = [];
-  const leftLower = new Set([...input.left.keys()].map((path) => path.toLowerCase()));
-  const rightLower = new Set([...input.right.keys()].map((path) => path.toLowerCase()));
-
-  /** align 模式下，目标侧会被腾空的路径 */
-  const vacated = new Set<string>();
-  if (input.align !== "keep") {
-    for (const pair of input.pairs) {
-      const current = input.align === "align-right" ? pair.left : pair.right;
-      const target = input.align === "align-right" ? pair.right : pair.left;
-      if (current.toLowerCase() !== target.toLowerCase()) vacated.add(current.toLowerCase());
-    }
-  }
 
   for (const pair of input.pairs) {
     const leftEntry = input.left.get(pair.left);
@@ -72,17 +49,7 @@ function buildRows(input: PlanInput): DiffRow[] {
 
     const sameHash = leftEntry.hash === rightEntry.hash;
     const samePath = pair.left.toLowerCase() === pair.right.toLowerCase();
-    let status: RowStatus = sameHash ? (samePath ? "same" : "moved") : "diff";
-    let note: string | null = null;
-
-    if (input.align !== "keep" && !samePath) {
-      const occupiedSide = input.align === "align-right" ? leftLower : rightLower;
-      const targetLower = (input.align === "align-right" ? pair.right : pair.left).toLowerCase();
-      if (occupiedSide.has(targetLower) && !vacated.has(targetLower)) {
-        status = "target-blocked";
-        note = "目标路径已被其他文件占用，请先手工清理";
-      }
-    }
+    const status: RowStatus = sameHash ? (samePath ? "same" : "moved") : "diff";
 
     rows.push({
       status,
@@ -94,7 +61,7 @@ function buildRows(input: PlanInput): DiffRow[] {
       rightHash: rightEntry.hash,
       base: pair.base,
       pairedBy: pair.pairedBy,
-      note,
+      note: null,
     });
   }
 
@@ -149,7 +116,7 @@ function buildRows(input: PlanInput): DiffRow[] {
 }
 
 /**
- * 生成「让 side 侧与对侧对齐」的动作。中间栏单行操作与批量执行共用同一套规则。
+ * 生成「让 side 侧与对侧对齐」的动作。操作列的单行操作与批量执行共用这套规则。
  * align 为 keep 时只改内容，align-* 时目标路径取对侧的相对路径。
  */
 export function actionForRow(
@@ -222,12 +189,6 @@ export function actionForRow(
   return [];
 }
 
-function buildActions(rows: DiffRow[], direction: Direction, align: AlignMode): SyncAction[] {
-  const side = targetSide(direction, align);
-  if (!side) return [];
-  return rows.flatMap((row, rowIndex) => actionForRow(row, side, rowIndex, align));
-}
-
 function countStats(rows: DiffRow[]): ScanStats {
   const stats: ScanStats = {
     same: 0,
@@ -236,7 +197,6 @@ function countStats(rows: DiffRow[]): ScanStats {
     leftOnly: 0,
     rightOnly: 0,
     ignored: 0,
-    blocked: 0,
   };
   for (const row of rows) {
     switch (row.status) {
@@ -259,7 +219,6 @@ function countStats(rows: DiffRow[]): ScanStats {
         stats.ignored += 1;
         break;
       case "target-blocked":
-        stats.blocked += 1;
         break;
     }
   }
@@ -268,6 +227,5 @@ function countStats(rows: DiffRow[]): ScanStats {
 
 export function planSync(input: PlanInput): PlanOutcome {
   const rows = buildRows(input);
-  const actions = buildActions(rows, input.direction, input.align);
-  return { rows, actions, stats: countStats(rows) };
+  return { rows, stats: countStats(rows) };
 }

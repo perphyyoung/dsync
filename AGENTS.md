@@ -1,0 +1,71 @@
+# AGENTS.md
+
+[跨项目通用规则.md](../pbp/跨项目通用规则.md)，通读并理解后，输出："已通读并理解了跨项目通用规则，后续严格遵守。"
+
+## 项目规则
+
+- 当前项目的框架为 electron，跨项目通用规则中的 tauri/rust 部分可忽略
+
+## 技术栈
+
+Electron 45 · electron-vite 6 · Vue 3 + TypeScript 6 · Tailwind CSS 4 · Vitest · Playwright · oxlint · oxfmt · ESLint
+
+## 命令
+
+| 命令           | 用途                                          |
+| -------------- | --------------------------------------------- |
+| `pnpm dev`     | 开发模式启动                                  |
+| `pnpm test`    | Vitest 单元测试，只跑 `src/**/*.test.ts`      |
+| `pnpm e2e`     | 先 build 再跑 Playwright e2e                  |
+| `pnpm check`   | 只读质量门                                    |
+| `pnpm fix`     | 格式化 + lint 自动修复                        |
+| `pnpm build`   | 构建三端产物到 `out/`                         |
+| `pnpm release` | 打 Windows NSIS 安装包到 `release/`           |
+
+- `pnpm check` 顺序：`format:check → lint:oxlint → lint:eslint → type-check → test → build`。
+- e2e 不在 `check` 内，交付前单独跑 `pnpm e2e`。
+- 清空 `node_modules` 后必须执行 `pnpm exec install-electron`：Electron 45 不再通过 postinstall 下载二进制；国内需带 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`。
+
+## 文档分工
+
+| 文件                | 职责                                                       |
+| ------------------- | ---------------------------------------------------------- |
+| `通用语言.md`       | 术语、界面元素标准名称、中英文对照、避免使用的旧叫法       |
+| `design.md`         | 交互规范：弹窗选型、状态反馈、进度页三态、布局原则、符号约定 |
+| `dsync起步方案.md`  | 功能设计与实现状态                                         |
+| `todo.md`           | 临时进度追踪，不得被其它文件引用                           |
+
+新增术语先改 `通用语言.md`，新增交互决策先改 `design.md`，改完功能同步 `dsync起步方案.md`。
+
+## 核心约定
+
+- **判定只认内容哈希**，修改时间与大小只用于决定哈希缓存能否复用，不参与业务判定。
+- **MVP 只有单向同步**，索引里的 `base` 只写不读，冲突状态未启用。
+- **配对四级**：索引记忆 → 相对路径 → 文件名唯一 → 内容哈希唯一；后两级只在一对一时成立，避免重复内容张冠李戴。
+- **索引**：每个根目录下的 `.dsync/index`，自研二进制容器（魔数 + 版本 + 长度 + JSON + 尾部 SHA-256）。校验失败只报警不裁决，能否使用由 JSON 能否解析决定。
+- **扫描不含方向**：`sync:scan` 只返回差异行，所有执行动作由前端 `rowDirections` / `actionForRow` 现算，单行操作与批量执行共用同一套规则。
+- **不做链式腾挪**：重排路径时目标被其他文件占用就跳过该行，不排序、不搬两次，宁可让用户手工处理。
+- **删除只进回收站**，回收站不可用时报错，不降级为永久删除。
+- **执行永远手动**：没有自动同步、定时任务、后台监听。
+
+## 数据
+
+- 应用数据：dev 为项目根 `ds-data/`，release 为 `userData/`；e2e 用环境变量 `DSYNC_DATA_DIR` 覆盖到临时目录。
+- 最近目录对：`recent-pairs.json`，最多 10 组、最新在前、同组去重；扫描成功后自动记录，启动时自动载入最近一组。
+- 索引：各同步根目录下的 `.dsync/index`；整个 `.dsync/` 强制排除，永不参与比较、复制、删除。
+- 日志：dev 与 e2e 写项目根 `ds.log`，release 写 `userData/ds.log`。
+
+## 代码质量
+
+- 格式化只由 oxfmt 负责，ESLint 不启用风格规则。
+- oxlint 负责 TS/JS 规则；`tsconfig` 的 `lib` 用 ES2023 以支持 `toSorted`。
+- `no-await-in-loop` 对目录递归与动作串行执行是刻意设计，已在 `.oxlintrc.json` 关闭。
+- renderer 不能 import 任何带 `node:` 的模块；无 Node 依赖的工具函数放 `src/lib/`（如 `exts.ts`、`format.ts`）。
+- 同步核心全部落在 `src/lib/` 并使用 `node:fs`，Vitest 在 node 环境覆盖，不依赖 Electron 运行；`shell.trashItem` 通过参数注入，单测传假实现。
+
+## e2e 约定
+
+- 启动必须用 `args: ["."]`；传 `out/main/main.js` 会让 `app.getAppPath()` 指向 `out/main`，preload 路径拼错导致白屏。
+- 不要把 `app.firstWindow()` 的返回值命名为 `window`，会遮蔽浏览器全局 `window`，evaluate 回调里的 `window.api` 会被推断成 Playwright 的 `Page`。
+- 定位器一律语义化，名称用 `exact: true`；动态文案用锚定正则。
+- 用 `DSYNC_DATA_DIR` 隔离数据目录，不污染本机配置。

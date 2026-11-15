@@ -95,14 +95,14 @@ export async function runScan(request: ScanRequest, hooks: ScanHooks = {}): Prom
     request.leftRoot,
     leftScan.files,
     cacheFromIndex(loaded.data, "left"),
-    request.ignoreCache,
+    request.forceRehash,
     onHashed,
   );
   const rightHashed = await hashSide(
     request.rightRoot,
     rightScan.files,
     cacheFromIndex(loaded.data, "right"),
-    request.ignoreCache,
+    request.forceRehash,
     onHashed,
   );
 
@@ -126,8 +126,6 @@ export async function runScan(request: ScanRequest, hooks: ScanHooks = {}): Prom
     leftOnly: pairing.leftOnly,
     rightOnly: pairing.rightOnly,
     ignored: [...ignoredByPath.values()],
-    direction: request.direction,
-    align: request.align,
   });
 
   hooks.onProgress?.({ phase: "index", done: 0, total: 1, current: "" });
@@ -143,7 +141,6 @@ export async function runScan(request: ScanRequest, hooks: ScanHooks = {}): Prom
 
   return {
     rows: plan.rows,
-    actions: plan.actions,
     stats: plan.stats,
     warnings: [...loaded.warnings, ...inherited.warnings],
   };

@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
+import BatchPage from "./components/BatchPage.vue";
 import ConfirmDialog from "./components/ConfirmDialog.vue";
 import DirPicker from "./components/DirPicker.vue";
 import FileList from "./components/FileList.vue";
 import FilterPanel from "./components/FilterPanel.vue";
 import RowActions from "./components/RowActions.vue";
+import { computeBatchStats, detectTargetConflicts } from "./lib/batch";
 import { parseExtInput } from "./lib/exts";
 import type { ScanProgress } from "./lib/pipeline";
+import { actionForRow } from "./lib/plan";
 import { rowDirections } from "./lib/row-actions";
-import type { AlignMode, Direction, ScanResult, Side, SyncAction } from "./lib/types";
+import type { AlignMode, BatchStats, ScanResult, Side, SyncAction } from "./lib/types";
 
 interface DialogState {
   title: string;
@@ -27,12 +30,9 @@ const PHASE_LABEL: Record<ScanProgress["phase"], string> = {
 
 const leftRoot = ref("");
 const rightRoot = ref("");
-const direction = ref<Direction>("left-to-right");
-const align = ref<AlignMode>("keep");
 const minSizeKb = ref(0);
 const includeInput = ref("");
 const excludeInput = ref("");
-const ignoreCache = ref(false);
 const hideSame = ref(true);
 
 const scanning = ref(false);
@@ -44,6 +44,10 @@ const statusMessage = ref("");
 const selected = ref<Set<number>>(new Set());
 const dialog = ref<DialogState | null>(null);
 
+const batchOpen = ref(false);
+const batchBaseline = ref<Side>("left");
+const batchReorder = ref(false);
+
 const busy = computed(() => scanning.value || executing.value);
 
 const items = computed(() => {
@@ -53,9 +57,26 @@ const items = computed(() => {
     .filter((item) => !hideSame.value || item.row.status !== "same");
 });
 
-const batchActions = computed(() =>
-  (result.value?.actions ?? []).filter((action) => selected.value.has(action.rowIndex)),
-);
+const pendingCount = computed(() => {
+  const rows = result.value?.rows ?? [];
+  return rows.filter((row) => row.status !== "same" && row.status !== "ignored").length;
+});
+
+const statsTooltip = computed(() => {
+  const stats = result.value?.stats;
+  if (!stats) return "";
+  return (
+    `一致 ${stats.same} · 仅路径 ${stats.moved} · 差异 ${stats.diff} · ` +
+    `仅左 ${stats.leftOnly} · 仅右 ${stats.rightOnly} · 忽略 ${stats.ignored}`
+  );
+});
+
+const batchTargetSide = computed<Side>(() => (batchBaseline.value === "left" ? "right" : "left"));
+
+const batchStats = computed<BatchStats>(() => {
+  const rows = result.value?.rows ?? [];
+  return computeBatchStats(rows, selected.value, batchTargetSide.value, batchReorder.value);
+});
 
 const progressText = computed(() => {
   const current = progress.value;
@@ -108,22 +129,22 @@ async function pick(side: "left" | "right"): Promise<void> {
   else rightRoot.value = picked;
 }
 
-/** 所有有差异的行默认勾选，与当前方向设置无关 */
+/** 所有有差异的行默认勾选 */
 function defaultSelection(scanned: ScanResult): Set<number> {
   const next = new Set<number>();
   scanned.rows.forEach((row, index) => {
-    if (row.status === "same" || row.status === "ignored" || row.status === "target-blocked")
-      return;
+    if (row.status === "same" || row.status === "ignored") return;
     next.add(index);
   });
   return next;
 }
 
-async function scan(): Promise<void> {
+async function scan(forceRehash = false): Promise<void> {
   if (!leftRoot.value || !rightRoot.value) {
     errorMessage.value = "请先选择左右两个目录";
     return;
   }
+  batchOpen.value = false;
   scanning.value = true;
   errorMessage.value = "";
   statusMessage.value = "";
@@ -134,17 +155,12 @@ async function scan(): Promise<void> {
       minSize: Math.max(0, Math.round(minSizeKb.value * 1024)),
       includeExts: parseExtInput(includeInput.value),
       excludeExts: parseExtInput(excludeInput.value),
-      direction: direction.value,
-      align: align.value,
-      ignoreCache: ignoreCache.value,
+      forceRehash,
     });
     result.value = scanned;
     selected.value = defaultSelection(scanned);
     statusMessage.value = `扫描完成：共 ${scanned.rows.length} 项`;
-    await window.api.log(
-      "info",
-      `scan rows=${scanned.rows.length} actions=${scanned.actions.length}`,
-    );
+    await window.api.log("info", `scan rows=${scanned.rows.length} forceRehash=${forceRehash}`);
   } catch (error) {
     result.value = null;
     errorMessage.value = error instanceof Error ? error.message : String(error);
@@ -159,15 +175,6 @@ function toggle(index: number): void {
   if (next.has(index)) next.delete(index);
   else next.add(index);
   selected.value = next;
-}
-
-function selectAll(): void {
-  if (!result.value) return;
-  selected.value = defaultSelection(result.value);
-}
-
-function clearSelection(): void {
-  selected.value = new Set();
 }
 
 async function runActions(actions: SyncAction[], label: string): Promise<void> {
@@ -207,7 +214,7 @@ function describeAction(action: SyncAction): string {
   return `删除到回收站：${action.toPath}`;
 }
 
-/** 单行操作：→ 以左为准改写右侧，← 以右为准改写左侧；涉及删除时先确认 */
+/** 单行操作：> 以左为准改写右侧，< 以右为准改写左侧；涉及删除时先确认 */
 function runRow(index: number, side: Side): void {
   const row = result.value?.rows[index];
   if (!row) return;
@@ -231,34 +238,34 @@ function runRow(index: number, side: Side): void {
   void runActions(target.actions, side === "left" ? "同步到左侧" : "同步到右侧");
 }
 
-function requestBatch(): void {
-  const actions = batchActions.value;
-  if (actions.length === 0) return;
+function openBatch(): void {
+  if (selected.value.size === 0) return;
+  batchOpen.value = true;
+}
 
-  const copied = actions.filter((action) => action.kind === "copy").length;
-  const moved = actions.filter((action) => action.kind === "move").length;
-  const deleted = actions.filter((action) => action.kind === "delete").length;
-  const toRight = new Set(
-    actions.filter((action) => action.side === "right").map((action) => action.rowIndex),
-  ).size;
-  const toLeft = new Set(
-    actions.filter((action) => action.side === "left").map((action) => action.rowIndex),
-  ).size;
+/** 批量执行的动作全部按当前选择现算，不复用扫描结果 */
+async function executeBatch(): Promise<void> {
+  const rows = result.value?.rows ?? [];
+  const side = batchTargetSide.value;
+  const mode: AlignMode = batchReorder.value
+    ? side === "right"
+      ? "align-left"
+      : "align-right"
+    : "keep";
+  const conflicts = batchReorder.value
+    ? detectTargetConflicts(rows, selected.value, side)
+    : new Set<number>();
 
-  const lines = [
-    `以左侧为准同步到右侧：${toRight} 项`,
-    `以右侧为准同步到左侧：${toLeft} 项`,
-    `复制 ${copied} 个 · 改名 ${moved} 个 · 删除 ${deleted} 个`,
-  ];
-  if (deleted > 0) lines.push(`${deleted} 个文件会删除到回收站，可从回收站还原。`);
+  const actions: SyncAction[] = [];
+  for (const index of [...selected.value].toSorted((a, b) => a - b)) {
+    if (conflicts.has(index)) continue;
+    const row = rows[index];
+    if (!row) continue;
+    actions.push(...actionForRow(row, side, index, mode));
+  }
 
-  dialog.value = {
-    title: "确认批量执行",
-    lines,
-    confirmText: "执行",
-    danger: deleted > 0,
-    onConfirm: () => void runActions(actions, "批量执行"),
-  };
+  batchOpen.value = false;
+  await runActions(actions, "批量执行");
 }
 
 function confirmDialog(): void {
@@ -267,130 +274,101 @@ function confirmDialog(): void {
   current?.onConfirm();
 }
 
-const stats = computed(() => result.value?.stats ?? null);
 const warnings = computed(() => result.value?.warnings ?? []);
 </script>
 
 <template>
   <div class="flex h-full flex-col bg-slate-950 text-slate-200">
-    <header class="border-b border-slate-800 px-4 py-3">
-      <div class="flex items-end gap-3">
-        <DirPicker label="左侧目录" :path="leftRoot" @pick="pick('left')" />
-        <DirPicker label="右侧目录" :path="rightRoot" @pick="pick('right')" />
+    <template v-if="!batchOpen">
+      <header class="border-b border-slate-800 px-4 py-3">
+        <div class="flex items-center gap-3">
+          <DirPicker label="左侧目录" :path="leftRoot" @pick="pick('left')" />
+          <DirPicker label="右侧目录" :path="rightRoot" @pick="pick('right')" />
+        </div>
+      </header>
 
-        <label class="flex w-36 flex-col gap-1">
-          <span class="text-[11px] tracking-wide text-slate-500 uppercase">内容方向</span>
-          <select
-            v-model="direction"
-            class="rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-200"
-            title="决定批量执行时往哪一侧写"
-          >
-            <option value="none">不比对内容</option>
-            <option value="left-to-right">左 → 右</option>
-            <option value="right-to-left">右 → 左</option>
-          </select>
-        </label>
+      <FilterPanel
+        v-model:minSizeKb="minSizeKb"
+        v-model:includeInput="includeInput"
+        v-model:excludeInput="excludeInput"
+        v-model:hideSame="hideSame"
+        :scanning="scanning"
+        :busy="busy"
+        @scan="scan()"
+        @force-rehash="scan(true)"
+      />
 
-        <label class="flex w-36 flex-col gap-1">
-          <span class="text-[11px] tracking-wide text-slate-500 uppercase">结构基准</span>
-          <select
-            v-model="align"
-            class="rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-200"
-            title="决定批量执行时是否按一侧改写路径"
-          >
-            <option value="keep">各自保留</option>
-            <option value="align-left">以左为准</option>
-            <option value="align-right">以右为准</option>
-          </select>
-        </label>
-
-        <button
-          type="button"
-          class="rounded bg-sky-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="busy"
-          @click="scan"
-        >
-          {{ scanning ? "扫描中…" : "扫描" }}
-        </button>
+      <div v-if="progressText" class="border-b border-slate-800 px-4 py-1 text-[11px] text-sky-400">
+        {{ progressText }}
       </div>
-    </header>
 
-    <FilterPanel
-      v-model:minSizeKb="minSizeKb"
-      v-model:includeInput="includeInput"
-      v-model:excludeInput="excludeInput"
-      v-model:ignoreCache="ignoreCache"
-      v-model:hideSame="hideSame"
+      <main class="flex min-h-0 flex-1 flex-col">
+        <div
+          class="flex items-center border-b border-slate-800 bg-slate-900/60 text-[11px] text-slate-400"
+        >
+          <div class="min-w-0 flex-1 px-3 py-1.5 font-medium">左侧文件</div>
+          <div class="w-24 shrink-0"></div>
+          <div class="min-w-0 flex-1 px-3 py-1.5 font-medium">右侧文件</div>
+        </div>
+
+        <div class="min-h-0 flex-1 overflow-auto">
+          <div v-if="items.length === 0" class="px-3 py-12 text-center text-xs text-slate-600">
+            暂无差异，选择两个目录后点「扫描」
+          </div>
+          <div v-else class="flex">
+            <div class="min-w-0 flex-1">
+              <FileList side="left" :items="items" @toggle="toggle" />
+            </div>
+            <div class="w-24 shrink-0 border-x border-slate-800 bg-slate-900/30">
+              <RowActions
+                :items="items"
+                :selected="selected"
+                :busy="busy"
+                @run-left="runRow($event, 'left')"
+                @run-right="runRow($event, 'right')"
+                @toggle="toggle"
+              />
+            </div>
+            <div class="min-w-0 flex-1">
+              <FileList side="right" :items="items" @toggle="toggle" />
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <footer class="border-t border-slate-800 px-4 py-2">
+        <div v-if="warnings.length > 0" class="mb-1 text-[11px] text-amber-400">
+          {{ warnings.join("；") }}
+        </div>
+        <div v-if="errorMessage" class="mb-1 text-[11px] text-rose-400">{{ errorMessage }}</div>
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-slate-400">
+          <span v-if="result" class="cursor-help" :title="statsTooltip"
+            >待处理 {{ pendingCount }}</span
+          >
+          <span class="ml-auto text-slate-500">{{ statusMessage }}</span>
+          <button
+            type="button"
+            class="rounded bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="busy || selected.size === 0"
+            @click="openBatch"
+          >
+            批量执行（{{ selected.size }}）
+          </button>
+        </div>
+      </footer>
+    </template>
+
+    <BatchPage
+      v-else
+      :stats="batchStats"
+      :baseline="batchBaseline"
+      :reorder="batchReorder"
+      :busy="executing"
+      @update:baseline="batchBaseline = $event"
+      @update:reorder="batchReorder = $event"
+      @execute="executeBatch"
+      @close="batchOpen = false"
     />
-
-    <div v-if="progressText" class="border-b border-slate-800 px-4 py-1 text-[11px] text-sky-400">
-      {{ progressText }}
-    </div>
-
-    <main class="flex min-h-0 flex-1 flex-col">
-      <div
-        class="flex items-center border-b border-slate-800 bg-slate-900/60 text-[11px] text-slate-400"
-      >
-        <div class="min-w-0 flex-1 px-3 py-1.5 font-medium">左侧文件</div>
-        <div class="w-24 shrink-0 text-center font-medium">操作</div>
-        <div class="min-w-0 flex-1 px-3 py-1.5 font-medium">右侧文件</div>
-      </div>
-
-      <div class="min-h-0 flex-1 overflow-auto">
-        <div v-if="items.length === 0" class="px-3 py-12 text-center text-xs text-slate-600">
-          暂无差异，选择两个目录后点「扫描」
-        </div>
-        <div v-else class="flex">
-          <div class="min-w-0 flex-1">
-            <FileList side="left" :items="items" @toggle="toggle" />
-          </div>
-          <div class="w-24 shrink-0 border-x border-slate-800 bg-slate-900/30">
-            <RowActions
-              :items="items"
-              :selected="selected"
-              :busy="busy"
-              @run-left="runRow($event, 'left')"
-              @run-right="runRow($event, 'right')"
-              @toggle="toggle"
-            />
-          </div>
-          <div class="min-w-0 flex-1">
-            <FileList side="right" :items="items" @toggle="toggle" />
-          </div>
-        </div>
-      </div>
-    </main>
-
-    <footer class="border-t border-slate-800 px-4 py-2">
-      <div v-if="warnings.length > 0" class="mb-1 text-[11px] text-amber-400">
-        {{ warnings.join("；") }}
-      </div>
-      <div v-if="errorMessage" class="mb-1 text-[11px] text-rose-400">{{ errorMessage }}</div>
-      <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-slate-400">
-        <template v-if="stats">
-          <span>一致 {{ stats.same }}</span>
-          <span class="text-sky-400">仅路径 {{ stats.moved }}</span>
-          <span class="text-amber-400">差异 {{ stats.diff }}</span>
-          <span class="text-emerald-400">仅左 {{ stats.leftOnly }}</span>
-          <span class="text-emerald-400">仅右 {{ stats.rightOnly }}</span>
-          <span>忽略 {{ stats.ignored }}</span>
-          <span v-if="stats.blocked > 0" class="text-rose-400">阻断 {{ stats.blocked }}</span>
-        </template>
-        <span class="text-slate-600">|</span>
-        <button type="button" class="hover:text-sky-300" @click="selectAll">全选差异</button>
-        <button type="button" class="hover:text-sky-300" @click="clearSelection">清空选择</button>
-        <span class="ml-auto text-slate-500">{{ statusMessage }}</span>
-        <button
-          type="button"
-          class="rounded bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="busy || batchActions.length === 0"
-          :title="batchActions.length === 0 ? '先选择内容方向，再勾选要执行的行' : ''"
-          @click="requestBatch"
-        >
-          {{ executing ? "执行中…" : `批量执行（${batchActions.length}）` }}
-        </button>
-      </div>
-    </footer>
 
     <ConfirmDialog
       v-if="dialog"

@@ -61,8 +61,6 @@ function parseScanRequest(value: unknown): ScanRequest {
   const rightRoot = input["rightRoot"];
   if (typeof leftRoot !== "string" || typeof rightRoot !== "string") throw new Error("无效目录");
 
-  const direction = input["direction"];
-  const align = input["align"];
   const includeExts = input["includeExts"];
   const excludeExts = input["excludeExts"];
 
@@ -76,9 +74,7 @@ function parseScanRequest(value: unknown): ScanRequest {
     excludeExts: Array.isArray(excludeExts)
       ? excludeExts.filter((item): item is string => typeof item === "string")
       : [],
-    direction: direction === "left-to-right" || direction === "right-to-left" ? direction : "none",
-    align: align === "align-left" || align === "align-right" ? align : "keep",
-    ignoreCache: input["ignoreCache"] === true,
+    forceRehash: input["forceRehash"] === true,
   };
 }
 
@@ -127,7 +123,7 @@ ipcMain.handle("sync:scan", async (event, raw: unknown) => {
     await rememberPair(request.leftRoot, request.rightRoot);
     log.info(
       `[scan] left=${request.leftRoot} right=${request.rightRoot} ` +
-        `rows=${result.rows.length} actions=${result.actions.length} warnings=${result.warnings.length}`,
+        `rows=${result.rows.length} warnings=${result.warnings.length}`,
     );
     return result;
   });

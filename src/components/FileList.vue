@@ -36,10 +36,6 @@ function pathOf(row: DiffRow): string | null {
 function sizeOf(row: DiffRow): number | null {
   return props.side === "left" ? row.leftSize : row.rightSize;
 }
-
-function onlyHere(row: DiffRow): boolean {
-  return props.side === "left" ? row.status === "left-only" : row.status === "right-only";
-}
 </script>
 
 <template>
@@ -64,7 +60,6 @@ function onlyHere(row: DiffRow): boolean {
       >
         {{ pathOf(item.row) ?? "—" }}
       </span>
-      <span v-if="onlyHere(item.row)" class="shrink-0 text-[10px] text-emerald-500">仅有</span>
       <span class="ml-auto shrink-0 text-slate-500">{{ formatSize(sizeOf(item.row)) }}</span>
     </button>
   </div>
