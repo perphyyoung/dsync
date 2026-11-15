@@ -77,6 +77,20 @@ const progressStatus = computed<"running" | "paused" | "cancelled">(() =>
   progressView.value === "hidden" ? "running" : progressView.value,
 );
 
+/** 静默刷新：执行完自动对齐数据，不抢全屏，只显示过滤行下沿的细条 */
+const inlineVisible = computed(() => scanning.value && progressView.value === "hidden");
+
+const inlineIndeterminate = computed(() => {
+  const current = progress.value;
+  return !current || current.total <= 0;
+});
+
+const inlinePercent = computed(() => {
+  const current = progress.value;
+  if (!current || current.total <= 0) return 30;
+  return Math.min(100, Math.round((current.done / current.total) * 100));
+});
+
 let unsubscribeProgress: (() => void) | null = null;
 let unsubscribeRecent: (() => void) | null = null;
 
@@ -145,7 +159,7 @@ function defaultSelection(scanned: ScanResult): Set<number> {
   return next;
 }
 
-async function scan(forceRehash = false): Promise<void> {
+async function scan(forceRehash = false, silent = false): Promise<void> {
   if (!leftRoot.value || !rightRoot.value) {
     pushAlert("请先选择左右两个目录");
     return;
@@ -153,7 +167,7 @@ async function scan(forceRehash = false): Promise<void> {
   batchOpen.value = false;
   scanning.value = true;
   forceRehashActive.value = forceRehash;
-  progressView.value = "running";
+  if (!silent) progressView.value = "running";
   try {
     const outcome = await window.api.scan({
       leftRoot: leftRoot.value,
@@ -172,7 +186,7 @@ async function scan(forceRehash = false): Promise<void> {
     selected.value = defaultSelection(scanned);
     alerts.value = [...scanned.warnings];
     progressView.value = "hidden";
-    showToast(`扫描完成：共 ${scanned.rows.length} 项`);
+    if (!silent) showToast(`扫描完成：共 ${scanned.rows.length} 项`);
     await window.api.log("info", `scan rows=${scanned.rows.length} forceRehash=${forceRehash}`);
   } catch (error) {
     result.value = null;
@@ -239,7 +253,7 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
       rightRoot: rightRoot.value,
       actions,
     });
-    await scan();
+    await scan(false, true);
     showToast(`${label}：复制 ${outcome.copied}，改名 ${outcome.moved}，删除 ${outcome.deleted}`);
     if (outcome.failed.length > 0) {
       pushAlert(
@@ -367,16 +381,36 @@ async function executeBatch(): Promise<void> {
         </div>
       </header>
 
-      <FilterPanel
-        v-model:minSizeKb="minSizeKb"
-        v-model:includeInput="includeInput"
-        v-model:excludeInput="excludeInput"
-        v-model:hideSame="hideSame"
-        :scanning="scanning"
-        :busy="busy"
-        @scan="scan()"
-        @force-rehash="scan(true)"
-      />
+      <div class="relative">
+        <FilterPanel
+          v-model:minSizeKb="minSizeKb"
+          v-model:includeInput="includeInput"
+          v-model:excludeInput="excludeInput"
+          v-model:hideSame="hideSame"
+          :scanning="scanning"
+          :busy="busy"
+          @scan="scan()"
+          @force-rehash="scan(true)"
+        />
+
+        <Transition
+          enter-active-class="transition-opacity duration-150"
+          enter-from-class="opacity-0"
+          leave-active-class="transition-opacity duration-200"
+          leave-to-class="opacity-0"
+        >
+          <div
+            v-if="inlineVisible"
+            class="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-0.5 bg-slate-800"
+          >
+            <div
+              class="h-full bg-sky-500 transition-all duration-300"
+              :class="inlineIndeterminate ? 'w-1/3 animate-pulse' : ''"
+              :style="inlineIndeterminate ? undefined : { width: `${inlinePercent}%` }"
+            ></div>
+          </div>
+        </Transition>
+      </div>
 
       <main class="flex min-h-0 flex-1 flex-col">
         <div
