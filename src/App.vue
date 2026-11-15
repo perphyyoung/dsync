@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import BatchPage from "./components/BatchPage.vue";
 import DirPicker from "./components/DirPicker.vue";
 import FileList from "./components/FileList.vue";
@@ -87,13 +87,12 @@ onMounted(() => {
   unsubscribeRecent = window.api.onLoadRecent((pair) => {
     leftRoot.value = pair.left;
     rightRoot.value = pair.right;
-    void scan();
   });
 
   void restoreLastPair();
 });
 
-/** 启动时直接回填上次的目录对并比较一次 */
+/** 启动时只回填上次的目录对，不自动扫描；扫描由用户手动发起 */
 async function restoreLastPair(): Promise<void> {
   try {
     const recent = await window.api.listRecent();
@@ -101,7 +100,6 @@ async function restoreLastPair(): Promise<void> {
     if (!last) return;
     leftRoot.value = last.left;
     rightRoot.value = last.right;
-    await scan();
   } catch (error) {
     pushAlert(error instanceof Error ? error.message : String(error));
   }
@@ -119,6 +117,23 @@ async function pick(side: "left" | "right"): Promise<void> {
   if (side === "left") leftRoot.value = picked;
   else rightRoot.value = picked;
 }
+
+/** 结果只对应当前目录与过滤条件，一旦输入变化立即作废 */
+function resetResult(): void {
+  result.value = null;
+  selected.value = new Set();
+}
+
+// 目录或过滤条件任一变化，旧结果不再可信，避免用户在过时数据上执行操作
+watch([leftRoot, rightRoot, minSizeKb, includeInput, excludeInput], () => {
+  resetResult();
+});
+
+const emptyText = computed(() => {
+  if (!leftRoot.value || !rightRoot.value) return "先选择左右两个目录";
+  if (!result.value) return "点「扫描」比较两侧";
+  return "两侧内容一致";
+});
 
 /** 所有有差异的行默认勾选 */
 function defaultSelection(scanned: ScanResult): Set<number> {
@@ -378,7 +393,7 @@ async function executeBatch(): Promise<void> {
 
         <div class="min-h-0 flex-1 overflow-auto">
           <div v-if="items.length === 0" class="px-3 py-12 text-center text-xs text-slate-600">
-            暂无差异，选择两个目录后点「扫描」
+            {{ emptyText }}
           </div>
           <div v-else class="flex">
             <div class="min-w-0 flex-1">
