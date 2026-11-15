@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { formatEta, formatSize } from "../lib/format";
+import { etaHint, formatEta, formatSize } from "../lib/format";
 import type { ScanProgress } from "../lib/types";
 import ConfirmBubble from "./ConfirmBubble.vue";
 
@@ -64,6 +64,14 @@ const etaLabel = computed(() => {
   return formatEta(current.etaSeconds);
 });
 
+/** 耗时较长时给一条可执行建议；很短时不显示，避免噪声 */
+const hint = computed(() => {
+  if (props.status !== "running") return null;
+  const current = props.progress;
+  if (!current || current.phase !== "hash") return null;
+  return etaHint(current.etaSeconds);
+});
+
 /** 收集路径阶段没有分母，进度条走不确定态 */
 const indeterminate = computed(() => {
   const current = props.progress;
@@ -114,6 +122,13 @@ function confirmCancel(): void {
           <span v-if="!indeterminate">{{ percent }}%</span>
         </div>
         <p v-if="etaLabel" class="mt-1 text-center text-xs text-slate-500">{{ etaLabel }}</p>
+        <p
+          v-if="hint"
+          class="mt-1 text-center text-xs"
+          :class="hint.level === 'strong' ? 'text-amber-300' : 'text-slate-500'"
+        >
+          {{ hint.text }}
+        </p>
       </div>
 
       <div class="flex gap-2">
