@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { executeActions } from "../src/lib/execute";
 import { ScanCancelledError, ScanController } from "../src/lib/controller";
 import { runScan } from "../src/lib/pipeline";
+import { migrateMoveCaches } from "../src/lib/index-migrate";
 import { mergeRecentPair, readRecentPairs, writeRecentPairs } from "../src/lib/recent";
 import { rehashPair } from "../src/lib/rehash";
 import type {
@@ -195,6 +196,7 @@ ipcMain.handle("sync:execute", async (_event, raw: unknown) => {
         await shell.trashItem(fullPath);
       },
     });
+    await migrateMoveCaches(request.leftRoot, request.rightRoot, result.moves);
     log.info(
       `[execute] copied=${result.copied} moved=${result.moved} ` +
         `deleted=${result.deleted} failed=${result.failed.length}`,

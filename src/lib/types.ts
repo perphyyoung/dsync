@@ -158,11 +158,20 @@ export interface ExecuteRequest {
   actions: SyncAction[];
 }
 
+/** 一次成功移动，供索引缓存迁移使用 */
+export interface MoveRecord {
+  side: Side;
+  from: RelPath;
+  to: RelPath;
+}
+
 export interface ExecuteResult {
   copied: number;
   moved: number;
   deleted: number;
   failed: { path: string; message: string }[];
+  /** 成功的移动；rename 不改内容，调用方据此迁移索引缓存 */
+  moves: MoveRecord[];
 }
 
 /** 最近使用的目录对，供「文件 → 最近目录对」菜单加载 */

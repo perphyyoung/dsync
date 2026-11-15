@@ -22,7 +22,7 @@ export async function executeActions(
   onProgress?: (done: number, total: number) => void,
 ): Promise<ExecuteResult> {
   const rootOf = (side: Side): string => (side === "left" ? request.leftRoot : request.rightRoot);
-  const result: ExecuteResult = { copied: 0, moved: 0, deleted: 0, failed: [] };
+  const result: ExecuteResult = { copied: 0, moved: 0, deleted: 0, failed: [], moves: [] };
   const total = request.actions.length;
 
   for (const [index, action] of request.actions.entries()) {
@@ -36,10 +36,12 @@ export async function executeActions(
         await copyAtomic(sourceFull, targetFull);
         result.copied += 1;
       } else if (action.kind === "move") {
-        const sourceFull = resolveInsideRoot(targetRoot, action.fromPath ?? action.toPath);
+        const from = action.fromPath ?? action.toPath;
+        const sourceFull = resolveInsideRoot(targetRoot, from);
         await mkdir(dirname(targetFull), { recursive: true });
         await rename(sourceFull, targetFull);
         result.moved += 1;
+        result.moves.push({ side: action.side, from, to: action.toPath });
       } else {
         await deps.trash(targetFull);
         result.deleted += 1;

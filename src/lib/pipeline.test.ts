@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ScanCancelledError, ScanController } from "./controller";
 import { executeActions } from "./execute";
 import { readIndex } from "./index-file";
+import { migrateMoveCaches } from "./index-migrate";
 import { runScan } from "./pipeline";
 import { actionForRow } from "./plan";
 import { makeBase, writeRel } from "./test-helpers";
@@ -165,5 +166,48 @@ describe("端到端扫描与执行", () => {
     await expect(runScan(request(left, right), { controller })).rejects.toBeInstanceOf(
       ScanCancelledError,
     );
+  });
+
+  it("move 动作记录路径映射", async () => {
+    const { left, right } = await setup();
+    await writeRel(left, "a.md", "abc");
+    await writeRel(right, "b/a.md", "abc");
+
+    const outcome = await executeActions(
+      {
+        leftRoot: left,
+        rightRoot: right,
+        actions: [
+          {
+            kind: "move",
+            side: "right",
+            fromPath: "b/a.md",
+            toPath: "a.md",
+            status: "moved",
+            rowIndex: 0,
+          },
+        ],
+      },
+      { trash: async () => {} },
+    );
+
+    expect(outcome.moves).toEqual([{ side: "right", from: "b/a.md", to: "a.md" }]);
+  });
+
+  it("迁移后索引路径更新且缓存保留", async () => {
+    const { left, right } = await setup();
+    await writeRel(left, "a.md", "abc");
+    await writeRel(right, "b/a.md", "abc");
+    await runScan(request(left, right));
+
+    const before = await readIndex(left);
+    const hash = before.data?.pairs[0]?.rightCache?.hash;
+    expect(hash).toBeTruthy();
+
+    await migrateMoveCaches(left, right, [{ side: "right", from: "b/a.md", to: "a.md" }]);
+
+    const after = await readIndex(left);
+    expect(after.data?.pairs[0]?.right).toBe("a.md");
+    expect(after.data?.pairs[0]?.rightCache?.hash).toBe(hash);
   });
 });
