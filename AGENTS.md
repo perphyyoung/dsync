@@ -85,4 +85,4 @@ Electron 45 · electron-vite 6 · Vue 3 + TypeScript 6 · Tailwind CSS 4 · Vite
 - 不要把 `app.firstWindow()` 的返回值命名为 `window`，会遮蔽浏览器全局 `window`，evaluate 回调里的 `window.api` 会被推断成 Playwright 的 `Page`。
 - 定位器一律语义化，名称用 `exact: true`；动态文案用锚定正则。
 - 用 `DSYNC_DATA_DIR` 隔离数据目录，不污染本机配置。
-- 超时：单条 test 上限 10s，断言与其他显式等待统一 5s；不够时先查是不是定位器写错，确实需要再加。
+- 超时：单条 test 上限 10s，断言与其他显式等待默认 5s。显式 `timeout` 与默认相同就不要写；不同时必须加注释说明原因，不够时先查是不是定位器写错。
