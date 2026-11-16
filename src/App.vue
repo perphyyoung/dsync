@@ -189,6 +189,9 @@ async function scan(forceRehash = false): Promise<void> {
     result.value = scanned;
     selected.value = defaultSelection(scanned);
     alerts.value = [...scanned.warnings];
+    if (scanned.warnings.length > 0) {
+      void window.api.log("warn", `[scan] ${scanned.warnings.join("；")}`);
+    }
     progressView.value = "hidden";
     showToast(`扫描完成：共 ${scanned.rows.length} 项`);
     await window.api.log("info", `scan rows=${scanned.rows.length} forceRehash=${forceRehash}`);
@@ -238,6 +241,7 @@ function showToast(message: string): void {
 function pushAlert(message: string): void {
   if (!message || alerts.value.includes(message)) return;
   alerts.value = [...alerts.value, message];
+  void window.api.log("warn", `[ui] ${message}`);
 }
 
 function dismissAlert(index: number): void {
@@ -368,6 +372,11 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
     applyRefresh(refreshed);
 
     showToast(`${label}：复制 ${outcome.copied}，改名 ${outcome.moved}，删除 ${outcome.deleted}`);
+    void window.api.log(
+      "info",
+      `[${label}] copied=${outcome.copied} moved=${outcome.moved} deleted=${outcome.deleted} ` +
+        `failed=${outcome.failed.length} stale=${outcome.stale.length}`,
+    );
 
     if (outcome.stale.length > 0) {
       pushAlert(formatStale(outcome.stale));
@@ -463,6 +472,7 @@ async function restoreItem(item: DeletedRecord): Promise<void> {
     await window.api.restoreRecycle({ root, id: item.id });
     await loadRecycle();
     showToast(`已还原：${item.path}`);
+    void window.api.log("info", `[recycle] 还原 ${item.side}:${item.path}`);
   } catch (error) {
     pushAlert(error instanceof Error ? error.message : String(error));
   } finally {

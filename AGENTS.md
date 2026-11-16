@@ -47,6 +47,7 @@ Electron 45 · electron-vite 6 · Vue 3 + TypeScript 6 · Tailwind CSS 4 · Vite
 | `通用语言.md`       | 术语、界面元素标准名称、中英文对照、避免使用的旧叫法       |
 | `design.md`         | 交互规范：弹窗选型、状态反馈、进度页三态、布局原则、符号约定 |
 | `dsync起步方案.md`  | 功能设计与实现状态                                         |
+| `日志使用说明.md`   | 主进程 / 渲染进程 / e2e 三部分日志用法，三处共用 `ds.log`  |
 
 新增术语先改 `通用语言.md`，新增交互决策先改 `design.md`，改完功能同步 `dsync起步方案.md`。
 
@@ -66,7 +67,7 @@ Electron 45 · electron-vite 6 · Vue 3 + TypeScript 6 · Tailwind CSS 4 · Vite
 - 应用数据：dev 为项目根 `ds-data/`，release 为 `userData/`；e2e 用环境变量 `DSYNC_DATA_DIR` 覆盖到临时目录。
 - 最近目录对：`recent-pairs.json`，最多 10 组、最新在前、同组去重；扫描成功后自动记录，启动时自动载入最近一组。
 - 索引：各同步根目录下的 `.dsync/dsync.db`；整个 `.dsync/` 强制排除，永不参与比较、复制、删除。
-- 日志：dev 与 e2e 写项目根 `ds.log`，release 写 `userData/ds.log`。
+- 日志：dev 与 e2e 写项目根 `ds.log`，release 写 `userData/ds.log`；主进程、渲染进程、e2e 共用同一份，用法见 `日志使用说明.md`。
 
 ## 代码质量
 

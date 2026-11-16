@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { _electron as electron, expect, test } from "@playwright/test";
 import type { ScanRequest } from "../src/lib/types";
+import { log } from "./e2e-logger";
 
 function launchEnv(extra: Record<string, string> = {}): Record<string, string> {
   const env: Record<string, string> = {};
@@ -21,6 +22,7 @@ test("应用可以启动并显示左右双栏与操作栏", async () => {
 
   const app = await electron.launch({ args: ["."], env: launchEnv({ DSYNC_DATA_DIR: appData }) });
   const page = await app.firstWindow();
+  log.info("[e2e] 启动应用（冒烟）");
 
   await expect(page.getByText("选择左侧目录", { exact: true })).toBeVisible();
   await expect(page.getByText("选择右侧目录", { exact: true })).toBeVisible();
@@ -35,6 +37,7 @@ test("应用可以启动并显示左右双栏与操作栏", async () => {
     (Menu.getApplicationMenu()?.items ?? []).map((item) => item.label),
   );
   expect(menu).toContain("文件");
+  log.info("[e2e] 界面元素与菜单检查通过");
 
   await app.close();
   await rm(base, { recursive: true, force: true });
@@ -53,6 +56,7 @@ test("通过 IPC 扫描真实目录并完成结构对齐", async () => {
 
   const app = await electron.launch({ args: ["."], env: launchEnv({ DSYNC_DATA_DIR: appData }) });
   const page = await app.firstWindow();
+  log.info(`[e2e] 临时目录 left=${left} right=${right}`);
 
   const request: ScanRequest = {
     leftRoot: left,
@@ -68,6 +72,7 @@ test("通过 IPC 扫描真实目录并完成结构对齐", async () => {
   const scanned = outcome.result;
   expect(scanned?.rows).toHaveLength(1);
   expect(scanned?.rows[0]?.status).toBe("moved");
+  log.info(`[e2e] 扫描完成 rows=${scanned?.rows.length} status=${scanned?.rows[0]?.status}`);
 
   // 动作现在由界面现算，这里直接给出一条等价的重排动作
   const actions = [
@@ -88,6 +93,7 @@ test("通过 IPC 扫描真实目录并完成结构对齐", async () => {
   );
   expect(executed.moved).toBe(1);
   expect(executed.failed).toHaveLength(0);
+  log.info(`[e2e] 执行完成 moved=${executed.moved} failed=${executed.failed.length}`);
   expect(await readFile(join(left, "notes.md"), "utf8")).toBe("hello");
 
   // 扫描成功后目录对进入最近列表，菜单应能看到
