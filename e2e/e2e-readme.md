@@ -56,6 +56,10 @@
 
 ## 约定
 
+- 用例一律 `import { test, expect } from "./fixtures"`：实例按 spec 文件复用，换文件时自动关旧实例并删数据目录
+- 启动耗时不计入用例 timeout（slot fixture 自带 15s 预算）
+- 需要「关闭再打开」时用 `slot.relaunch()`，不要自己 launch
+- 测试数据建在 `slot.base` 下，随实例销毁自动清理，用例结束不需要手动 rm
+- 用例标题与结果由 fixtures 自动写入 `ds.log`（`▶` / `✓ 通过` / `✗`）
 - 共用函数在 `e2e-helper.ts`（`e2eEnv` / `makeWorkdir` / `launchApp`），日志在 `e2e-logger.ts`
-- 每个用例自建临时目录并在结束时删除，不依赖其它用例的产物
 - 用例覆盖范围变化后，同步更新本文件对应章节

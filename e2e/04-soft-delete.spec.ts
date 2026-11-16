@@ -1,20 +1,15 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, test } from "@playwright/test";
-import { launchApp, makeWorkdir } from "./e2e-helper";
+import { expect, test } from "./fixtures";
 import { log } from "./e2e-logger";
 
-test("右键软删除进回收站，重扫后不再出现", async () => {
-  const base = await makeWorkdir("dsync-soft-delete-");
-  const appData = join(base, "appdata");
+test("右键软删除进回收站，重扫后不再出现", async ({ slot }) => {
+  const { app, page, base } = slot;
   const left = join(base, "left");
   const right = join(base, "right");
-  await mkdir(appData, { recursive: true });
   await mkdir(left, { recursive: true });
   await mkdir(right, { recursive: true });
   await writeFile(join(left, "a.md"), "left-only", "utf8");
-
-  const { app, page } = await launchApp(appData);
   log.info("[e2e] 软删除用例启动");
 
   /* 目录选择走系统对话框，e2e 里直接替换成固定路径 */
@@ -65,7 +60,4 @@ test("右键软删除进回收站，重扫后不再出现", async () => {
   });
   await expect(page.getByText("a.md", { exact: true })).toHaveCount(0);
   log.info("[e2e] 重扫后已删除内容不再出现");
-
-  await app.close();
-  await rm(base, { recursive: true, force: true });
 });

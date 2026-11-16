@@ -1,22 +1,17 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, test } from "@playwright/test";
 import type { ScanRequest } from "../src/lib/types";
-import { launchApp, makeWorkdir } from "./e2e-helper";
+import { expect, test } from "./fixtures";
 import { log } from "./e2e-logger";
 
-test("扫描成功后目录对进入最近列表，重启后自动回填", async () => {
-  const base = await makeWorkdir("dsync-recent-");
-  const appData = join(base, "appdata");
+test("扫描成功后目录对进入最近列表，重启后自动回填", async ({ slot }) => {
+  const { app, page, base, appData } = slot;
   const left = join(base, "left");
   const right = join(base, "right");
-  await mkdir(appData, { recursive: true });
   await mkdir(left, { recursive: true });
   await mkdir(right, { recursive: true });
   await writeFile(join(left, "a.md"), "same", "utf8");
   await writeFile(join(right, "a.md"), "same", "utf8");
-
-  const { app, page } = await launchApp(appData);
 
   const request: ScanRequest = {
     leftRoot: left,
@@ -42,14 +37,10 @@ test("扫描成功后目录对进入最近列表，重启后自动回填", async
   expect(recentLabels[0]).toContain("left");
   log.info(`[e2e] 菜单项 ${recentLabels[0]}`);
 
-  await app.close();
-  log.info("[e2e] 重启应用检查回填");
+  await slot.relaunch();
+  log.info("[e2e] 已重启应用");
 
-  const restarted = await launchApp(appData);
-  await expect(restarted.page.getByRole("button", { name: left })).toBeVisible();
-  await expect(restarted.page.getByRole("button", { name: right })).toBeVisible();
+  await expect(slot.page.getByRole("button", { name: left })).toBeVisible();
+  await expect(slot.page.getByRole("button", { name: right })).toBeVisible();
   log.info("[e2e] 重启后目录已回填");
-
-  await restarted.app.close();
-  await rm(base, { recursive: true, force: true });
 });

@@ -1,22 +1,17 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, test } from "@playwright/test";
 import type { ScanRequest } from "../src/lib/types";
-import { launchApp, makeWorkdir } from "./e2e-helper";
+import { expect, test } from "./fixtures";
 import { log } from "./e2e-logger";
 
-test("扫描后按结构对齐把文件移到对侧路径", async () => {
-  const base = await makeWorkdir("dsync-align-");
-  const appData = join(base, "appdata");
+test("扫描后按结构对齐把文件移到对侧路径", async ({ slot }) => {
+  const { page, base } = slot;
   const left = join(base, "left");
   const right = join(base, "right");
-  await mkdir(appData, { recursive: true });
   await mkdir(join(left, "deep"), { recursive: true });
   await mkdir(right, { recursive: true });
   await writeFile(join(left, "deep", "notes.md"), "hello", "utf8");
   await writeFile(join(right, "notes.md"), "hello", "utf8");
-
-  const { app, page } = await launchApp(appData);
   log.info(`[e2e] 临时目录 left=${left} right=${right}`);
 
   const request: ScanRequest = {
@@ -56,7 +51,4 @@ test("扫描后按结构对齐把文件移到对侧路径", async () => {
   expect(executed.failed).toHaveLength(0);
   log.info(`[e2e] 执行完成 moved=${executed.moved} failed=${executed.failed.length}`);
   expect(await readFile(join(left, "notes.md"), "utf8")).toBe("hello");
-
-  await app.close();
-  await rm(base, { recursive: true, force: true });
 });
