@@ -80,6 +80,7 @@ Electron 45 · electron-vite 6 · Vue 3 + TypeScript 6 · Tailwind CSS 4 · Vite
 
 ## e2e 约定
 
+- 改了 `src/` 或 `electron/` 后一律用 `pnpm e2e`，不要直接 `playwright test`：后者跑的是 `out/` 里的旧构建产物，不重新 build，新代码不生效，会表现成「逻辑没改对」的假象。
 - 启动必须用 `args: ["."]`；传 `out/main/main.js` 会让 `app.getAppPath()` 指向 `out/main`，preload 路径拼错导致白屏。
 - 不要把 `app.firstWindow()` 的返回值命名为 `window`，会遮蔽浏览器全局 `window`，evaluate 回调里的 `window.api` 会被推断成 Playwright 的 `Page`。
 - 定位器一律语义化，名称用 `exact: true`；动态文案用锚定正则。
