@@ -327,6 +327,73 @@ function applyRefresh(rows: RefreshedRow[]): void {
       status: statusOf(item.left, item.right),
     };
   }
+
+  /* 本次刷新后两侧都空的行整行移除；删过行就清空勾选，避免索引错位 */
+  const touched = new Set(rows.map((item) => item.rowIndex));
+  const before = current.rows.length;
+  current.rows = current.rows.filter(
+    (row, index) => !(touched.has(index) && row.left === null && row.right === null),
+  );
+  if (current.rows.length !== before) selected.value = new Set();
+  current.stats = recountStats(current.rows);
+}
+
+/** 还原后按增量更新或新增一行，不重扫 */
+async function applyRestored(side: Side, path: string): Promise<void> {
+  const current = result.value;
+  if (!current || !leftRoot.value || !rightRoot.value) return;
+
+  /* 先探一下还原文件的哈希，用于按内容找配对行 */
+  const probed = await window.api.refresh({
+    leftRoot: leftRoot.value,
+    rightRoot: rightRoot.value,
+    targets: [
+      { rowIndex: 0, left: side === "left" ? path : null, right: side === "right" ? path : null },
+    ],
+  });
+  const file = side === "left" ? probed[0]?.left : probed[0]?.right;
+  if (!file) return;
+
+  /* 本侧同路径的行，或对侧同哈希、本侧为空的行（配对行被软删除了一侧） */
+  const otherHashKey = side === "left" ? "rightHash" : "leftHash";
+  const index = current.rows.findIndex(
+    (row) =>
+      row[side]?.toLowerCase() === path.toLowerCase() ||
+      (row[side] === null && row[otherHashKey] === file.hash),
+  );
+
+  if (index >= 0) {
+    const row = current.rows[index];
+    const refreshed = await window.api.refresh({
+      leftRoot: leftRoot.value,
+      rightRoot: rightRoot.value,
+      targets: [
+        {
+          rowIndex: index,
+          left: side === "left" ? path : (row?.left ?? null),
+          right: side === "right" ? path : (row?.right ?? null),
+        },
+      ],
+    });
+    applyRefresh(refreshed);
+    return;
+  }
+
+  current.rows = [
+    ...current.rows,
+    {
+      status: side === "left" ? "left-only" : "right-only",
+      left: side === "left" ? path : null,
+      right: side === "right" ? path : null,
+      leftSize: side === "left" ? file.size : null,
+      rightSize: side === "right" ? file.size : null,
+      leftHash: side === "left" ? file.hash : null,
+      rightHash: side === "right" ? file.hash : null,
+      base: null,
+      pairedBy: null,
+      note: null,
+    },
+  ];
   current.stats = recountStats(current.rows);
 }
 
@@ -469,9 +536,10 @@ async function restoreItem(item: DeletedRecord): Promise<void> {
   const root = item.side === "left" ? leftRoot.value : rightRoot.value;
   recycleBusy.value = true;
   try {
-    await window.api.restoreRecycle({ root, id: item.id });
+    const restoredPath = await window.api.restoreRecycle({ root, id: item.id });
     await loadRecycle();
     showToast(`已还原：${item.path}`);
+    await applyRestored(item.side, restoredPath);
     void window.api.log("info", `[recycle] 还原 ${item.side}:${item.path}`);
   } catch (error) {
     pushAlert(error instanceof Error ? error.message : String(error));

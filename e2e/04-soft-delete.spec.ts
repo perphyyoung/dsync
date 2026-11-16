@@ -61,3 +61,107 @@ test("右键软删除进回收站，重扫后不再出现", async ({ slot }) => 
   await expect(page.getByText("a.md", { exact: true })).toHaveCount(0);
   log.info("[e2e] 重扫后已删除内容不再出现");
 });
+
+test("软删除移除整行，还原后行恢复", async ({ slot }) => {
+  const { page, base } = slot;
+  const left = join(base, "left");
+
+  /* 目录对已在上个用例选定，这里只补一个新文件，与回收站里的 a.md 区分 */
+  await writeFile(join(left, "b.md"), "left-only", "utf8");
+
+  await page.getByRole("button", { name: "扫描", exact: true }).click();
+  await expect(page.getByText("b.md", { exact: true })).toBeVisible({ timeout: 5000 });
+
+  await page.getByText("b.md", { exact: true }).click({ button: "right" });
+  await page.getByRole("button", { name: "软删除", exact: true }).click();
+  await page.getByRole("button", { name: "移入回收站" }).click();
+
+  await expect
+    .poll(
+      async () => {
+        try {
+          await readFile(join(left, "b.md"), "utf8");
+          return "exists";
+        } catch {
+          return "gone";
+        }
+      },
+      { timeout: 5000 },
+    )
+    .toBe("gone");
+
+  /* 对侧没有文件，整行应从列表移除，不留两侧都是「—」的占位行 */
+  await expect(page.getByText("—", { exact: true })).toHaveCount(0);
+  log.info("[e2e] 软删除后整行已移除");
+
+  await page.getByRole("button", { name: "回收站", exact: true }).click();
+  await expect(page.getByText("b.md", { exact: true })).toBeVisible();
+  log.info("[e2e] 回收站里能看到刚删的文件");
+
+  /* 还原后主界面应按增量新增该行，不需要重新扫描 */
+  await page
+    .getByText("b.md", { exact: true })
+    .locator("..")
+    .getByRole("button", { name: "还原", exact: true })
+    .click();
+  await page.getByRole("button", { name: "返回", exact: true }).click();
+  await expect(page.getByText("b.md", { exact: true })).toBeVisible({ timeout: 5000 });
+  log.info("[e2e] 还原后行已恢复");
+});
+
+test("配对行软删除只清一侧，还原后恢复配对", async ({ slot }) => {
+  const { page, base } = slot;
+  const left = join(base, "left");
+  const right = join(base, "right");
+
+  /* 两侧同内容不同路径，扫描后是一对 moved（不受「隐藏一致」影响） */
+  await mkdir(join(left, "deep"), { recursive: true });
+  await writeFile(join(left, "deep", "c.md"), "paired", "utf8");
+  await writeFile(join(right, "c.md"), "paired", "utf8");
+
+  await page.getByRole("button", { name: "扫描", exact: true }).click();
+  await expect(page.getByRole("button", { name: "扫描", exact: true })).toBeVisible({
+    timeout: 5000,
+  });
+  await expect(page.getByText("deep/c.md", { exact: true })).toBeVisible({ timeout: 5000 });
+  await expect(page.getByText("c.md", { exact: true })).toBeVisible();
+  await expect(page.getByTitle("仅路径不同", { exact: true })).toHaveCount(2);
+
+  /* 右键左侧那一行软删除 */
+  await page.getByText("deep/c.md", { exact: true }).click({ button: "right" });
+  await page.getByRole("button", { name: "软删除", exact: true }).click();
+  await page.getByRole("button", { name: "移入回收站" }).click();
+
+  await expect
+    .poll(
+      async () => {
+        try {
+          await readFile(join(left, "deep", "c.md"), "utf8");
+          return "exists";
+        } catch {
+          return "gone";
+        }
+      },
+      { timeout: 5000 },
+    )
+    .toBe("gone");
+
+  /* 对侧还有文件，行不能消失，只清空被删的一侧 */
+  await expect(page.getByText("c.md", { exact: true })).toBeVisible();
+  await expect(page.getByText("deep/c.md", { exact: true })).toHaveCount(0);
+  await expect(page.getByTitle("仅右侧", { exact: true })).toHaveCount(2);
+  log.info("[e2e] 配对行只清一侧");
+
+  /* 还原后应恢复为同一行内的配对，而不是新增一条单侧行 */
+  await page.getByRole("button", { name: "回收站", exact: true }).click();
+  await page
+    .getByText("deep/c.md", { exact: true })
+    .locator("..")
+    .getByRole("button", { name: "还原", exact: true })
+    .click();
+  await page.getByRole("button", { name: "返回", exact: true }).click();
+
+  await expect(page.getByText("deep/c.md", { exact: true })).toBeVisible({ timeout: 5000 });
+  await expect(page.getByTitle("仅路径不同", { exact: true })).toHaveCount(2);
+  log.info("[e2e] 还原后恢复配对");
+});
