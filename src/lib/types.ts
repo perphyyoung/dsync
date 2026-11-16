@@ -90,8 +90,10 @@ export interface ScanRequest extends FilterOptions {
 export interface ScanStats {
   same: number;
   moved: number;
-  /** 本侧存在多个内容相同的文件，无法确定配对对象 */
-  duplicate: number;
+  /** 左侧存在多个内容相同的文件，无法确定配对对象 */
+  duplicateLeft: number;
+  /** 同上，右侧 */
+  duplicateRight: number;
   leftOnly: number;
   rightOnly: number;
   ignored: number;

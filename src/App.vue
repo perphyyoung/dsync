@@ -74,7 +74,8 @@ const STAT_META: { key: keyof ScanStats; label: string; dot: string }[] = [
   { key: "moved", label: "仅路径不同", dot: "bg-sky-400" },
   { key: "leftOnly", label: "仅左侧", dot: "bg-emerald-400" },
   { key: "rightOnly", label: "仅右侧", dot: "bg-emerald-400" },
-  { key: "duplicate", label: "重复", dot: "bg-fuchsia-400" },
+  { key: "duplicateLeft", label: "重复(左)", dot: "bg-fuchsia-400" },
+  { key: "duplicateRight", label: "重复(右)", dot: "bg-fuchsia-400" },
   { key: "targetBlocked", label: "目标占用", dot: "bg-rose-500" },
   { key: "ignored", label: "已忽略", dot: "bg-slate-700" },
 ];
@@ -330,7 +331,8 @@ function recountStats(rows: DiffRow[]): ScanStats {
   const stats: ScanStats = {
     same: 0,
     moved: 0,
-    duplicate: 0,
+    duplicateLeft: 0,
+    duplicateRight: 0,
     leftOnly: 0,
     rightOnly: 0,
     ignored: 0,
@@ -346,6 +348,10 @@ function recountStats(rows: DiffRow[]): ScanStats {
         break;
       case "target-blocked":
         stats.targetBlocked += 1;
+        break;
+      case "duplicate":
+        if (row.left) stats.duplicateLeft += 1;
+        else stats.duplicateRight += 1;
         break;
       default:
         stats[row.status] += 1;

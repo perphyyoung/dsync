@@ -221,7 +221,8 @@ function countStats(rows: DiffRow[]): ScanStats {
   const stats: ScanStats = {
     same: 0,
     moved: 0,
-    duplicate: 0,
+    duplicateLeft: 0,
+    duplicateRight: 0,
     leftOnly: 0,
     rightOnly: 0,
     ignored: 0,
@@ -236,7 +237,8 @@ function countStats(rows: DiffRow[]): ScanStats {
         stats.moved += 1;
         break;
       case "duplicate":
-        stats.duplicate += 1;
+        if (row.left) stats.duplicateLeft += 1;
+        else stats.duplicateRight += 1;
         break;
       case "left-only":
         stats.leftOnly += 1;
