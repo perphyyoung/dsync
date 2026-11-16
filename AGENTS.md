@@ -48,8 +48,9 @@ Electron 45 · electron-vite 6 · Vue 3 + TypeScript 6 · Tailwind CSS 4 · Vite
 | `design.md`         | 交互规范：弹窗选型、状态反馈、进度页三态、布局原则、符号约定 |
 | `dsync起步方案.md`  | 功能设计与实现状态                                         |
 | `日志使用说明.md`   | 主进程 / 渲染进程 / e2e 三部分日志用法，三处共用 `ds.log`  |
+| `e2e/e2e-readme.md` | 各 e2e 文件的测试范围，修改 e2e 时必须同步            |
 
-新增术语先改 `通用语言.md`，新增交互决策先改 `design.md`，改完功能同步 `dsync起步方案.md`。
+新增术语先改 `通用语言.md`，新增交互决策先改 `design.md`，改完功能同步 `dsync起步方案.md`，改了 e2e 用例同步 `e2e/e2e-readme.md`。
 
 ## 核心约定
 
