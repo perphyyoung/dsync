@@ -15,7 +15,7 @@ export interface Preview {
 
 /**
  * 预览某个方向的批量结果：勾选的行全部参与，重排路径也包含在内。
- * 忽略 = 未勾选 + 一致 + 已忽略 + 重复 + 目标占用 + 重排目标被占。
+ * 忽略 = 勾选但不可执行：一致 + 已忽略 + 重复 + 目标占用 + 重排目标被占。
  */
 export function buildPreview(rows: DiffRow[], selected: Set<number>, side: Side): Preview {
   const other = side === "left" ? "right" : "left";
@@ -31,10 +31,7 @@ export function buildPreview(rows: DiffRow[], selected: Set<number>, side: Side)
   });
 
   rows.forEach((row, index) => {
-    if (!selected.has(index)) {
-      stats.ignored += 1;
-      return;
-    }
+    if (!selected.has(index)) return;
     if (
       row.status === "same" ||
       row.status === "ignored" ||

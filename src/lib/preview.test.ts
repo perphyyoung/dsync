@@ -30,7 +30,7 @@ describe("预览统计", () => {
     expect(preview.actions).toHaveLength(3);
   });
 
-  it("未勾选、一致、重复、目标占用都算忽略", () => {
+  it("勾选的一致、重复、目标占用算忽略", () => {
     const rows = [
       makeRow({ status: "left-only", left: "a.md" }),
       makeRow({ status: "same", left: "b.md", right: "b.md" }),
@@ -38,7 +38,7 @@ describe("预览统计", () => {
       makeRow({ status: "target-blocked", left: "d.md", right: "d.md" }),
     ];
     const preview = buildPreview(rows, new Set([1, 2, 3]), "left");
-    expect(preview.stats.ignored).toBe(4);
+    expect(preview.stats.ignored).toBe(3);
     expect(preview.actions).toHaveLength(0);
   });
 

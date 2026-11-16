@@ -92,15 +92,14 @@ const STAT_META: { key: keyof ScanStats; label: string; dot: string }[] = [
   { key: "ignored", label: "已忽略", dot: "bg-slate-700" },
 ];
 
-/* 底部状态统计：色点与列表一致，零值不显示 */
+/* 底部状态统计：只算当前列表可见的行，色点与列表一致，零值不显示 */
 const statItems = computed(() => {
-  const stats = result.value?.stats;
-  if (!stats) return [];
-  return STAT_META.filter((item) => stats[item.key] > 0).map((item) => ({
+  const counts = recountStats(items.value.map((item) => item.row));
+  return STAT_META.filter((item) => counts[item.key] > 0).map((item) => ({
     key: item.key,
     label: item.label,
     dot: item.dot,
-    count: stats[item.key],
+    count: counts[item.key],
   }));
 });
 
@@ -652,9 +651,9 @@ function startPreview(side: Side): void {
     pushAlert("先扫描左右目录");
     return;
   }
-  /* 先按全选求动作，再反推出这个方向真正会动到的行 */
-  const all = new Set(rows.map((_, index) => index));
-  const { actions } = buildPreview(rows, all, side);
+  /* 只勾选当前可见的行（显示模式已锁定，进预览后不会变） */
+  const visible = new Set(items.value.map((item) => item.index));
+  const { actions } = buildPreview(rows, visible, side);
   selected.value = new Set(actions.map((action) => action.rowIndex));
   previewSide.value = side;
 }
