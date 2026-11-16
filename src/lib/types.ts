@@ -95,6 +95,7 @@ export interface ScanStats {
   leftOnly: number;
   rightOnly: number;
   ignored: number;
+  targetBlocked: number;
 }
 
 export interface ScanResult {

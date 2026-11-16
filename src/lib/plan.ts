@@ -225,6 +225,7 @@ function countStats(rows: DiffRow[]): ScanStats {
     leftOnly: 0,
     rightOnly: 0,
     ignored: 0,
+    targetBlocked: 0,
   };
   for (const row of rows) {
     switch (row.status) {
@@ -247,6 +248,7 @@ function countStats(rows: DiffRow[]): ScanStats {
         stats.ignored += 1;
         break;
       case "target-blocked":
+        stats.targetBlocked += 1;
         break;
     }
   }

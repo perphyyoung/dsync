@@ -69,9 +69,26 @@ const items = computed(() => {
     .filter((item) => !hideSame.value || item.row.status !== "same");
 });
 
-const pendingCount = computed(() => {
-  const rows = result.value?.rows ?? [];
-  return rows.filter((row) => row.status !== "same" && row.status !== "ignored").length;
+const STAT_META: { key: keyof ScanStats; label: string; dot: string }[] = [
+  { key: "same", label: "一致", dot: "bg-slate-600" },
+  { key: "moved", label: "仅路径不同", dot: "bg-sky-400" },
+  { key: "leftOnly", label: "仅左侧", dot: "bg-emerald-400" },
+  { key: "rightOnly", label: "仅右侧", dot: "bg-emerald-400" },
+  { key: "duplicate", label: "重复", dot: "bg-fuchsia-400" },
+  { key: "targetBlocked", label: "目标占用", dot: "bg-rose-500" },
+  { key: "ignored", label: "已忽略", dot: "bg-slate-700" },
+];
+
+/* 底部状态统计：色点与列表一致，零值不显示 */
+const statItems = computed(() => {
+  const stats = result.value?.stats;
+  if (!stats) return [];
+  return STAT_META.filter((item) => stats[item.key] > 0).map((item) => ({
+    key: item.key,
+    label: item.label,
+    dot: item.dot,
+    count: stats[item.key],
+  }));
 });
 
 /* 全选只覆盖参与执行的行：same 与 ignored 不勾，与 defaultSelection 同规则 */
@@ -96,15 +113,6 @@ const someSelected = computed(
 function toggleAll(): void {
   selected.value = allSelected.value ? new Set() : new Set(selectableIndexes.value);
 }
-
-const statsTooltip = computed(() => {
-  const stats = result.value?.stats;
-  if (!stats) return "";
-  return (
-    `一致 ${stats.same} · 仅路径 ${stats.moved} · 重复 ${stats.duplicate} · ` +
-    `仅左 ${stats.leftOnly} · 仅右 ${stats.rightOnly} · 忽略 ${stats.ignored}`
-  );
-});
 
 const preview = computed(() => {
   const side = previewSide.value;
@@ -326,6 +334,7 @@ function recountStats(rows: DiffRow[]): ScanStats {
     leftOnly: 0,
     rightOnly: 0,
     ignored: 0,
+    targetBlocked: 0,
   };
   for (const row of rows) {
     switch (row.status) {
@@ -336,6 +345,7 @@ function recountStats(rows: DiffRow[]): ScanStats {
         stats.rightOnly += 1;
         break;
       case "target-blocked":
+        stats.targetBlocked += 1;
         break;
       default:
         stats[row.status] += 1;
@@ -801,56 +811,61 @@ async function executePreview(): Promise<void> {
 
       <footer class="border-t border-slate-800 px-4 py-2">
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-slate-400">
-          <span v-if="result" class="cursor-help" :title="statsTooltip"
-            >待处理 {{ pendingCount }}</span
-          >
-          <button
-            type="button"
-            class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
-            @click="openRecycle"
-          >
-            回收站
-          </button>
-          <template v-if="previewSide === null">
-            <button
-              type="button"
-              class="ml-auto rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="busy || selected.size === 0"
-              :title="selected.size === 0 ? '先勾选要执行的行' : ''"
-              @click="startPreview('left')"
-            >
-              向左同步预览
-            </button>
-            <button
-              type="button"
-              class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="busy || selected.size === 0"
-              @click="startPreview('right')"
-            >
-              向右同步预览
-            </button>
-          </template>
-          <template v-else>
-            <span class="text-slate-300">
-              复制 {{ preview?.stats.copy ?? 0 }} · 改名 {{ preview?.stats.rename ?? 0 }} · 软删除
-              {{ preview?.stats.softDelete ?? 0 }} · 忽略 {{ preview?.stats.ignored ?? 0 }}
+          <div v-if="statItems.length > 0" class="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span v-for="item in statItems" :key="item.key" class="flex items-center gap-1">
+              <span class="h-1.5 w-1.5 rounded-full" :class="item.dot"></span>
+              {{ item.label }} {{ item.count }}
             </span>
+          </div>
+          <div class="ml-auto flex flex-wrap items-center gap-2">
+            <template v-if="previewSide === null">
+              <button
+                type="button"
+                class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="busy || selected.size === 0"
+                :title="selected.size === 0 ? '先勾选要执行的行' : ''"
+                @click="startPreview('left')"
+              >
+                向左同步预览
+              </button>
+              <button
+                type="button"
+                class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="busy || selected.size === 0"
+                @click="startPreview('right')"
+              >
+                向右同步预览
+              </button>
+            </template>
+            <template v-else>
+              <span class="text-slate-300">
+                复制 {{ preview?.stats.copy ?? 0 }} · 改名 {{ preview?.stats.rename ?? 0 }} · 软删除
+                {{ preview?.stats.softDelete ?? 0 }} · 忽略 {{ preview?.stats.ignored ?? 0 }}
+              </span>
+              <button
+                type="button"
+                class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+                @click="previewSide = null"
+              >
+                退出预览
+              </button>
+              <button
+                type="button"
+                class="rounded bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="busy || !preview || preview.actions.length === 0"
+                @click="executePreview"
+              >
+                执行同步
+              </button>
+            </template>
             <button
               type="button"
-              class="ml-auto rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
-              @click="previewSide = null"
+              class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+              @click="openRecycle"
             >
-              退出预览
+              回收站
             </button>
-            <button
-              type="button"
-              class="rounded bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="busy || !preview || preview.actions.length === 0"
-              @click="executePreview"
-            >
-              执行同步
-            </button>
-          </template>
+          </div>
         </div>
       </footer>
     </template>
