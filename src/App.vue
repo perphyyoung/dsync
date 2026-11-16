@@ -717,7 +717,7 @@ async function executePreview(): Promise<void> {
         class="block w-full px-3 py-1.5 text-left text-slate-300 hover:bg-slate-800"
         @click="requestSoftDelete"
       >
-        软删除{{ rowMenu.side === "left" ? "左侧" : "右侧" }}文件
+        软删除
       </button>
       <button
         type="button"

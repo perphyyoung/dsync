@@ -29,7 +29,7 @@ test("右键软删除进回收站，重扫后不再出现", async ({ slot }) => 
   log.info("[e2e] 扫描完成，a.md 已在列表");
 
   await page.getByText("a.md", { exact: true }).click({ button: "right" });
-  await page.getByRole("button", { name: /软删除左侧文件/ }).click();
+  await page.getByRole("button", { name: "软删除", exact: true }).click();
   await page.getByRole("button", { name: "移入回收站" }).click();
 
   /* 原位置应已没有该文件 */
