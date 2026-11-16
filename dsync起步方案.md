@@ -558,6 +558,7 @@ MVP 已实现并通过质量门与 e2e。
 - renderer 不能 import 任何带 `node:` 的模块；后缀解析因此抽到 `src/lib/exts.ts`，`scan.ts` 只做 re-export。
 - 配对只按内容哈希：两侧同哈希且各只有一个才配；同路径不同内容互相 `target-blocked`，本侧重复哈希标 `duplicate`。
 - 软删除把文件移进 `<root>/.dsync/deleted/`，`deleted` 表记原路径；还原遇到占位不覆盖。
+- 动作类型改名时，主进程 `parseExecuteRequest` 的白名单会静默丢弃新类型，界面上表现为「点了没反应」；白名单已改为从 `SyncAction["kind"]` 推导的 Set，新增类型会编译报错。
 - oxlint 的 `no-await-in-loop` 对目录递归与动作串行执行是刻意设计，已在 `.oxlintrc.json` 关闭；`lib` 提到 ES2023 以使用 `toSorted`。
 - `resources/icon.png` 是 512×512 RGBA，electron-builder 会从它生成 `.ico`；窗口图标在 `createWindow()` 里按 dev（项目根 `resources/`）与打包后（`process.resourcesPath`）分别取。
 - 应用数据目录：dev 为项目根 `ds-data/`，release 为 `userData/`；e2e 用 `DSYNC_DATA_DIR` 覆盖到临时目录，不污染本机配置。

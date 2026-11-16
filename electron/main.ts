@@ -92,6 +92,9 @@ function parseScanRequest(value: unknown): ScanRequest {
   };
 }
 
+/** 白名单从 SyncAction["kind"] 推导：新增动作类型时这里会编译报错，不会静默漏掉 */
+const ACTION_KINDS = new Set<SyncAction["kind"]>(["copy", "move", "soft-delete"]);
+
 function parseExecuteRequest(value: unknown): ExecuteRequest {
   if (typeof value !== "object" || value === null) throw new Error("无效执行参数");
   const input = value as Record<string, unknown>;
@@ -104,9 +107,8 @@ function parseExecuteRequest(value: unknown): ExecuteRequest {
   const valid = actions.filter((item): item is SyncAction => {
     if (typeof item !== "object" || item === null) return false;
     const action = item as Record<string, unknown>;
-    const kind = action["kind"];
     return (
-      (kind === "copy" || kind === "move" || kind === "delete") &&
+      ACTION_KINDS.has(action["kind"] as SyncAction["kind"]) &&
       (action["side"] === "left" || action["side"] === "right") &&
       typeof action["toPath"] === "string"
     );

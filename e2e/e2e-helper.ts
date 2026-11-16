@@ -28,7 +28,10 @@ export interface LaunchedApp {
  * 传 out/main/main.js 会让 app.getAppPath() 指向 out/main，preload 路径拼错。
  */
 export async function launchApp(appData: string): Promise<LaunchedApp> {
-  const app = await electron.launch({ args: ["."], env: e2eEnv({ DSYNC_DATA_DIR: appData }) });
+  const app = await electron.launch({
+    args: ["."],
+    env: e2eEnv({ DSYNC_DATA_DIR: appData, E2E: "1" }),
+  });
   const page = await app.firstWindow();
   return { app, page };
 }
