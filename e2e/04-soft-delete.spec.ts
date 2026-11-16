@@ -30,7 +30,7 @@ test("右键软删除进回收站，重扫后不再出现", async () => {
   await page.getByText("选择右侧目录", { exact: true }).click();
 
   await page.getByRole("button", { name: "扫描", exact: true }).click();
-  await expect(page.getByText("a.md", { exact: true })).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText("a.md", { exact: true })).toBeVisible({ timeout: 5000 });
   log.info("[e2e] 扫描完成，a.md 已在列表");
 
   await page.getByText("a.md", { exact: true }).click({ button: "right" });
@@ -48,7 +48,7 @@ test("右键软删除进回收站，重扫后不再出现", async () => {
           return "gone";
         }
       },
-      { timeout: 10000 },
+      { timeout: 5000 },
     )
     .toBe("gone");
   log.info("[e2e] 原位置文件已移走");
@@ -61,7 +61,7 @@ test("右键软删除进回收站，重扫后不再出现", async () => {
 
   await page.getByRole("button", { name: "扫描", exact: true }).click();
   await expect(page.getByRole("button", { name: "扫描", exact: true })).toBeVisible({
-    timeout: 15000,
+    timeout: 5000,
   });
   await expect(page.getByText("a.md", { exact: true })).toHaveCount(0);
   log.info("[e2e] 重扫后已删除内容不再出现");
