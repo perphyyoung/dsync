@@ -92,6 +92,11 @@ const STAT_META: { key: keyof ScanStats; label: string; dot: string }[] = [
   { key: "ignored", label: "已忽略", dot: "bg-slate-700" },
 ];
 
+const PREVIEW_OPTIONS: { value: Side; label: string }[] = [
+  { value: "left", label: "向左同步预览" },
+  { value: "right", label: "向右同步预览" },
+];
+
 /* 底部状态统计：只算当前列表可见的行，色点与列表一致，零值不显示 */
 const statItems = computed(() => {
   const counts = recountStats(items.value.map((item) => item.row));
@@ -664,6 +669,15 @@ function exitPreview(): void {
   selected.value = new Set();
 }
 
+/** 预览开关：同一方向再点一次退出，换方向直接重算 */
+function togglePreview(side: Side): void {
+  if (previewSide.value === side) {
+    exitPreview();
+    return;
+  }
+  startPreview(side);
+}
+
 /** 预览定型：进入预览时把动作算好并固定，执行直接落地 */
 async function executePreview(): Promise<void> {
   const side = previewSide.value;
@@ -837,46 +851,39 @@ async function executePreview(): Promise<void> {
               {{ item.label }} {{ item.count }}
             </span>
           </div>
+
           <div class="ml-auto flex flex-wrap items-center gap-2">
-            <template v-if="previewSide === null">
-              <button
-                type="button"
-                class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="busy || !result"
-                @click="startPreview('left')"
-              >
-                向左同步预览
-              </button>
-              <button
-                type="button"
-                class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="busy || !result"
-                @click="startPreview('right')"
-              >
-                向右同步预览
-              </button>
-            </template>
-            <template v-else>
+            <template v-if="previewSide !== null">
               <span class="text-slate-300">
                 复制 {{ preview?.stats.copy ?? 0 }} · 改名 {{ preview?.stats.rename ?? 0 }} · 软删除
                 {{ preview?.stats.softDelete ?? 0 }} · 忽略 {{ preview?.stats.ignored ?? 0 }}
               </span>
               <button
                 type="button"
-                class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
-                @click="exitPreview"
-              >
-                退出预览
-              </button>
-              <button
-                type="button"
-                class="rounded bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                class="rounded bg-rose-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="busy || !preview || preview.actions.length === 0"
                 @click="executePreview"
               >
                 执行同步
               </button>
             </template>
+
+            <button
+              v-for="option in PREVIEW_OPTIONS"
+              :key="option.value"
+              type="button"
+              class="min-w-24 rounded border px-3 py-1.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              :class="
+                previewSide === option.value
+                  ? 'border-sky-600 bg-sky-600/20 text-sky-300'
+                  : 'border-slate-700 text-slate-300 hover:bg-slate-800'
+              "
+              :disabled="busy || !result"
+              @click="togglePreview(option.value)"
+            >
+              {{ previewSide === option.value ? "退出预览" : option.label }}
+            </button>
+
             <button
               type="button"
               class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
