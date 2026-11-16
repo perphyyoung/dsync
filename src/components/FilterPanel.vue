@@ -20,6 +20,8 @@ const VIEW_OPTIONS: { value: ViewMode; label: string; title: string }[] = [
 const props = defineProps<{
   scanning: boolean;
   busy: boolean;
+  /** 预览模式锁定显示模式，避免隐藏已勾选的行 */
+  viewLocked: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -83,13 +85,14 @@ function confirmForceRehash(): void {
           v-for="option in VIEW_OPTIONS"
           :key="option.value"
           type="button"
-          class="rounded px-2 py-0.5 text-[11px] transition-colors"
+          class="rounded px-2 py-0.5 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
           :class="
             viewMode === option.value
               ? 'bg-slate-700 text-slate-100'
               : 'text-slate-400 hover:text-slate-200'
           "
           :title="option.title"
+          :disabled="props.viewLocked"
           @click="viewMode = option.value"
         >
           {{ option.label }}

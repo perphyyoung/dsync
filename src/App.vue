@@ -205,16 +205,6 @@ const emptyText = computed(() => {
   return "两侧内容一致";
 });
 
-/** 所有有差异的行默认勾选 */
-function defaultSelection(scanned: ScanResult): Set<number> {
-  const next = new Set<number>();
-  scanned.rows.forEach((row, index) => {
-    if (row.status === "same" || row.status === "ignored") return;
-    next.add(index);
-  });
-  return next;
-}
-
 async function scan(forceRehash = false): Promise<void> {
   if (!leftRoot.value || !rightRoot.value) {
     pushAlert("请先选择左右两个目录");
@@ -239,7 +229,7 @@ async function scan(forceRehash = false): Promise<void> {
     }
     const scanned = outcome.result;
     result.value = scanned;
-    selected.value = defaultSelection(scanned);
+    selected.value = new Set();
     alerts.value = [...scanned.warnings];
     if (scanned.warnings.length > 0) {
       void window.api.log("warn", `[scan] ${scanned.warnings.join("；")}`);
@@ -657,11 +647,22 @@ function rehashFromMenu(): void {
 }
 
 function startPreview(side: Side): void {
-  if (selected.value.size === 0) {
-    pushAlert("先勾选要执行的行");
+  const rows = result.value?.rows ?? [];
+  if (rows.length === 0) {
+    pushAlert("先扫描左右目录");
     return;
   }
+  /* 先按全选求动作，再反推出这个方向真正会动到的行 */
+  const all = new Set(rows.map((_, index) => index));
+  const { actions } = buildPreview(rows, all, side);
+  selected.value = new Set(actions.map((action) => action.rowIndex));
   previewSide.value = side;
+}
+
+/** 退出预览：连同勾选一起清空 */
+function exitPreview(): void {
+  previewSide.value = null;
+  selected.value = new Set();
 }
 
 /** 预览定型：进入预览时把动作算好并固定，执行直接落地 */
@@ -669,7 +670,7 @@ async function executePreview(): Promise<void> {
   const side = previewSide.value;
   if (!side) return;
   const built = buildPreview(result.value?.rows ?? [], selected.value, side);
-  previewSide.value = null;
+  exitPreview();
   await runActions(built.actions, side === "left" ? "同步到左侧" : "同步到右侧");
 }
 </script>
@@ -720,6 +721,7 @@ async function executePreview(): Promise<void> {
           v-model:excludeInput="excludeInput"
           v-model:hideSame="hideSame"
           v-model:viewMode="viewMode"
+          :view-locked="previewSide !== null"
           :scanning="scanning"
           :busy="busy"
           @scan="scan()"
@@ -759,7 +761,7 @@ async function executePreview(): Promise<void> {
               </button>
             </div>
           </div>
-          <div class="flex w-24 shrink-0 items-center justify-center">
+          <div v-if="previewSide !== null" class="flex w-24 shrink-0 items-center justify-center">
             <input
               type="checkbox"
               class="h-3 w-3 accent-sky-500"
@@ -770,6 +772,7 @@ async function executePreview(): Promise<void> {
               @change="toggleAll"
             />
           </div>
+          <div v-else class="w-24 shrink-0"></div>
           <div class="flex min-w-0 flex-1 items-center gap-3 px-3 py-1.5">
             <span
               class="min-w-0 flex-1 truncate font-medium"
@@ -814,6 +817,7 @@ async function executePreview(): Promise<void> {
                 :selected="selected"
                 :busy="busy"
                 :highlight="previewSide"
+                :show-checkbox="previewSide !== null"
                 @run-left="runRow($event, 'left')"
                 @run-right="runRow($event, 'right')"
                 @toggle="toggle"
@@ -839,8 +843,7 @@ async function executePreview(): Promise<void> {
               <button
                 type="button"
                 class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="busy || selected.size === 0"
-                :title="selected.size === 0 ? '先勾选要执行的行' : ''"
+                :disabled="busy || !result"
                 @click="startPreview('left')"
               >
                 向左同步预览
@@ -848,7 +851,7 @@ async function executePreview(): Promise<void> {
               <button
                 type="button"
                 class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="busy || selected.size === 0"
+                :disabled="busy || !result"
                 @click="startPreview('right')"
               >
                 向右同步预览
@@ -862,7 +865,7 @@ async function executePreview(): Promise<void> {
               <button
                 type="button"
                 class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
-                @click="previewSide = null"
+                @click="exitPreview"
               >
                 退出预览
               </button>

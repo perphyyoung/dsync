@@ -12,6 +12,8 @@ const props = defineProps<{
   busy: boolean;
   /** 预览模式：只亮这一侧，另一侧置灰 */
   highlight?: Side | null;
+  /** 预览模式才显示勾选框 */
+  showCheckbox?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -95,7 +97,7 @@ function confirmRun(): void {
     <div
       v-for="entry in rows"
       :key="entry.index"
-      class="flex h-8 items-center justify-center gap-1 border-b border-slate-900"
+      class="flex h-8 items-center justify-center gap-2 border-b border-slate-900"
     >
       <button
         type="button"
@@ -108,12 +110,15 @@ function confirmRun(): void {
         &lt;
       </button>
 
-      <input
-        type="checkbox"
-        class="h-3 w-3 accent-sky-500"
-        :checked="selected.has(entry.index)"
-        @change="emit('toggle', entry.index)"
-      />
+      <span class="flex w-4 shrink-0 items-center justify-center">
+        <input
+          v-if="props.showCheckbox"
+          type="checkbox"
+          class="h-3 w-3 accent-sky-500"
+          :checked="selected.has(entry.index)"
+          @change="emit('toggle', entry.index)"
+        />
+      </span>
 
       <button
         type="button"
