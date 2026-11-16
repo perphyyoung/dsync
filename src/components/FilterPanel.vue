@@ -1,11 +1,21 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import type { ViewMode } from "../lib/types";
 import ConfirmBubble from "./ConfirmBubble.vue";
 
 const minSizeKb = defineModel<number>("minSizeKb", { required: true });
 const includeInput = defineModel<string>("includeInput", { required: true });
 const excludeInput = defineModel<string>("excludeInput", { required: true });
 const hideSame = defineModel<boolean>("hideSame", { required: true });
+const viewMode = defineModel<ViewMode>("viewMode", { required: true });
+
+const VIEW_OPTIONS: { value: ViewMode; label: string; title: string }[] = [
+  { value: "all", label: "全部", title: "显示所有差异行" },
+  { value: "left", label: "左侧", title: "只看左侧有文件的行" },
+  { value: "right", label: "右侧", title: "只看右侧有文件的行" },
+  { value: "duplicate", label: "重复", title: "只看重复：单侧有多个内容相同的文件" },
+  { value: "blocked", label: "占用", title: "只看目标占用：两侧同路径但内容不同" },
+];
 
 const props = defineProps<{
   scanning: boolean;
@@ -65,6 +75,27 @@ function confirmForceRehash(): void {
       <input v-model="hideSame" type="checkbox" class="accent-sky-500" />
       <span>隐藏一致项</span>
     </label>
+
+    <div class="flex items-center gap-2">
+      <span class="text-slate-500">显示模式</span>
+      <div class="flex items-center rounded border border-slate-700 p-0.5">
+        <button
+          v-for="option in VIEW_OPTIONS"
+          :key="option.value"
+          type="button"
+          class="rounded px-2 py-0.5 text-[11px] transition-colors"
+          :class="
+            viewMode === option.value
+              ? 'bg-slate-700 text-slate-100'
+              : 'text-slate-400 hover:text-slate-200'
+          "
+          :title="option.title"
+          @click="viewMode = option.value"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+    </div>
 
     <div class="relative ml-auto flex items-center gap-2">
       <button

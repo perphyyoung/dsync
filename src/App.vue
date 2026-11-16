@@ -24,6 +24,7 @@ import type {
   Side,
   StaleEntry,
   SyncAction,
+  ViewMode,
 } from "./lib/types";
 
 const leftRoot = ref("");
@@ -32,6 +33,7 @@ const minSizeKb = ref(0);
 const includeInput = ref("");
 const excludeInput = ref("");
 const hideSame = ref(true);
+const viewMode = ref<ViewMode>("all");
 
 const scanning = ref(false);
 const executing = ref(false);
@@ -62,11 +64,21 @@ const softDeleteMessage = computed(() => {
   return `${path}\n移入回收站后可以还原；dsync 不会真正删除文件。`;
 });
 
+/* 显示视角：只看左侧 / 只看右侧 / 只看重复 / 只看目标占用 */
+function matchesView(row: DiffRow): boolean {
+  if (viewMode.value === "left") return row.left !== null;
+  if (viewMode.value === "right") return row.right !== null;
+  if (viewMode.value === "duplicate") return row.status === "duplicate";
+  if (viewMode.value === "blocked") return row.status === "target-blocked";
+  return true;
+}
+
 const items = computed(() => {
   const rows = result.value?.rows ?? [];
   return rows
     .map((row, index) => ({ row, index }))
-    .filter((item) => !hideSame.value || item.row.status !== "same");
+    .filter((item) => !hideSame.value || item.row.status !== "same")
+    .filter((item) => matchesView(item.row));
 });
 
 const STAT_META: { key: keyof ScanStats; label: string; dot: string }[] = [
@@ -92,14 +104,12 @@ const statItems = computed(() => {
   }));
 });
 
-/* 全选只覆盖参与执行的行：same 与 ignored 不勾，与 defaultSelection 同规则 */
-const selectableIndexes = computed(() => {
-  const rows = result.value?.rows ?? [];
-  return rows
-    .map((row, index) => ({ row, index }))
+/* 全选只覆盖可见且参与执行的行：same 与 ignored 不勾 */
+const selectableIndexes = computed(() =>
+  items.value
     .filter(({ row }) => row.status !== "same" && row.status !== "ignored")
-    .map(({ index }) => index);
-});
+    .map(({ index }) => index),
+);
 
 const allSelected = computed(
   () =>
@@ -709,6 +719,7 @@ async function executePreview(): Promise<void> {
           v-model:includeInput="includeInput"
           v-model:excludeInput="excludeInput"
           v-model:hideSame="hideSame"
+          v-model:viewMode="viewMode"
           :scanning="scanning"
           :busy="busy"
           @scan="scan()"

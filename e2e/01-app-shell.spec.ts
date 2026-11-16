@@ -11,6 +11,10 @@ test("窗口骨架：目录表头、过滤行、双栏与菜单", async ({ slot 
   await expect(page.getByTitle("在文件管理器中打开")).toHaveCount(2);
   /* 表头的全选复选框（过滤行的「隐藏一致项」也是 checkbox，用 title 区分） */
   await expect(page.getByTitle("全选 / 取消全选")).toBeVisible();
+  await expect(page.getByText("显示模式", { exact: true })).toBeVisible();
+  for (const name of ["全部", "左侧", "右侧", "重复", "占用"]) {
+    await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
+  }
   await expect(page.getByRole("button", { name: "扫描", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "强制重算", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "向左同步预览", exact: true })).toBeVisible();
