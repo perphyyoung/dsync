@@ -15,7 +15,8 @@ import type {
 } from "../lib/types";
 
 export interface Api {
-  pickDirectory(): Promise<string | null>;
+  pickDirectory(defaultPath?: string): Promise<string | null>;
+  openDirectory(path: string): Promise<void>;
   scan(request: ScanRequest): Promise<ScanOutcome>;
   pauseScan(): Promise<void>;
   resumeScan(): Promise<void>;

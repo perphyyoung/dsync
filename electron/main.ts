@@ -117,12 +117,20 @@ function parseExecuteRequest(value: unknown): ExecuteRequest {
   return { leftRoot, rightRoot, actions: valid };
 }
 
-ipcMain.handle("dir:pick", async (): Promise<string | null> => {
+ipcMain.handle("dir:pick", async (_event, raw?: unknown): Promise<string | null> => {
+  const defaultPath = typeof raw === "string" && raw ? raw : undefined;
   const result = await dialog.showOpenDialog({
     title: "选择目录",
+    ...(defaultPath ? { defaultPath } : {}),
     properties: ["openDirectory"],
   });
   return result.canceled ? null : (result.filePaths[0] ?? null);
+});
+
+ipcMain.handle("dir:open", async (_event, raw?: unknown): Promise<void> => {
+  if (typeof raw !== "string" || !raw) throw new Error("无效目录");
+  const error = await shell.openPath(raw);
+  if (error) throw new Error(error);
 });
 
 ipcMain.handle("recent:list", (): RecentPair[] => recentPairs);

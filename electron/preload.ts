@@ -15,7 +15,9 @@ import type {
 } from "../src/lib/types";
 
 contextBridge.exposeInMainWorld("api", {
-  pickDirectory: (): Promise<string | null> => ipcRenderer.invoke("dir:pick"),
+  pickDirectory: (defaultPath?: string): Promise<string | null> =>
+    ipcRenderer.invoke("dir:pick", defaultPath),
+  openDirectory: (path: string): Promise<void> => ipcRenderer.invoke("dir:open", path),
   scan: (request: ScanRequest): Promise<ScanOutcome> => ipcRenderer.invoke("sync:scan", request),
   pauseScan: (): Promise<void> => ipcRenderer.invoke("sync:pause"),
   resumeScan: (): Promise<void> => ipcRenderer.invoke("sync:resume"),

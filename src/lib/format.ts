@@ -54,9 +54,3 @@ export function describeAction(action: SyncAction): string {
   if (action.kind === "move") return `改名 ${action.fromPath ?? ""} → ${action.toPath}`;
   return `软删除：${action.toPath}`;
 }
-
-/** 取路径末段作为列标题，根目录为空时返回空串 */
-export function baseName(path: string): string {
-  const parts = path.split(/[\\/]/).filter(Boolean);
-  return parts[parts.length - 1] ?? "";
-}

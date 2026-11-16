@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import ConfirmBubble from "./components/ConfirmBubble.vue";
-import DirPicker from "./components/DirPicker.vue";
 import FileList from "./components/FileList.vue";
 import FilterPanel from "./components/FilterPanel.vue";
 import ProgressPage from "./components/ProgressPage.vue";
@@ -9,7 +8,6 @@ import RecyclePage from "./components/RecyclePage.vue";
 import RowActions from "./components/RowActions.vue";
 import ToastBubble from "./components/ToastBubble.vue";
 import { parseExtInput } from "./lib/exts";
-import { baseName } from "./lib/format";
 import { buildPreview } from "./lib/preview";
 import { rowDirections } from "./lib/row-actions";
 import { verifyOutcome } from "./lib/verify";
@@ -76,6 +74,29 @@ const pendingCount = computed(() => {
   return rows.filter((row) => row.status !== "same" && row.status !== "ignored").length;
 });
 
+/* 全选只覆盖参与执行的行：same 与 ignored 不勾，与 defaultSelection 同规则 */
+const selectableIndexes = computed(() => {
+  const rows = result.value?.rows ?? [];
+  return rows
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => row.status !== "same" && row.status !== "ignored")
+    .map(({ index }) => index);
+});
+
+const allSelected = computed(
+  () =>
+    selectableIndexes.value.length > 0 &&
+    selectableIndexes.value.every((index) => selected.value.has(index)),
+);
+
+const someSelected = computed(
+  () => !allSelected.value && selectableIndexes.value.some((index) => selected.value.has(index)),
+);
+
+function toggleAll(): void {
+  selected.value = allSelected.value ? new Set() : new Set(selectableIndexes.value);
+}
+
 const statsTooltip = computed(() => {
   const stats = result.value?.stats;
   if (!stats) return "";
@@ -130,10 +151,22 @@ onUnmounted(() => {
 });
 
 async function pick(side: "left" | "right"): Promise<void> {
-  const picked = await window.api.pickDirectory();
+  const current = side === "left" ? leftRoot.value : rightRoot.value;
+  const picked = await window.api.pickDirectory(current ?? undefined);
   if (!picked) return;
   if (side === "left") leftRoot.value = picked;
   else rightRoot.value = picked;
+}
+
+/** 用系统文件管理器打开目录 */
+async function openDir(side: "left" | "right"): Promise<void> {
+  const path = side === "left" ? leftRoot.value : rightRoot.value;
+  if (!path) return;
+  try {
+    await window.api.openDirectory(path);
+  } catch (error) {
+    pushAlert(error instanceof Error ? error.message : String(error));
+  }
 }
 
 /** 结果只对应当前目录与过滤条件，一旦输入变化立即作废 */
@@ -654,13 +687,6 @@ async function executePreview(): Promise<void> {
         </div>
       </div>
 
-      <header class="border-b border-slate-800 px-4 py-3">
-        <div class="flex items-center gap-3">
-          <DirPicker label="左侧目录" :path="leftRoot" @pick="pick('left')" />
-          <DirPicker label="右侧目录" :path="rightRoot" @pick="pick('right')" />
-        </div>
-      </header>
-
       <div class="relative">
         <FilterPanel
           v-model:minSizeKb="minSizeKb"
@@ -678,12 +704,72 @@ async function executePreview(): Promise<void> {
         <div
           class="flex items-center border-b border-slate-800 bg-slate-900/60 text-[11px] text-slate-400"
         >
-          <div class="min-w-0 flex-1 truncate px-3 py-1.5 font-medium">
-            {{ baseName(leftRoot) || "左侧文件" }}
+          <div class="flex min-w-0 flex-1 items-center gap-3 px-3 py-1.5">
+            <span
+              class="min-w-0 flex-1 truncate font-medium"
+              :class="leftRoot ? 'text-slate-300' : 'text-slate-600'"
+              :title="leftRoot ?? ''"
+            >
+              {{ leftRoot || "未选择左侧目录" }}
+            </span>
+            <div class="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                class="rounded border border-slate-700 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                :disabled="!leftRoot"
+                title="在文件管理器中打开"
+                @click="openDir('left')"
+              >
+                打开
+              </button>
+              <button
+                type="button"
+                class="rounded border border-slate-700 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800"
+                title="更改左侧目录"
+                @click="pick('left')"
+              >
+                更改
+              </button>
+            </div>
           </div>
-          <div class="w-24 shrink-0"></div>
-          <div class="min-w-0 flex-1 truncate px-3 py-1.5 font-medium">
-            {{ baseName(rightRoot) || "右侧文件" }}
+          <div class="flex w-24 shrink-0 items-center justify-center">
+            <input
+              type="checkbox"
+              class="h-3 w-3 accent-sky-500"
+              :checked="allSelected"
+              :indeterminate="someSelected"
+              :disabled="selectableIndexes.length === 0"
+              title="全选 / 取消全选"
+              @change="toggleAll"
+            />
+          </div>
+          <div class="flex min-w-0 flex-1 items-center gap-3 px-3 py-1.5">
+            <span
+              class="min-w-0 flex-1 truncate font-medium"
+              :class="rightRoot ? 'text-slate-300' : 'text-slate-600'"
+              :title="rightRoot ?? ''"
+            >
+              {{ rightRoot || "未选择右侧目录" }}
+            </span>
+            <div class="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                class="rounded border border-slate-700 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                :disabled="!rightRoot"
+                title="在文件管理器中打开"
+                @click="openDir('right')"
+              >
+                打开
+              </button>
+              <button
+                type="button"
+                class="rounded border border-slate-700 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800"
+                title="更改右侧目录"
+                @click="pick('right')"
+              >
+                更改
+              </button>
+            </div>
           </div>
         </div>
 

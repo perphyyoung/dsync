@@ -20,9 +20,9 @@ test("右键软删除进回收站，重扫后不再出现", async ({ slot }) => 
   };
 
   await pickInto(left);
-  await page.getByText("选择左侧目录", { exact: true }).click();
+  await page.getByTitle("更改左侧目录").click();
   await pickInto(right);
-  await page.getByText("选择右侧目录", { exact: true }).click();
+  await page.getByTitle("更改右侧目录").click();
 
   await page.getByRole("button", { name: "扫描", exact: true }).click();
   await expect(page.getByText("a.md", { exact: true })).toBeVisible();
