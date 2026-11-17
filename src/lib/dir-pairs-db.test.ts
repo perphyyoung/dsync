@@ -31,9 +31,9 @@ describe("目录对档案库", () => {
     store.touch("C", "D");
     expect(store.list()[0].left).toBe("C");
 
-    /* 左右互换命中同一组，条件保留 */
+    /* 左右互换命中同一组，条件保留，显示顺序保持首次写入 */
     store.touch("B", "A");
-    expect(store.list()[0].right).toBe("A");
+    expect(store.list()[0].left).toBe("A");
     expect(store.list()[0].filters).toMatchObject({ sizeMin: 100 });
     expect(store.list()).toHaveLength(2);
     expect(store.recent()).toHaveLength(2);
@@ -75,6 +75,16 @@ describe("目录对档案库", () => {
     const store = openDirPairsDb(":memory:");
     store.touch("A", "B");
     store.touch("b", "a");
+    expect(store.list()).toHaveLength(1);
+    store.close();
+  });
+
+  it("删除后档案里不再出现", () => {
+    const store = openDirPairsDb(":memory:");
+    store.touch("A", "B");
+    store.touch("C", "D");
+    store.remove("A", "B");
+    expect(store.list().some((item) => item.left === "A")).toBe(false);
     expect(store.list()).toHaveLength(1);
     store.close();
   });

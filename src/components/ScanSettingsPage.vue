@@ -28,6 +28,7 @@ const props = defineProps<{ pairs: DirPairEntry[] }>();
 const emit = defineEmits<{
   pick: [side: Side];
   pickPair: [pair: DirPairEntry];
+  removePair: [pair: DirPairEntry];
   start: [];
   forceRehash: [];
   close: [];
@@ -60,6 +61,18 @@ function pickPair(pair: DirPairEntry): void {
 function clearSearch(): void {
   search.value = "";
   searchInput.value?.focus();
+}
+
+const removeTarget = ref<DirPairEntry | null>(null);
+
+function askRemove(pair: DirPairEntry): void {
+  removeTarget.value = pair;
+}
+
+function confirmRemove(): void {
+  const target = removeTarget.value;
+  removeTarget.value = null;
+  if (target) emit("removePair", target);
 }
 
 function confirmForceRehash(): void {
@@ -105,29 +118,48 @@ function confirmForceRehash(): void {
           </div>
           <span class="text-[11px] text-slate-600">{{ filteredPairs.length }} 组</span>
         </div>
-        <div v-if="filteredPairs.length > 0" class="max-h-40 space-y-1 overflow-auto pl-16">
-          <button
-            v-for="pair in filteredPairs"
-            :key="`${pair.left}|${pair.right}`"
-            type="button"
-            class="flex w-full items-center gap-2 rounded border px-2 py-1 text-left transition-colors"
-            :class="
-              isSelected(pair)
-                ? 'border-sky-700 bg-sky-600/10 text-slate-100'
-                : 'border-slate-800 text-slate-300 hover:border-slate-600 hover:bg-slate-800'
-            "
-            :title="`${pair.left} ⇄ ${pair.right}`"
-            @click="pickPair(pair)"
-          >
-            <span class="w-4 shrink-0 text-center text-sky-400">{{
-              isSelected(pair) ? "✓" : ""
-            }}</span>
-            <span class="min-w-0 flex-1 truncate">{{ pair.left }} ⇄ {{ pair.right }}</span>
-          </button>
+        <div class="flex gap-3">
+          <span class="w-16 shrink-0"></span>
+          <div class="min-w-0 flex-1">
+            <div v-if="filteredPairs.length > 0" class="max-h-40 space-y-1 overflow-auto">
+              <div
+                v-for="pair in filteredPairs"
+                :key="`${pair.left}|${pair.right}`"
+                class="flex items-center gap-2"
+                :title="`${pair.left} ⇄ ${pair.right}`"
+              >
+                <button
+                  type="button"
+                  class="flex min-w-0 flex-1 items-center gap-2 rounded border px-2 py-1 text-left transition-colors"
+                  :class="
+                    isSelected(pair)
+                      ? 'border-sky-700 bg-sky-600/10 text-slate-100'
+                      : 'border-slate-800 text-slate-300 hover:border-slate-600 hover:bg-slate-800'
+                  "
+                  @click="pickPair(pair)"
+                >
+                  <span class="min-w-0 flex-1 truncate text-right">{{ pair.left }}</span>
+                  <span class="mx-1 shrink-0 text-slate-600">⇄</span>
+                  <span class="min-w-0 flex-1 truncate">{{ pair.right }}</span>
+                </button>
+                <span class="flex w-4 shrink-0 justify-center">
+                  <button
+                    v-if="!isSelected(pair)"
+                    type="button"
+                    class="rounded text-rose-400 hover:text-rose-300"
+                    title="删除目录对"
+                    @click="askRemove(pair)"
+                  >
+                    ×
+                  </button>
+                </span>
+              </div>
+            </div>
+            <p v-else class="text-[11px] text-slate-600">
+              {{ search ? "没有匹配的目录对" : "还没有扫描成功过的目录对" }}
+            </p>
+          </div>
         </div>
-        <p v-else class="pl-16 text-[11px] text-slate-600">
-          {{ search ? "没有匹配的目录对" : "还没有扫描成功过的目录对" }}
-        </p>
       </div>
     </section>
 
@@ -289,6 +321,22 @@ function confirmForceRehash(): void {
         </button>
       </div>
     </footer>
+
+    <div
+      v-if="removeTarget"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60"
+      @click.self="removeTarget = null"
+    >
+      <ConfirmBubble
+        floating
+        title="删除目录对"
+        :message="`${removeTarget.left} ⇄ ${removeTarget.right}\n删除该目录对的扫描条件存档，不会修改任何文件。`"
+        confirm-text="删除"
+        danger
+        @confirm="confirmRemove"
+        @cancel="removeTarget = null"
+      />
+    </div>
 
     <div
       v-if="rehashConfirmOpen"

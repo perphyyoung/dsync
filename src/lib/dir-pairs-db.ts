@@ -74,6 +74,8 @@ export interface DirPairsStore {
   touch(left: string, right: string): DirPairEntry[];
   /** 旧 recent-pairs.json 的一次性导入 */
   importLegacy(list: { left: string; right: string; savedAt: string }[]): void;
+  /** 删除一个目录对的存档 */
+  remove(left: string, right: string): void;
   close(): void;
 }
 
@@ -95,12 +97,11 @@ export function openDirPairsDb(filePath: string): DirPairsStore {
   };
 
   /* null 参数经 COALESCE 回退到原值：save 不动 used_at，touch 不动 filters */
+  /* left/right 不更新：保留首次写入的显示顺序，左右互换仍命中同一组 */
   const upsert = db.prepare(`
     INSERT INTO dir_pairs (pair_key, left, right, used_at, filters, updated_at)
     VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(pair_key) DO UPDATE SET
-      left = excluded.left,
-      right = excluded.right,
       used_at = COALESCE(excluded.used_at, dir_pairs.used_at),
       filters = COALESCE(excluded.filters, dir_pairs.filters),
       updated_at = excluded.updated_at
@@ -151,6 +152,10 @@ export function openDirPairsDb(filePath: string): DirPairsStore {
     trim();
   }
 
+  function remove(left: string, right: string): void {
+    db.prepare("DELETE FROM dir_pairs WHERE pair_key = ?").run(pairKey(left, right));
+  }
+
   return {
     list: listAll,
     recent,
@@ -158,6 +163,7 @@ export function openDirPairsDb(filePath: string): DirPairsStore {
     save,
     touch,
     importLegacy,
+    remove,
     close: () => db.close(),
   };
 }

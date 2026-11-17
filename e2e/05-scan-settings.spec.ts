@@ -75,13 +75,13 @@ test("过滤条件随目录对保存，重启后恢复", async ({ slot }) => {
   await slot.relaunch();
 
   await expect(slot.page.getByText("扫描设置", { exact: true })).toBeVisible();
-  await expect(slot.page.getByText(left, { exact: true })).toBeVisible();
+  /* 目录行用标题定位：候选行里也有同一段路径文本 */
+  await expect(slot.page.getByTitle(left, { exact: true })).toBeVisible();
   await expect(slot.page.getByLabel("启用")).toBeChecked();
   await expect(slot.page.getByTitle("最小值", { exact: true })).toHaveValue("512");
-  /* 当前目录对在候选列表里带对勾与高亮 */
+  /* 当前目录对在候选列表里带高亮 */
   const pairRow = slot.page.getByTitle(`${left} ⇄ ${right}`);
-  await expect(pairRow).toHaveClass(/border-sky-700/);
-  await expect(pairRow.getByText("✓")).toBeVisible();
+  await expect(pairRow.getByRole("button").first()).toHaveClass(/border-sky-700/);
 
   /* 搜索可一键清空 */
   const searchBox = slot.page.getByPlaceholder("搜索路径");
@@ -109,4 +109,40 @@ test("左右目录互换沿用同一套条件", async ({ slot }) => {
 
   await expect(page.getByTitle("最小值", { exact: true })).toHaveValue("512");
   log.info("[e2e] 左右互换后条件保持不变");
+});
+
+test("删除目录对需要确认，当前目录对不可删", async ({ slot }) => {
+  const { app, page, base } = slot;
+  const left = join(base, "left");
+  const right = join(base, "right");
+  const other = join(base, "other");
+  await mkdir(other, { recursive: true });
+
+  await expect(page.getByText("扫描设置", { exact: true })).toBeVisible();
+  const pairRow = page.getByTitle(`${left} ⇄ ${right}`);
+  /* 当前使用中的目录对不渲染删除按钮 */
+  await expect(pairRow.getByTitle("删除目录对")).toHaveCount(0);
+
+  /* 切走当前目录对后出现删除按钮 */
+  const pickInto = async (target: string): Promise<void> => {
+    await app.evaluate(({ dialog }, picked) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [picked] });
+    }, target);
+  };
+  await pickInto(other);
+  await page.getByTitle("更改左侧目录").click();
+  await expect(pairRow.getByTitle("删除目录对")).toBeVisible();
+
+  /* 取消后保留 */
+  await pairRow.getByTitle("删除目录对").click();
+  await expect(page.getByText("删除该目录对的扫描条件存档，不会修改任何文件。")).toBeVisible();
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(pairRow).toBeVisible();
+
+  /* 确认后删除 */
+  await pairRow.getByTitle("删除目录对").click();
+  await page.getByRole("button", { name: "删除", exact: true }).click();
+  await expect(pairRow).toHaveCount(0);
+  await expect(page.getByText("还没有扫描成功过的目录对")).toBeVisible();
+  log.info("[e2e] 当前目录对不可删，其他目录对确认后删除");
 });

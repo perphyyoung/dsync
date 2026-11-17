@@ -29,6 +29,7 @@ export interface Api {
   listRecent(): Promise<RecentPair[]>;
   listPairs(): Promise<DirPairEntry[]>;
   savePairFilters(input: { left: string; right: string; filters: FilterPrefs }): Promise<void>;
+  removePair(input: { left: string; right: string }): Promise<void>;
   listRecycle(request: RecycleListRequest): Promise<DeletedRecord[]>;
   restoreRecycle(request: RecycleRestoreRequest): Promise<string>;
   onProgress(callback: (progress: ScanProgress) => void): () => void;

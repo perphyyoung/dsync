@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld("api", {
   listPairs: (): Promise<DirPairEntry[]> => ipcRenderer.invoke("pairs:list"),
   savePairFilters: (input: { left: string; right: string; filters: FilterPrefs }): Promise<void> =>
     ipcRenderer.invoke("pairs:save", input),
+  removePair: (input: { left: string; right: string }): Promise<void> =>
+    ipcRenderer.invoke("pairs:remove", input),
   listRecycle: (request: RecycleListRequest): Promise<DeletedRecord[]> =>
     ipcRenderer.invoke("recycle:list", request),
   restoreRecycle: (request: RecycleRestoreRequest): Promise<string> =>

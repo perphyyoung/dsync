@@ -173,6 +173,15 @@ ipcMain.handle("pairs:save", async (_event, raw: unknown): Promise<void> => {
   dirPairsDb?.save(left, right, filters as FilterPrefs);
 });
 
+ipcMain.handle("pairs:remove", async (_event, raw: unknown): Promise<void> => {
+  if (typeof raw !== "object" || raw === null) throw new Error("无效参数");
+  const input = raw as Record<string, unknown>;
+  const left = input["left"];
+  const right = input["right"];
+  if (typeof left !== "string" || typeof right !== "string") throw new Error("无效目录");
+  dirPairsDb?.remove(left, right);
+});
+
 ipcMain.handle("sync:scan", async (event, raw: unknown) => {
   return handleIpc("sync:scan", async () => {
     const request = parseScanRequest(raw);

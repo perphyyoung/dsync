@@ -349,6 +349,18 @@ function pickPairRoots(pair: DirPairEntry): void {
   showToast("已载入目录对");
 }
 
+/** 删除目录对存档；当前使用中的目录对不提供删除入口 */
+async function removePair(pair: DirPairEntry): Promise<void> {
+  try {
+    await window.api.removePair({ left: pair.left, right: pair.right });
+    const key = pairKey(pair.left, pair.right);
+    pairEntries.value = pairEntries.value.filter((item) => pairKey(item.left, item.right) !== key);
+    showToast("已删除目录对");
+  } catch (error) {
+    pushAlert(error instanceof Error ? error.message : String(error));
+  }
+}
+
 /** 用系统文件管理器打开目录 */
 async function openDir(side: "left" | "right"): Promise<void> {
   const path = side === "left" ? leftRoot.value : rightRoot.value;
@@ -945,6 +957,7 @@ async function executePreview(): Promise<void> {
         class="min-h-0 flex-1"
         @pick="pick"
         @pick-pair="pickPairRoots"
+        @remove-pair="removePair"
         @start="scan()"
         @force-rehash="scan(true)"
         @close="settingsOpen = false"
