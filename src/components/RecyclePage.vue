@@ -20,7 +20,7 @@ const emit = defineEmits<{
       <span class="text-xs text-slate-500">共 {{ props.items.length }} 项</span>
       <button
         type="button"
-        class="ml-auto rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+        class="ml-auto rounded border border-slate-600 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
         @click="emit('close')"
       >
         返回
@@ -44,7 +44,7 @@ const emit = defineEmits<{
           <span class="shrink-0 text-slate-500">{{ formatSize(item.size) }}</span>
           <button
             type="button"
-            class="shrink-0 rounded border border-slate-700 px-2 py-0.5 text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            class="shrink-0 rounded border border-slate-600 px-2 py-0.5 text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="props.busy"
             @click="emit('restore', item)"
           >

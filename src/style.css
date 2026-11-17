@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans:
+    "Microsoft YaHei UI", "Microsoft YaHei", system-ui, -apple-system, "Segoe UI",
+    "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+}
+
+:root {
+  /* 原生控件与滚动条跟随深色主题 */
+  color-scheme: dark;
+}
+
 html,
 body,
 #app {

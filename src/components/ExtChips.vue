@@ -36,11 +36,11 @@ function toggleGroup(group: { label: string; exts: string[] }): void {
       v-for="group in PRESETS"
       :key="group.label"
       type="button"
-      class="rounded border px-1.5 py-0.5 text-[11px] transition-colors"
+      class="rounded border px-1.5 py-0.5 text-xs transition-colors"
       :class="
         isActive(group)
           ? 'border-sky-600 bg-sky-600/20 text-sky-300'
-          : 'border-slate-700 text-slate-500 hover:text-slate-300'
+          : 'border-slate-600 text-slate-500 hover:text-slate-300'
       "
       :title="group.exts.join(' ')"
       @click="toggleGroup(group)"

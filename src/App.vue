@@ -1009,7 +1009,7 @@ async function executePreview(): Promise<void> {
 
         <main class="flex min-h-0 flex-1 flex-col">
           <div
-            class="flex items-center border-b border-slate-800 bg-slate-900/60 text-[11px] text-slate-400"
+            class="flex items-center border-b border-slate-800 bg-slate-900/60 text-xs text-slate-400"
           >
             <div class="flex min-w-0 flex-1 items-center gap-3 px-3 py-1.5">
               <span
@@ -1022,7 +1022,7 @@ async function executePreview(): Promise<void> {
               <div class="flex shrink-0 items-center gap-1">
                 <button
                   type="button"
-                  class="rounded border border-slate-700 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  class="rounded border border-slate-600 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                   :disabled="!leftRoot"
                   title="在文件管理器中打开"
                   @click="openDir('left')"
@@ -1054,7 +1054,7 @@ async function executePreview(): Promise<void> {
               <div class="flex shrink-0 items-center gap-1">
                 <button
                   type="button"
-                  class="rounded border border-slate-700 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  class="rounded border border-slate-600 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                   :disabled="!rightRoot"
                   title="在文件管理器中打开"
                   @click="openDir('right')"
@@ -1093,7 +1093,7 @@ async function executePreview(): Promise<void> {
         </main>
 
         <footer class="border-t border-slate-800 px-4 py-2">
-          <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-slate-400">
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-400">
             <div v-if="statItems.length > 0" class="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span v-for="item in statItems" :key="item.key" class="flex items-center gap-1">
                 <span class="h-1.5 w-1.5 rounded-full" :class="item.dot"></span>
@@ -1126,7 +1126,7 @@ async function executePreview(): Promise<void> {
                 :class="
                   previewSide === option.value
                     ? 'border-sky-600 bg-sky-600/20 text-sky-300'
-                    : 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                    : 'border-slate-600 text-slate-300 hover:bg-slate-800'
                 "
                 :disabled="busy || !result"
                 @click="togglePreview(option.value)"
@@ -1136,7 +1136,7 @@ async function executePreview(): Promise<void> {
 
               <button
                 type="button"
-                class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+                class="rounded border border-slate-600 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
                 @click="openRecycle"
               >
                 回收站
@@ -1151,7 +1151,7 @@ async function executePreview(): Promise<void> {
           <div
             v-for="(alert, index) in alerts"
             :key="index"
-            class="flex items-start gap-3 px-4 py-1.5 text-[11px] text-amber-200"
+            class="flex items-start gap-3 px-4 py-1.5 text-xs text-amber-200"
           >
             <span class="flex-1">{{ alert }}</span>
             <button
@@ -1174,7 +1174,7 @@ async function executePreview(): Promise<void> {
     ></div>
     <div
       v-if="rowMenu"
-      class="fixed z-50 w-44 rounded border border-slate-700 bg-slate-900 py-1 text-xs shadow-xl"
+      class="fixed z-50 w-44 rounded border border-slate-600 bg-slate-900 py-1 text-xs shadow-xl"
       :style="{ top: `${rowMenu.y}px`, left: `${rowMenu.x}px` }"
     >
       <button

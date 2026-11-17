@@ -98,7 +98,7 @@ function confirmRemove(): void {
       <span class="text-sm font-medium">扫描设置</span>
       <button
         type="button"
-        class="ml-auto rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+        class="ml-auto rounded border border-slate-600 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
         @click="emit('close')"
       >
         返回
@@ -106,16 +106,16 @@ function confirmRemove(): void {
     </header>
 
     <section class="border-b border-slate-800 px-4 py-3">
-      <div class="mx-auto flex w-full max-w-2xl flex-col gap-2 text-xs">
+      <div class="mx-auto flex w-full max-w-2xl flex-col gap-2 text-sm">
         <div class="flex items-center gap-3">
-          <span class="w-24 shrink-0 text-right text-slate-500">最近目录对</span>
+          <span class="w-32 shrink-0 text-right text-slate-400">最近目录对</span>
           <div class="relative">
             <input
               ref="searchInput"
               v-model="search"
               type="text"
               placeholder="搜索路径"
-              class="w-64 rounded border border-slate-700 bg-slate-900 px-2 py-1 pr-7 text-slate-200 placeholder:text-slate-600"
+              class="w-64 rounded border border-slate-600 bg-slate-900 px-2 py-1 pr-7 text-slate-200 placeholder:text-slate-600"
             />
             <button
               v-if="search"
@@ -127,10 +127,10 @@ function confirmRemove(): void {
               ×
             </button>
           </div>
-          <span class="text-[11px] text-slate-600">{{ filteredPairs.length }} 组</span>
+          <span class="text-xs text-slate-500">{{ filteredPairs.length }} 组</span>
         </div>
         <div class="flex gap-3">
-          <span class="w-24 shrink-0"></span>
+          <span class="w-32 shrink-0"></span>
           <div class="min-w-0 flex-1">
             <div v-if="filteredPairs.length > 0" class="max-h-40 space-y-1 overflow-auto">
               <div
@@ -166,7 +166,7 @@ function confirmRemove(): void {
                 </span>
               </div>
             </div>
-            <p v-else class="text-[11px] text-slate-600">
+            <p v-else class="text-xs text-slate-500">
               {{ search ? "没有匹配的目录对" : "还没有扫描成功过的目录对" }}
             </p>
           </div>
@@ -175,9 +175,9 @@ function confirmRemove(): void {
     </section>
 
     <div class="min-h-0 flex-1 overflow-auto px-4 py-6">
-      <div class="mx-auto flex w-full max-w-2xl flex-col gap-3 text-xs">
+      <div class="mx-auto flex w-full max-w-2xl flex-col gap-3 text-sm">
         <div class="flex items-center gap-3">
-          <span class="w-24 shrink-0 text-right text-slate-500">左侧目录</span>
+          <span class="w-32 shrink-0 text-right text-slate-400">左侧目录</span>
           <span
             class="min-w-0 flex-1 truncate rounded border border-slate-800 bg-slate-900 px-2 py-1.5"
             :class="leftRoot ? 'text-slate-200' : 'text-slate-600'"
@@ -187,7 +187,7 @@ function confirmRemove(): void {
           </span>
           <button
             type="button"
-            class="shrink-0 rounded border border-slate-700 px-3 py-1 text-slate-300 hover:bg-slate-800"
+            class="shrink-0 rounded border border-slate-600 px-3 py-1 text-slate-300 hover:bg-slate-800"
             title="更改左侧目录"
             @click="emit('pick', 'left')"
           >
@@ -196,7 +196,7 @@ function confirmRemove(): void {
         </div>
 
         <div class="flex items-center gap-3">
-          <span class="w-24 shrink-0 text-right text-slate-500">右侧目录</span>
+          <span class="w-32 shrink-0 text-right text-slate-400">右侧目录</span>
           <span
             class="min-w-0 flex-1 truncate rounded border border-slate-800 bg-slate-900 px-2 py-1.5"
             :class="rightRoot ? 'text-slate-200' : 'text-slate-600'"
@@ -206,7 +206,7 @@ function confirmRemove(): void {
           </span>
           <button
             type="button"
-            class="shrink-0 rounded border border-slate-700 px-3 py-1 text-slate-300 hover:bg-slate-800"
+            class="shrink-0 rounded border border-slate-600 px-3 py-1 text-slate-300 hover:bg-slate-800"
             title="更改右侧目录"
             @click="emit('pick', 'right')"
           >
@@ -215,7 +215,7 @@ function confirmRemove(): void {
         </div>
 
         <div class="flex items-center gap-3">
-          <span class="w-24 shrink-0 text-right text-slate-500">文件大小</span>
+          <span class="w-32 shrink-0 text-right text-slate-400">文件大小</span>
           <SizeFilter
             v-model:enabled="sizeEnabled"
             v-model:min="sizeMin"
@@ -226,64 +226,64 @@ function confirmRemove(): void {
         </div>
 
         <label class="flex items-center gap-3">
-          <span class="w-24 shrink-0 text-right text-slate-500">目录层级</span>
+          <span class="w-32 shrink-0 text-right text-slate-400">目录层级</span>
           <input
             v-model.number="maxDepth"
             type="number"
             min="0"
             step="1"
-            class="w-24 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200"
+            class="w-24 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200"
           />
           <span class="text-slate-500">层（0 不限，1 只扫根目录）</span>
         </label>
 
         <label class="flex items-center gap-3">
-          <span class="w-24 shrink-0 text-right text-slate-500">只含后缀</span>
+          <span class="w-32 shrink-0 text-right text-slate-400">只含后缀</span>
           <input
             v-model="includeInput"
             type="text"
             placeholder="md, ts"
-            class="w-64 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
+            class="w-64 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
           />
         </label>
 
         <div class="flex items-center gap-3">
-          <span class="w-24 shrink-0"></span>
+          <span class="w-32 shrink-0"></span>
           <ExtChips v-model="includeInput" />
         </div>
 
         <label class="flex items-center gap-3">
-          <span class="w-24 shrink-0 text-right text-slate-500">排除后缀</span>
+          <span class="w-32 shrink-0 text-right text-slate-400">排除后缀</span>
           <input
             v-model="excludeInput"
             type="text"
             placeholder="log, tmp"
-            class="w-64 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
+            class="w-64 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
           />
         </label>
 
         <label class="flex items-center gap-3">
-          <span class="w-24 shrink-0 text-right text-slate-500">排除路径关键字</span>
+          <span class="w-32 shrink-0 text-right text-slate-400">排除路径关键字</span>
           <input
             v-model="excludePathsInput"
             type="text"
             placeholder="node_modules, dist"
-            class="w-64 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
+            class="w-64 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
           />
         </label>
 
         <label class="flex items-center gap-3">
-          <span class="w-24 shrink-0 text-right text-slate-500">排除文件名关键字</span>
+          <span class="w-32 shrink-0 text-right text-slate-400">排除文件名关键字</span>
           <input
             v-model="excludeNamesInput"
             type="text"
             placeholder="thumbs.db, .tmp"
-            class="w-64 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
+            class="w-64 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
           />
         </label>
 
         <div class="flex items-start gap-3">
-          <span class="w-24 shrink-0 pt-1 text-right text-slate-500">修改时间范围</span>
+          <span class="w-32 shrink-0 pt-1 text-right text-slate-400">修改时间范围</span>
           <div class="flex flex-col gap-2">
             <label class="flex cursor-pointer items-center gap-2 text-slate-400">
               <input
@@ -311,9 +311,9 @@ function confirmRemove(): void {
                 step="1"
                 aria-label="最近天数"
                 :disabled="timeMode !== 'recent'"
-                class="w-16 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 disabled:opacity-40"
+                class="w-16 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 disabled:opacity-40"
               />
-              <span class="text-slate-500">天</span>
+              <span class="text-slate-400">天</span>
             </label>
             <label class="flex cursor-pointer items-center gap-2 text-slate-400">
               <input
@@ -329,22 +329,22 @@ function confirmRemove(): void {
                 type="date"
                 aria-label="开始日期"
                 :disabled="timeMode !== 'custom'"
-                class="w-40 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 [color-scheme:dark] disabled:opacity-40"
+                class="w-40 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 [color-scheme:dark] disabled:opacity-40"
               />
-              <span class="text-slate-600">至</span>
+              <span class="text-slate-500">至</span>
               <input
                 v-model="dateTo"
                 type="date"
                 aria-label="结束日期"
                 :disabled="timeMode !== 'custom'"
-                class="w-40 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 [color-scheme:dark] disabled:opacity-40"
+                class="w-40 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 [color-scheme:dark] disabled:opacity-40"
               />
             </label>
           </div>
         </div>
 
         <div class="flex items-center gap-3">
-          <span class="w-24 shrink-0 text-right text-slate-500">隐藏文件</span>
+          <span class="w-32 shrink-0 text-right text-slate-400">隐藏文件</span>
           <label class="flex cursor-pointer items-center gap-2 text-slate-400">
             <input v-model="skipHidden" type="checkbox" class="accent-sky-500" />
             <span>跳过</span>
@@ -355,7 +355,7 @@ function confirmRemove(): void {
     </div>
 
     <footer
-      class="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-800 px-4 py-2 text-[11px] text-slate-500"
+      class="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-800 px-4 py-2 text-xs text-slate-500"
     >
       <span>扫描只读，不会修改任何文件</span>
       <div class="ml-auto flex items-center gap-2">

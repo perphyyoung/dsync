@@ -97,7 +97,7 @@ function confirmCancel(): void {
       <p class="text-base text-slate-300">已取消</p>
       <button
         type="button"
-        class="rounded border border-slate-700 px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+        class="rounded border border-slate-600 px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
         @click="emit('back')"
       >
         返回
@@ -136,7 +136,7 @@ function confirmCancel(): void {
           <button
             v-if="status === 'running'"
             type="button"
-            class="rounded border border-slate-700 px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+            class="rounded border border-slate-600 px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
             @click="pauseConfirmOpen = true"
           >
             暂停

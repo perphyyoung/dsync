@@ -11,9 +11,9 @@ const maxUnit = defineModel<SizeUnit>("maxUnit", { required: true });
 const UNITS: SizeUnit[] = ["KB", "MB", "GB"];
 
 const inputClass =
-  "w-20 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 disabled:cursor-not-allowed disabled:opacity-40";
+  "w-20 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 disabled:cursor-not-allowed disabled:opacity-40";
 const unitClass =
-  "rounded border border-slate-700 bg-slate-900 px-1 py-1 text-slate-200 disabled:cursor-not-allowed disabled:opacity-40";
+  "rounded border border-slate-600 bg-slate-900 px-1 py-1 text-slate-200 disabled:cursor-not-allowed disabled:opacity-40";
 </script>
 
 <template>

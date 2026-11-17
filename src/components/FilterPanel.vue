@@ -62,7 +62,7 @@ const emit = defineEmits<{
         min="0"
         step="1"
         title="0 不限，1 只扫根目录"
-        class="w-20 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200"
+        class="w-20 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200"
       />
       <span class="text-slate-500">层</span>
     </label>
@@ -73,7 +73,7 @@ const emit = defineEmits<{
         v-model="includeInput"
         type="text"
         placeholder="md, ts"
-        class="w-40 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
+        class="w-40 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
       />
     </label>
 
@@ -83,7 +83,7 @@ const emit = defineEmits<{
         v-model="excludeInput"
         type="text"
         placeholder="log, tmp"
-        class="w-40 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
+        class="w-40 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
       />
     </label>
 
@@ -93,7 +93,7 @@ const emit = defineEmits<{
         v-model="excludePathsInput"
         type="text"
         placeholder="node_modules, dist"
-        class="w-40 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
+        class="w-40 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
       />
     </label>
 
@@ -103,7 +103,7 @@ const emit = defineEmits<{
         v-model="excludeNamesInput"
         type="text"
         placeholder="thumbs.db, .tmp"
-        class="w-40 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
+        class="w-40 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
       />
     </label>
 
@@ -112,7 +112,7 @@ const emit = defineEmits<{
       <select
         v-model="timeMode"
         aria-label="修改时间范围"
-        class="rounded border border-slate-700 bg-slate-900 px-1 py-0.5 text-slate-200"
+        class="rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-slate-200"
       >
         <option value="none">不限</option>
         <option value="recent">最近</option>
@@ -125,7 +125,7 @@ const emit = defineEmits<{
           min="1"
           step="1"
           aria-label="最近天数"
-          class="w-16 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200"
+          class="w-16 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200"
         />
         <span class="text-slate-500">天</span>
       </template>
@@ -134,14 +134,14 @@ const emit = defineEmits<{
           v-model="dateFrom"
           type="date"
           aria-label="开始日期"
-          class="w-32 rounded border border-slate-700 bg-slate-900 px-1 py-0.5 text-slate-200 [color-scheme:dark]"
+          class="w-32 rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-slate-200 [color-scheme:dark]"
         />
         <span class="text-slate-600">至</span>
         <input
           v-model="dateTo"
           type="date"
           aria-label="结束日期"
-          class="w-32 rounded border border-slate-700 bg-slate-900 px-1 py-0.5 text-slate-200 [color-scheme:dark]"
+          class="w-32 rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-slate-200 [color-scheme:dark]"
         />
       </template>
     </div>
@@ -158,12 +158,12 @@ const emit = defineEmits<{
 
     <div class="flex items-center gap-2">
       <span class="text-slate-500">显示模式</span>
-      <div class="flex items-center rounded border border-slate-700 p-0.5">
+      <div class="flex items-center rounded border border-slate-600 p-0.5">
         <button
           v-for="option in VIEW_OPTIONS"
           :key="option.value"
           type="button"
-          class="rounded px-2 py-0.5 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+          class="rounded px-2 py-0.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40"
           :class="
             viewMode === option.value
               ? 'bg-slate-700 text-slate-100'

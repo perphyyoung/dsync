@@ -14,7 +14,7 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>();
 
 <template>
   <div
-    class="w-72 rounded-lg border border-slate-700 bg-slate-900 p-3 text-left shadow-2xl"
+    class="w-72 rounded-lg border border-slate-600 bg-slate-900 p-3 text-left shadow-2xl"
     :class="floating ? '' : 'absolute top-full right-0 z-40 mt-2'"
   >
     <p v-if="title" class="text-xs font-medium text-slate-100">{{ title }}</p>
@@ -22,7 +22,7 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>();
     <div class="mt-3 flex justify-end gap-2 text-xs">
       <button
         type="button"
-        class="rounded border border-slate-700 px-3 py-1 text-slate-300 hover:bg-slate-800"
+        class="rounded border border-slate-600 px-3 py-1 text-slate-300 hover:bg-slate-800"
         @click="emit('cancel')"
       >
         {{ cancelText ?? "取消" }}
