@@ -1,3 +1,5 @@
+import { mkdir } from "node:fs/promises";
+import { join } from "node:path";
 import { expect, test } from "./fixtures";
 import { log } from "./e2e-logger";
 
@@ -44,15 +46,53 @@ test("未选目录点开始扫描给出告警并停在设置页", async ({ slot 
   log.info("[e2e] 未选目录时提示并留在设置页");
 });
 
-test("过滤条件在重启后保留", async ({ slot }) => {
-  const { page } = slot;
+test("过滤条件随目录对保存，重启后恢复", async ({ slot }) => {
+  const { app, page, base } = slot;
+  const left = join(base, "left");
+  const right = join(base, "right");
+  await mkdir(left, { recursive: true });
+  await mkdir(right, { recursive: true });
 
-  /* 上个用例结束在设置页，改条件后重启 */
-  await expect(page.getByText("扫描设置", { exact: true })).toBeVisible();
+  /* 上个用例结束在设置页，先选目录再改条件 */
+  const pickInto = async (target: string): Promise<void> => {
+    await app.evaluate(({ dialog }, picked) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [picked] });
+    }, target);
+  };
+  await pickInto(left);
+  await page.getByTitle("更改左侧目录").click();
+  await pickInto(right);
+  await page.getByTitle("更改右侧目录").click();
+
   await page.getByLabel("最小大小").fill("512");
+  /* 扫描成功才记录目录对；条件在开始扫描时强制落盘 */
+  await page.getByRole("button", { name: "开始扫描", exact: true }).click();
+  await expect(page.getByRole("button", { name: "扫描", exact: true })).toBeVisible();
+
   await slot.relaunch();
 
   await expect(slot.page.getByText("扫描设置", { exact: true })).toBeVisible();
+  await expect(slot.page.getByText(left, { exact: true })).toBeVisible();
   await expect(slot.page.getByLabel("最小大小")).toHaveValue("512");
-  log.info("[e2e] 重启后扫描条件已从本地偏好恢复");
+  log.info("[e2e] 重启后目录对与扫描条件均已恢复");
+});
+
+test("左右目录互换沿用同一套条件", async ({ slot }) => {
+  const { app, page, base } = slot;
+  const left = join(base, "left");
+  const right = join(base, "right");
+
+  await expect(page.getByText("扫描设置", { exact: true })).toBeVisible();
+  const pickInto = async (target: string): Promise<void> => {
+    await app.evaluate(({ dialog }, picked) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [picked] });
+    }, target);
+  };
+  await pickInto(right);
+  await page.getByTitle("更改左侧目录").click();
+  await pickInto(left);
+  await page.getByTitle("更改右侧目录").click();
+
+  await expect(page.getByLabel("最小大小")).toHaveValue("512");
+  log.info("[e2e] 左右互换后条件保持不变");
 });

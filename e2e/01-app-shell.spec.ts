@@ -2,7 +2,7 @@ import { expect, test } from "./fixtures";
 import { log } from "./e2e-logger";
 
 test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) => {
-  const { app, page } = slot;
+  const { page } = slot;
 
   /* 启动即打开扫描设置页：目录与过滤条件在扫描前确认 */
   await expect(page.getByText("扫描设置", { exact: true })).toBeVisible();
@@ -26,8 +26,6 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
 
   await expect(page.getByText("未选择左侧目录", { exact: true })).toBeVisible();
   await expect(page.getByText("未选择右侧目录", { exact: true })).toBeVisible();
-  await expect(page.getByTitle("更改左侧目录")).toBeVisible();
-  await expect(page.getByTitle("更改右侧目录")).toBeVisible();
   await expect(page.getByTitle("在文件管理器中打开")).toHaveCount(2);
   /* 非预览模式不渲染复选框（表头的全选与行内勾选都只在预览时出现） */
   await expect(page.getByTitle("全选 / 取消全选")).toHaveCount(0);
@@ -45,10 +43,5 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
   await expect(page.getByRole("button", { name: "强制重算", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "向左同步预览", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "向右同步预览", exact: true })).toBeVisible();
-
-  const menu = await app.evaluate(({ Menu }) =>
-    (Menu.getApplicationMenu()?.items ?? []).map((item) => item.label),
-  );
-  expect(menu).toContain("文件");
-  log.info("[e2e] 窗口骨架与菜单检查通过");
+  log.info("[e2e] 窗口骨架检查通过");
 });

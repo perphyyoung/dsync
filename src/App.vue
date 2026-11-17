@@ -8,6 +8,7 @@ import RecyclePage from "./components/RecyclePage.vue";
 import RowActions from "./components/RowActions.vue";
 import ScanSettingsPage from "./components/ScanSettingsPage.vue";
 import ToastBubble from "./components/ToastBubble.vue";
+import { pairKey, type DirPairEntry } from "./lib/dir-pairs";
 import { parseExtInput } from "./lib/exts";
 import { buildPreview } from "./lib/preview";
 import { rowDirections } from "./lib/row-actions";
@@ -15,6 +16,7 @@ import { verifyOutcome } from "./lib/verify";
 import type {
   DeletedRecord,
   DiffRow,
+  FilterPrefs,
   MismatchEntry,
   RefreshTarget,
   RefreshedFile,
@@ -64,6 +66,125 @@ const rowMenu = ref<{ rowIndex: number; side: Side; x: number; y: number } | nul
 const softDeleteConfirm = ref<{ rowIndex: number; side: Side } | null>(null);
 
 const busy = computed(() => scanning.value || executing.value);
+
+/* 每个目录对一套扫描条件；目录对首次进入用默认值，左右互换命中同一组 */
+const DEFAULT_FILTERS: FilterPrefs = {
+  minSizeKb: 0,
+  maxSizeKb: 0,
+  maxDepth: 0,
+  includeInput: "",
+  excludeInput: "",
+  excludePathsInput: "",
+  dateFrom: "",
+  dateTo: "",
+  recentDays: 0,
+  skipHidden: true,
+};
+
+const pairEntries = ref<DirPairEntry[]>([]);
+
+function currentFilters(): FilterPrefs {
+  return {
+    minSizeKb: minSizeKb.value,
+    maxSizeKb: maxSizeKb.value,
+    maxDepth: maxDepth.value,
+    includeInput: includeInput.value,
+    excludeInput: excludeInput.value,
+    excludePathsInput: excludePathsInput.value,
+    dateFrom: dateFrom.value,
+    dateTo: dateTo.value,
+    recentDays: recentDays.value,
+    skipHidden: skipHidden.value,
+  };
+}
+
+function applyFilters(data: FilterPrefs): void {
+  minSizeKb.value = data.minSizeKb;
+  maxSizeKb.value = data.maxSizeKb;
+  maxDepth.value = data.maxDepth;
+  includeInput.value = data.includeInput;
+  excludeInput.value = data.excludeInput;
+  excludePathsInput.value = data.excludePathsInput;
+  dateFrom.value = data.dateFrom;
+  dateTo.value = data.dateTo;
+  recentDays.value = data.recentDays;
+  skipHidden.value = data.skipHidden;
+}
+
+/** 目录对变化：有存档应用存档，没有回默认（不沿用上一个目录对的条件） */
+function applyPairForRoots(): void {
+  if (!leftRoot.value || !rightRoot.value) return;
+  const key = pairKey(leftRoot.value, rightRoot.value);
+  const entry = pairEntries.value.find((item) => pairKey(item.left, item.right) === key);
+  applyFilters(entry?.filters ?? DEFAULT_FILTERS);
+}
+
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function savePairFiltersNow(): Promise<void> {
+  if (!leftRoot.value || !rightRoot.value) return;
+  try {
+    await window.api.savePairFilters({
+      left: leftRoot.value,
+      right: rightRoot.value,
+      filters: currentFilters(),
+    });
+    upsertLocalPair(false);
+  } catch (error) {
+    void window.api.log("warn", `[pairs] 保存扫描条件失败：${String(error)}`);
+  }
+}
+
+/** 本地缓存与主进程保持一致，切换目录对时才能取到刚存的条件 */
+function upsertLocalPair(used: boolean): void {
+  if (!leftRoot.value || !rightRoot.value) return;
+  const key = pairKey(leftRoot.value, rightRoot.value);
+  const existing = pairEntries.value.find((item) => pairKey(item.left, item.right) === key);
+  const entry: DirPairEntry = {
+    left: leftRoot.value,
+    right: rightRoot.value,
+    usedAt: used ? new Date().toISOString() : (existing?.usedAt ?? null),
+    filters: currentFilters(),
+  };
+  const rest = pairEntries.value.filter((item) => pairKey(item.left, item.right) !== key);
+  pairEntries.value = [entry, ...rest];
+}
+
+/** 条件变化防抖 500ms 保存；开始扫描前会强制落盘 */
+function scheduleSaveFilters(): void {
+  if (!leftRoot.value || !rightRoot.value) return;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    void savePairFiltersNow();
+  }, 500);
+}
+
+// 目录变化：结果作废并按目录对加载条件
+watch([leftRoot, rightRoot], () => {
+  resetResult();
+  applyPairForRoots();
+});
+
+// 条件变化：结果作废并延迟保存
+watch(
+  [
+    minSizeKb,
+    maxSizeKb,
+    maxDepth,
+    includeInput,
+    excludeInput,
+    excludePathsInput,
+    dateFrom,
+    dateTo,
+    recentDays,
+    skipHidden,
+  ],
+  () => {
+    resetResult();
+    scheduleSaveFilters();
+  },
+);
 
 const softDeleteMessage = computed(() => {
   const target = softDeleteConfirm.value;
@@ -149,22 +270,27 @@ const progressStatus = computed<"running" | "paused" | "cancelled">(() =>
 );
 
 let unsubscribeProgress: (() => void) | null = null;
-let unsubscribeRecent: (() => void) | null = null;
 
 onMounted(() => {
   unsubscribeProgress = window.api.onProgress((next) => {
     progress.value = next;
   });
-  unsubscribeRecent = window.api.onLoadRecent((pair) => {
-    leftRoot.value = pair.left;
-    rightRoot.value = pair.right;
-  });
 
-  /* 先恢复上次的扫描条件，再打开扫描设置页 */
-  loadFilters();
+  /* 先载入目录对档案，再回填目录，条件随目录对应用 */
+  void (async () => {
+    await loadPairEntries();
+    await restoreLastPair();
+  })();
   settingsOpen.value = true;
-  void restoreLastPair();
 });
+
+async function loadPairEntries(): Promise<void> {
+  try {
+    pairEntries.value = await window.api.listPairs();
+  } catch (error) {
+    pushAlert(error instanceof Error ? error.message : String(error));
+  }
+}
 
 /** 启动时只回填上次的目录对，不自动扫描；扫描由用户手动发起 */
 async function restoreLastPair(): Promise<void> {
@@ -181,8 +307,8 @@ async function restoreLastPair(): Promise<void> {
 
 onUnmounted(() => {
   unsubscribeProgress?.();
-  unsubscribeRecent?.();
   if (toastTimer) clearTimeout(toastTimer);
+  if (saveTimer) clearTimeout(saveTimer);
 });
 
 async function pick(side: "left" | "right"): Promise<void> {
@@ -191,6 +317,12 @@ async function pick(side: "left" | "right"): Promise<void> {
   if (!picked) return;
   if (side === "left") leftRoot.value = picked;
   else rightRoot.value = picked;
+}
+
+/** 从设置页的最近目录对列表回填左右目录 */
+function pickPairRoots(pair: DirPairEntry): void {
+  leftRoot.value = pair.left;
+  rightRoot.value = pair.right;
 }
 
 /** 用系统文件管理器打开目录 */
@@ -210,98 +342,6 @@ function resetResult(): void {
   selected.value = new Set();
   previewSide.value = null;
 }
-
-// 目录或过滤条件任一变化，旧结果不再可信，避免用户在过时数据上执行操作
-watch(
-  [
-    leftRoot,
-    rightRoot,
-    minSizeKb,
-    maxSizeKb,
-    maxDepth,
-    includeInput,
-    excludeInput,
-    excludePathsInput,
-    dateFrom,
-    dateTo,
-    recentDays,
-    skipHidden,
-  ],
-  () => {
-    resetResult();
-  },
-);
-
-/* 扫描条件持久化：重启后回到上次条件；目录对仍由主进程单独记录 */
-const FILTER_STORAGE_KEY = "dsync.filters";
-
-interface StoredFilters {
-  minSizeKb: number;
-  maxSizeKb: number;
-  maxDepth: number;
-  includeInput: string;
-  excludeInput: string;
-  excludePathsInput: string;
-  dateFrom: string;
-  dateTo: string;
-  recentDays: number;
-  skipHidden: boolean;
-}
-
-function loadFilters(): void {
-  try {
-    const raw = localStorage.getItem(FILTER_STORAGE_KEY);
-    if (!raw) return;
-    const data = JSON.parse(raw) as Partial<StoredFilters>;
-    if (typeof data.minSizeKb === "number") minSizeKb.value = data.minSizeKb;
-    if (typeof data.maxSizeKb === "number") maxSizeKb.value = data.maxSizeKb;
-    if (typeof data.maxDepth === "number") maxDepth.value = data.maxDepth;
-    if (typeof data.includeInput === "string") includeInput.value = data.includeInput;
-    if (typeof data.excludeInput === "string") excludeInput.value = data.excludeInput;
-    if (typeof data.excludePathsInput === "string")
-      excludePathsInput.value = data.excludePathsInput;
-    if (typeof data.dateFrom === "string") dateFrom.value = data.dateFrom;
-    if (typeof data.dateTo === "string") dateTo.value = data.dateTo;
-    if (typeof data.recentDays === "number") recentDays.value = data.recentDays;
-    if (typeof data.skipHidden === "boolean") skipHidden.value = data.skipHidden;
-  } catch {
-    /* 本地偏好损坏时静默回默认 */
-  }
-}
-
-watch(
-  [
-    minSizeKb,
-    maxSizeKb,
-    maxDepth,
-    includeInput,
-    excludeInput,
-    excludePathsInput,
-    dateFrom,
-    dateTo,
-    recentDays,
-    skipHidden,
-  ],
-  () => {
-    const data: StoredFilters = {
-      minSizeKb: minSizeKb.value,
-      maxSizeKb: maxSizeKb.value,
-      maxDepth: maxDepth.value,
-      includeInput: includeInput.value,
-      excludeInput: excludeInput.value,
-      excludePathsInput: excludePathsInput.value,
-      dateFrom: dateFrom.value,
-      dateTo: dateTo.value,
-      recentDays: recentDays.value,
-      skipHidden: skipHidden.value,
-    };
-    try {
-      localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(data));
-    } catch {
-      /* 存储不可用时忽略 */
-    }
-  },
-);
 
 const emptyText = computed(() => {
   if (!leftRoot.value || !rightRoot.value) return "先选择左右两个目录";
@@ -333,6 +373,8 @@ async function scan(forceRehash = false): Promise<void> {
     pushAlert("请先选择左右两个目录");
     return;
   }
+  /* 先落盘条件，主进程扫描成功时只更新使用时间 */
+  await savePairFiltersNow();
   settingsOpen.value = false;
   previewSide.value = null;
   scanning.value = true;
@@ -358,6 +400,7 @@ async function scan(forceRehash = false): Promise<void> {
     }
     const scanned = outcome.result;
     result.value = scanned;
+    upsertLocalPair(true);
     selected.value = new Set();
     alerts.value = [...scanned.warnings];
     if (scanned.warnings.length > 0) {
@@ -867,8 +910,10 @@ async function executePreview(): Promise<void> {
         v-model:date-to="dateTo"
         v-model:recent-days="recentDays"
         v-model:skip-hidden="skipHidden"
+        :pairs="pairEntries"
         class="min-h-0 flex-1"
         @pick="pick"
+        @pick-pair="pickPairRoots"
         @start="scan()"
         @force-rehash="scan(true)"
         @close="settingsOpen = false"
@@ -917,14 +962,6 @@ async function executePreview(): Promise<void> {
                 >
                   打开
                 </button>
-                <button
-                  type="button"
-                  class="rounded border border-slate-700 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800"
-                  title="更改左侧目录"
-                  @click="pick('left')"
-                >
-                  更改
-                </button>
               </div>
             </div>
             <div v-if="previewSide !== null" class="flex w-24 shrink-0 items-center justify-center">
@@ -956,14 +993,6 @@ async function executePreview(): Promise<void> {
                   @click="openDir('right')"
                 >
                   打开
-                </button>
-                <button
-                  type="button"
-                  class="rounded border border-slate-700 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800"
-                  title="更改右侧目录"
-                  @click="pick('right')"
-                >
-                  更改
                 </button>
               </div>
             </div>

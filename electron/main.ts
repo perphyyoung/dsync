@@ -1,4 +1,5 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { executeActions } from "../src/lib/execute";
 import { ScanCancelledError, ScanController } from "../src/lib/controller";
@@ -6,11 +7,14 @@ import { runScan } from "../src/lib/pipeline";
 import { migrateMoveCaches } from "../src/lib/index-migrate";
 import { loadIndexPair } from "../src/lib/index-file";
 import { listDeleted, restoreDeleted, softDelete } from "../src/lib/recycle";
-import { mergeRecentPair, readRecentPairs, writeRecentPairs } from "../src/lib/recent";
+import { readRecentPairs } from "../src/lib/recent";
+import { openDirPairsDb, type DirPairsStore } from "../src/lib/dir-pairs-db";
+import type { DirPairEntry } from "../src/lib/dir-pairs";
 import { detectStale, refreshPaths } from "../src/lib/refresh";
 import { rehashPair } from "../src/lib/rehash";
 import type {
   ExecuteRequest,
+  FilterPrefs,
   RecentPair,
   RefreshRequest,
   RehashRequest,
@@ -18,13 +22,12 @@ import type {
   SyncAction,
 } from "../src/lib/types";
 import { log, logPath } from "./logger";
-import { applyAppMenu } from "./menu";
 
 const devUrl = process.env["ELECTRON_RENDERER_URL"];
 const LOG_LEVELS = new Set(["error", "warn", "info", "debug"]);
 
 let mainWindow: BrowserWindow | null = null;
-let recentPairs: RecentPair[] = [];
+let dirPairsDb: DirPairsStore | null = null;
 let currentController: ScanController | null = null;
 
 /** dev 写项目根 ds-data；e2e 通过 DSYNC_DATA_DIR 隔离；release 用 userData */
@@ -43,25 +46,27 @@ function recentFilePath(): string {
   return join(dataRoot(), "recent-pairs.json");
 }
 
-function notifyRecentLoad(pair: RecentPair): void {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send("recent:load", pair);
-  }
+function dirPairsDbPath(): string {
+  return join(dataRoot(), "dir-pairs.db");
 }
 
-function refreshMenu(): void {
-  applyAppMenu(recentPairs, { onLoadRecent: notifyRecentLoad });
+/** 打开应用级档案库；空库时从旧 recent-pairs.json 一次性导入并删除旧文件 */
+async function loadDirPairs(): Promise<void> {
+  dirPairsDb = openDirPairsDb(dirPairsDbPath());
+  if (dirPairsDb.list().length > 0) return;
+  const legacy = await readRecentPairs(recentFilePath());
+  if (legacy.length === 0) return;
+  dirPairsDb.importLegacy(legacy);
+  await rm(recentFilePath(), { force: true }).catch(() => undefined);
 }
 
-/** 扫描成功才记录，失败或参数非法不留痕 */
+/** 扫描成功才记录：只更新使用时间，已有条件保留 */
 async function rememberPair(left: string, right: string): Promise<void> {
-  recentPairs = mergeRecentPair(recentPairs, { left, right });
   try {
-    await writeRecentPairs(recentFilePath(), recentPairs);
+    dirPairsDb?.touch(left, right);
   } catch (error) {
-    log.warn(`[recent] 写入失败：${(error as Error).message}`);
+    log.warn(`[pairs] 写入失败：${(error as Error).message}`);
   }
-  refreshMenu();
 }
 
 async function handleIpc<T>(channel: string, task: () => Promise<T>): Promise<T> {
@@ -147,7 +152,26 @@ ipcMain.handle("dir:open", async (_event, raw?: unknown): Promise<void> => {
   if (error) throw new Error(error);
 });
 
-ipcMain.handle("recent:list", (): RecentPair[] => recentPairs);
+ipcMain.handle("recent:list", (): RecentPair[] =>
+  (dirPairsDb?.recent() ?? []).map((item) => ({
+    left: item.left,
+    right: item.right,
+    savedAt: item.usedAt ?? "",
+  })),
+);
+
+ipcMain.handle("pairs:list", (): DirPairEntry[] => dirPairsDb?.list() ?? []);
+
+ipcMain.handle("pairs:save", async (_event, raw: unknown): Promise<void> => {
+  if (typeof raw !== "object" || raw === null) throw new Error("无效参数");
+  const input = raw as Record<string, unknown>;
+  const left = input["left"];
+  const right = input["right"];
+  const filters = input["filters"];
+  if (typeof left !== "string" || typeof right !== "string") throw new Error("无效目录");
+  if (typeof filters !== "object" || filters === null) throw new Error("无效过滤条件");
+  dirPairsDb?.save(left, right, filters as FilterPrefs);
+});
 
 ipcMain.handle("sync:scan", async (event, raw: unknown) => {
   return handleIpc("sync:scan", async () => {
@@ -351,12 +375,13 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(async () => {
-  recentPairs = await readRecentPairs(recentFilePath());
+  await loadDirPairs();
+  /* 不设应用菜单：目录对与目录选择都在扫描设置页里 */
+  Menu.setApplicationMenu(null);
   log.info(
     `[start] electron=${process.versions.electron} node=${process.versions.node} ` +
-      `recent=${recentPairs.length} log=${logPath}`,
+      `pairs=${dirPairsDb?.list().length ?? 0} recent=${dirPairsDb?.recent().length ?? 0} log=${logPath}`,
   );
-  refreshMenu();
   mainWindow = createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) mainWindow = createWindow();

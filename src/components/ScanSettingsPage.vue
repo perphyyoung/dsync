@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
+import type { DirPairEntry } from "../lib/dir-pairs";
 import type { Side } from "../lib/types";
 import ConfirmBubble from "./ConfirmBubble.vue";
 import ExtChips from "./ExtChips.vue";
@@ -17,14 +18,25 @@ const dateTo = defineModel<string>("dateTo", { required: true });
 const recentDays = defineModel<number>("recentDays", { required: true });
 const skipHidden = defineModel<boolean>("skipHidden", { required: true });
 
+const props = defineProps<{ pairs: DirPairEntry[] }>();
+
 const emit = defineEmits<{
   pick: [side: Side];
+  pickPair: [pair: DirPairEntry];
   start: [];
   forceRehash: [];
   close: [];
 }>();
 
 const rehashConfirmOpen = ref(false);
+const search = ref("");
+
+/** 无关键词显示最近 10 组；输入后搜索全部档案（100 组） */
+const filteredPairs = computed(() => {
+  const kw = search.value.trim().toLowerCase();
+  if (!kw) return props.pairs.filter((item) => item.usedAt !== null).slice(0, 10);
+  return props.pairs.filter((item) => `${item.left}\u0000${item.right}`.toLowerCase().includes(kw));
+});
 
 function confirmForceRehash(): void {
   rehashConfirmOpen.value = false;
@@ -44,6 +56,36 @@ function confirmForceRehash(): void {
         返回
       </button>
     </header>
+
+    <section class="border-b border-slate-800 px-4 py-3">
+      <div class="mx-auto flex w-full max-w-2xl flex-col gap-2 text-xs">
+        <div class="flex items-center gap-3">
+          <span class="w-16 shrink-0 text-slate-500">最近目录对</span>
+          <input
+            v-model="search"
+            type="text"
+            placeholder="搜索路径"
+            class="w-64 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
+          />
+          <span class="text-[11px] text-slate-600">{{ filteredPairs.length }} 组</span>
+        </div>
+        <div v-if="filteredPairs.length > 0" class="max-h-40 space-y-1 overflow-auto pl-16">
+          <button
+            v-for="pair in filteredPairs"
+            :key="`${pair.left}|${pair.right}`"
+            type="button"
+            class="block w-full truncate rounded border border-slate-800 px-2 py-1 text-left text-slate-300 hover:border-slate-600 hover:bg-slate-800"
+            :title="`${pair.left} ⇄ ${pair.right}`"
+            @click="emit('pickPair', pair)"
+          >
+            {{ pair.left }} ⇄ {{ pair.right }}
+          </button>
+        </div>
+        <p v-else class="pl-16 text-[11px] text-slate-600">
+          {{ search ? "没有匹配的目录对" : "还没有扫描成功过的目录对" }}
+        </p>
+      </div>
+    </section>
 
     <div class="min-h-0 flex-1 overflow-auto px-4 py-6">
       <div class="mx-auto flex w-full max-w-2xl flex-col gap-3 text-xs">

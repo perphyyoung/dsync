@@ -1,8 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
+import type { DirPairEntry } from "../src/lib/dir-pairs";
 import type { ScanProgress } from "../src/lib/types";
 import type {
   DeletedRecord,
   ExecuteRequest,
+  FilterPrefs,
   RecentPair,
   RecycleListRequest,
   RecycleRestoreRequest,
@@ -28,6 +30,9 @@ contextBridge.exposeInMainWorld("api", {
   refresh: (request: RefreshRequest): Promise<RefreshedRow[]> =>
     ipcRenderer.invoke("sync:refresh", request),
   listRecent: (): Promise<RecentPair[]> => ipcRenderer.invoke("recent:list"),
+  listPairs: (): Promise<DirPairEntry[]> => ipcRenderer.invoke("pairs:list"),
+  savePairFilters: (input: { left: string; right: string; filters: FilterPrefs }): Promise<void> =>
+    ipcRenderer.invoke("pairs:save", input),
   listRecycle: (request: RecycleListRequest): Promise<DeletedRecord[]> =>
     ipcRenderer.invoke("recycle:list", request),
   restoreRecycle: (request: RecycleRestoreRequest): Promise<string> =>
@@ -37,13 +42,6 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.on("sync:progress", handler);
     return () => {
       ipcRenderer.off("sync:progress", handler);
-    };
-  },
-  onLoadRecent: (callback: (pair: RecentPair) => void): (() => void) => {
-    const handler = (_event: unknown, pair: RecentPair): void => callback(pair);
-    ipcRenderer.on("recent:load", handler);
-    return () => {
-      ipcRenderer.off("recent:load", handler);
     };
   },
   log: (level: string, message: string): Promise<void> =>

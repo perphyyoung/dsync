@@ -335,8 +335,7 @@ CREATE INDEX idx_pairs_right ON pairs(right_path);
 ```
 dsync/
 ├─ electron/
-│  ├─ main.ts               # 窗口、IPC 注册、最近目录对
-│  ├─ menu.ts               # 「文件 / 视图」应用菜单
+│  ├─ main.ts               # 窗口、IPC 注册、目录对档案
 │  ├─ preload.ts            # 暴露 window.api
 │  └─ logger.ts             # electron-log 初始化
 ├─ src/
@@ -345,7 +344,9 @@ dsync/
 │  ├─ App.vue               # 过滤行 + 目录表头 + 双栏 + 状态栏
 │  ├─ style.css             # @import "tailwindcss";
 │  ├─ components/
+│  │  ├─ ScanSettingsPage.vue # 扫描设置页（目录对搜索 + 扫描条件）
 │  │  ├─ FilterPanel.vue
+│  │  ├─ ExtChips.vue       # 常见后缀快捷勾选
 │  │  ├─ FileList.vue       # 单侧文件列表（左右各一个实例）
 │  │  ├─ RowActions.vue     # 中间逐行操作栏（< 勾选 >）
 │  │  ├─ ConfirmBubble.vue  # 气泡确认
@@ -366,7 +367,9 @@ dsync/
 │  │  ├─ recycle.ts         # 内置回收站：软删除、列表、还原
 │  │  ├─ execute.ts         # 复制 / 改名 / 软删除（软删除由调用方注入）
 │  │  ├─ pipeline.ts        # 扫描→哈希→配对→计划→索引落盘
-│  │  ├─ recent.ts          # 最近目录对去重与读写
+│  │  ├─ recent.ts          # 旧 recent-pairs.json 解析（迁移用）
+│  │  ├─ dir-pairs.ts       # 目录对键与类型（纯，renderer 可用）
+│  │  ├─ dir-pairs-db.ts    # 目录对档案库（SQLite：容量淘汰、条件存取、迁移）
 │  │  ├─ path-guard.ts      # 路径安全校验
 │  │  └─ *.test.ts
 │  └─ types/api.d.ts
@@ -393,6 +396,8 @@ dsync/
 | --- | --- | --- |
 | `dir:pick` | — | `string \| null` |
 | `recent:list` | — | `RecentPair[]` |
+| `pairs:list` | — | `DirPairEntry[]`（全部档案，渲染层筛最近 10 / 搜索） |
+| `pairs:save` | `{ left, right, filters }` | `void`（条件变化防抖写入当前目录对） |
 | `sync:scan` | `ScanRequest` | `ScanOutcome`（取消时只有 `cancelled: true`） |
 | `sync:pause` | — | `void` |
 | `sync:resume` | — | `void` |
@@ -406,9 +411,8 @@ dsync/
 | 事件 | 载荷 | 用途 |
 | --- | --- | --- |
 | `sync:progress` | `{ phase, done, total, current }` | 扫描与哈希进度 |
-| `recent:load` | `RecentPair` | 菜单选中最近目录对 |
 
-`ScanRequest` 只有 `leftRoot` / `rightRoot` / `minSize` / `includeExts` / `excludeExts` / `forceRehash`，**不含方向与结构基准**。
+`ScanRequest` 含左右根目录与全部过滤字段（`minSize` / `maxSize` / `maxDepth` / `excludePaths` / `modifiedAfter` / `modifiedBefore` / `skipHidden` / `includeExts` / `excludeExts` / `forceRehash`），**不含方向与结构基准**。
 
 `ScanResult` 只有 `rows` / `stats` / `warnings`，**不含 `actions`**；所有执行动作由前端 `actionForRow` 现算。外层包一层 `ScanOutcome`：用户取消时返回 `{ cancelled: true }`，没有结果。
 
@@ -428,8 +432,8 @@ pick dirs → sync:scan(扫描 + 哈希 + 配对 + 索引落盘) → 渲染差�
 
 单窗口，自上而下：
 
-1. **扫描设置页**：打开应用或点过滤行「扫描」时打开，覆盖整个界面。左右目录（各带「更改」）、大小上下限、目录层级、后缀（含图片 / 文档 / 代码快捷勾选）、排除路径、修改时间（起止日期 + 最近 N 天）、跳过隐藏文件；底部「强制重算」与「开始扫描」，「返回」不扫描。条件与过滤行共享，存在本地偏好里，重启后保留。
-2. **目录表头**：左右显示根目录完整路径与「打开」「更改」按钮；空态写「未选择左侧目录」「未选择右侧目录」。中间是全选复选框（三态，仅预览模式出现）。
+1. **扫描设置页**：打开应用或点过滤行「扫描」时打开，覆盖整个界面。顶部是最近目录对区块（最近 10 组 / 搜索全部 100 组）；左右目录（各带「更改」）、大小上下限、目录层级、后缀（含图片 / 文档 / 代码快捷勾选）、排除路径、修改时间（起止日期 + 最近 N 天）、跳过隐藏文件；底部「强制重算」与「开始扫描」，「返回」不扫描。条件与过滤行共享，按目录对存入 `dir-pairs.db`，重启后随目录对恢复。
+2. **目录表头**：左右显示根目录完整路径与「打开」按钮；空态写「未选择左侧目录」「未选择右侧目录」。中间是全选复选框（三态，仅预览模式出现）。
 3. **过滤行**：最小大小、最大大小、目录层级、只含后缀、排除后缀、排除路径、修改时间、最近天数、跳过隐藏文件、隐藏一致项、显示模式（全部 / 左侧 / 右侧 / 重复 / 占用）；右侧只保留「扫描」，点击打开扫描设置页；「强制重算」已移入设置页，条件与设置页共享。
 4. **主体：左右文件列表 + 操作列**
    - 三列共用一个滚动容器、行高固定，天然对齐；本侧没有文件的行在那一侧显示 `—`
@@ -443,11 +447,9 @@ pick dirs → sync:scan(扫描 + 哈希 + 配对 + 索引落盘) → 渲染差�
 
 扫描与计算哈希期间，由整页「进度页」替代主界面，两阶段各自 0% 起；三态与文案见 `design.md`。
 
-菜单栏：
+应用菜单：不设置（`Menu.setApplicationMenu(null)`），目录对入口统一在扫描设置页。
 
-- **文件 → 最近目录对**：最多 10 组，最新在前；点选后只回填左右目录，由用户手动点「扫描」打开扫描设置页；扫描成功才记录，同组去重（大小写不敏感）。
 - **启动时**：自动载入最近一组并打开扫描设置页，不用每次重新选目录；不自动扫描，由用户点「开始扫描」。
-- **视图**：重新加载、开发者工具、缩放。
 
 预览模式：
 
@@ -497,7 +499,7 @@ pick dirs → sync:scan(扫描 + 哈希 + 配对 + 索引落盘) → 渲染差�
 - 主界面为左右文件列表 + 操作列；点击行只切换勾选，两侧不渲染选中态。
 - 单行 `<` / `>` 只作用于该行；涉及删除时先弹确认。
 - 预览模式显示复制 / 改名 / 软删除 / 忽略四项统计；重排目标被占用的行计入忽略。
-- 「文件 → 最近目录对」最多 10 组、最新在前、重复目录对不重复；启动时自动载入最近一组。
+- 扫描设置页的最近目录对区块显示扫描成功过的前 10 组，可搜索全部 100 组；档案最多 100 组，启动时自动载入最近一组并应用该组条件；左右互换视为同一组。
 - `pnpm check`（format:check → lint → type-check → test → build）全绿。
 
 ## 15. 决策记录
@@ -530,7 +532,8 @@ pick dirs → sync:scan(扫描 + 哈希 + 配对 + 索引落盘) → 渲染差�
 | D22 | 批量执行改为预览模式 | 底栏声明方向，中间列只亮该方向，就地给四项统计与执行；批量执行页删除 | 2026-11-16 |
 | D23 | 扫描入口收进扫描设置页 | 启动与过滤行「扫描」都先打开扫描设置页（目录 + 最小大小 + 后缀）；点「开始扫描」才发起，强制重算移入同页；过滤行保留条件并与设置页共享，结果作废规则不变 | 2026-11-17 |
 | D24 | 扫描过滤新增大小上限与目录层级 | `maxSize` 与 `minSize` 对称（0 不限），超限文件标 `ignored`；`maxDepth` 0 不限、1 只扫根目录，超限目录整棵跳过不产生 ignored 行；两条件在扫描设置页与过滤行同步展示 | 2026-11-17 |
-| D25 | 扫描条件补齐路径、时间、隐藏文件与后缀快捷 | `excludePaths` 关键词命中目录整棵/文件跳过（不列 ignored）；时间窗口支持起止日期与最近 N 天，取交集；`skipHidden` 默认跳过 `.` 开头；只含后缀加图片/文档/代码快捷勾选；条件存 localStorage，e2e/dev 的 userData 跟随 DSYNC_DATA_DIR | 2026-11-17 |
+| D25 | 扫描条件补齐路径、时间、隐藏文件与后缀快捷 | `excludePaths` 关键词命中目录整棵/文件跳过（不列 ignored）；时间窗口支持起止日期与最近 N 天，取交集；`skipHidden` 默认跳过 `.` 开头；只含后缀加图片/文档/代码快捷勾选 | 2026-11-17 |
+| D26 | 目录对档案与条件绑定 | 目录对存 `dir-pairs.db`（应用级 SQLite，表 `dir_pairs`，100 组），每组带自己的扫描条件；扫描成功才更新时间，条件变化防抖写入；左右互换按排序后的 pairKey 视为同一组；菜单仍显示最近 10 组，扫描设置页可搜索全部；旧 `recent-pairs.json` 首次启动导入后删除 | 2026-11-17 |
 
 无待确认项。
 
@@ -555,9 +558,9 @@ MVP 已实现并通过质量门与 e2e。
 
 验证结果：
 
-- `pnpm test`：84 条通过（11 个文件）
+- `pnpm test`：87 条通过（13 个文件）
 - `pnpm check`：format / oxlint / eslint / type-check / test / build 全绿，0 warning
-- `pnpm e2e`：10 条通过（窗口骨架与扫描设置页、扫描对齐、最近目录对、软删除、设置页条件共享与持久化）
+- `pnpm e2e`：11 条通过（窗口骨架与扫描设置页、扫描对齐、最近目录对、软删除、设置页条件共享与目录对绑定）
 - 已执行：`pnpm release` 打出 NSIS 安装包 `release/dsync Setup 0.1.0.exe`（约 118 MiB）
 
 落地时确认的细节：
@@ -574,7 +577,7 @@ MVP 已实现并通过质量门与 e2e。
 - oxlint 的 `no-await-in-loop` 对目录递归与动作串行执行是刻意设计，已在 `.oxlintrc.json` 关闭；`lib` 提到 ES2023 以使用 `toSorted`。
 - `resources/icon.png` 是 512×512 RGBA，electron-builder 会从它生成 `.ico`；窗口图标在 `createWindow()` 里按 dev（项目根 `resources/`）与打包后（`process.resourcesPath`）分别取。
 - 应用数据目录：dev 为项目根 `ds-data/`，release 为 `userData/`；e2e 用 `DSYNC_DATA_DIR` 覆盖到临时目录，不污染本机配置。
-- 最近目录对存 `recent-pairs.json`（普通 JSON）：它是可重建的便利数据，损坏不影响索引与配对。
+- 目录对存 `dir-pairs.db`（应用级 SQLite，表 `dir_pairs`，`filters` 为 JSON 列，最多 100 组）；旧 `recent-pairs.json` 首次启动导入后删除。它是可重建的便利数据，损坏不影响索引与配对。
 - P0 界面减负已完成：方向与路径策略移入批量执行页（已由 D22 取代为预览模式），主界面只保留目录表头、过滤行（扫描入口；强制重算已由 D23 移入扫描设置页）、双列表与状态栏。
 - P1 进度页已完成：扫描先数后读（两遍），哈希先预筛再按字节推进；两阶段各自从 0% 起，暂停立即中断当前文件、取消回到进度页等用户返回。
 - P2 反馈与弹窗已完成：单行删除与强制重算走气泡确认、批量执行改独立页面、成功轻提示 / 失败告警条、表头显示目录路径与打开/更改按钮、表头全选复选框、右键单行重算，`ConfirmDialog` 全屏模态已删除。

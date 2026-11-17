@@ -256,7 +256,21 @@ export interface DeletedRecord {
   blob: string;
 }
 
-/** 最近使用的目录对，供「文件 → 最近目录对」菜单加载 */
+/** 扫描设置页的条件快照，按目录对持久化（单位与界面一致：KB / 字符串） */
+export interface FilterPrefs {
+  minSizeKb: number;
+  maxSizeKb: number;
+  maxDepth: number;
+  includeInput: string;
+  excludeInput: string;
+  excludePathsInput: string;
+  dateFrom: string;
+  dateTo: string;
+  recentDays: number;
+  skipHidden: boolean;
+}
+
+/** 最近使用的目录对，供启动时回填左右目录 */
 export interface RecentPair {
   left: string;
   right: string;

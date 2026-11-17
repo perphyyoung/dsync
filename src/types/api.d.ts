@@ -1,7 +1,9 @@
+import type { DirPairEntry } from "../lib/dir-pairs";
 import type {
   DeletedRecord,
   ExecuteRequest,
   ExecuteResult,
+  FilterPrefs,
   RecentPair,
   RecycleListRequest,
   RecycleRestoreRequest,
@@ -25,10 +27,11 @@ export interface Api {
   rehash(request: RehashRequest): Promise<RehashResult>;
   refresh(request: RefreshRequest): Promise<RefreshedRow[]>;
   listRecent(): Promise<RecentPair[]>;
+  listPairs(): Promise<DirPairEntry[]>;
+  savePairFilters(input: { left: string; right: string; filters: FilterPrefs }): Promise<void>;
   listRecycle(request: RecycleListRequest): Promise<DeletedRecord[]>;
   restoreRecycle(request: RecycleRestoreRequest): Promise<string>;
   onProgress(callback: (progress: ScanProgress) => void): () => void;
-  onLoadRecent(callback: (pair: RecentPair) => void): () => void;
   log(level: string, message: string): Promise<void>;
 }
 
