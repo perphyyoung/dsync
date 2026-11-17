@@ -323,6 +323,7 @@ async function pick(side: "left" | "right"): Promise<void> {
 function pickPairRoots(pair: DirPairEntry): void {
   leftRoot.value = pair.left;
   rightRoot.value = pair.right;
+  showToast("已载入目录对");
 }
 
 /** 用系统文件管理器打开目录 */

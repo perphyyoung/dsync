@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { DirPairEntry } from "../lib/dir-pairs";
+import { pairKey, type DirPairEntry } from "../lib/dir-pairs";
 import type { Side } from "../lib/types";
 import ConfirmBubble from "./ConfirmBubble.vue";
 import ExtChips from "./ExtChips.vue";
@@ -38,6 +38,19 @@ const filteredPairs = computed(() => {
   return props.pairs.filter((item) => `${item.left}\u0000${item.right}`.toLowerCase().includes(kw));
 });
 
+const selectedKey = computed(() =>
+  leftRoot.value && rightRoot.value ? pairKey(leftRoot.value, rightRoot.value) : "",
+);
+
+function isSelected(pair: DirPairEntry): boolean {
+  return selectedKey.value !== "" && pairKey(pair.left, pair.right) === selectedKey.value;
+}
+
+function pickPair(pair: DirPairEntry): void {
+  if (isSelected(pair)) return;
+  emit("pickPair", pair);
+}
+
 function confirmForceRehash(): void {
   rehashConfirmOpen.value = false;
   emit("forceRehash");
@@ -74,11 +87,19 @@ function confirmForceRehash(): void {
             v-for="pair in filteredPairs"
             :key="`${pair.left}|${pair.right}`"
             type="button"
-            class="block w-full truncate rounded border border-slate-800 px-2 py-1 text-left text-slate-300 hover:border-slate-600 hover:bg-slate-800"
+            class="flex w-full items-center gap-2 rounded border px-2 py-1 text-left transition-colors"
+            :class="
+              isSelected(pair)
+                ? 'border-sky-700 bg-sky-600/10 text-slate-100'
+                : 'border-slate-800 text-slate-300 hover:border-slate-600 hover:bg-slate-800'
+            "
             :title="`${pair.left} ⇄ ${pair.right}`"
-            @click="emit('pickPair', pair)"
+            @click="pickPair(pair)"
           >
-            {{ pair.left }} ⇄ {{ pair.right }}
+            <span class="w-4 shrink-0 text-center text-sky-400">{{
+              isSelected(pair) ? "✓" : ""
+            }}</span>
+            <span class="min-w-0 flex-1 truncate">{{ pair.left }} ⇄ {{ pair.right }}</span>
           </button>
         </div>
         <p v-else class="pl-16 text-[11px] text-slate-600">

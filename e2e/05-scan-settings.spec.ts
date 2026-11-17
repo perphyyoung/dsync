@@ -74,6 +74,10 @@ test("过滤条件随目录对保存，重启后恢复", async ({ slot }) => {
   await expect(slot.page.getByText("扫描设置", { exact: true })).toBeVisible();
   await expect(slot.page.getByText(left, { exact: true })).toBeVisible();
   await expect(slot.page.getByLabel("最小大小")).toHaveValue("512");
+  /* 当前目录对在候选列表里带对勾与高亮 */
+  const pairRow = slot.page.getByTitle(`${left} ⇄ ${right}`);
+  await expect(pairRow).toHaveClass(/border-sky-700/);
+  await expect(pairRow.getByText("✓")).toBeVisible();
   log.info("[e2e] 重启后目录对与扫描条件均已恢复");
 });
 
