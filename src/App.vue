@@ -924,24 +924,7 @@ async function executePreview(): Promise<void> {
       @back="closeProgress"
     />
 
-    <div v-else class="flex min-h-0 flex-1 flex-col">
-      <div v-if="alerts.length > 0" class="border-b border-amber-900/60 bg-amber-950/40">
-        <div
-          v-for="(alert, index) in alerts"
-          :key="index"
-          class="flex items-start gap-3 px-4 py-1.5 text-[11px] text-amber-200"
-        >
-          <span class="flex-1">{{ alert }}</span>
-          <button
-            type="button"
-            class="text-amber-400 hover:text-amber-200"
-            @click="dismissAlert(index)"
-          >
-            ×
-          </button>
-        </div>
-      </div>
-
+    <div v-else class="relative flex min-h-0 flex-1 flex-col">
       <RecyclePage
         v-if="recycleOpen"
         class="min-h-0 flex-1"
@@ -1140,6 +1123,25 @@ async function executePreview(): Promise<void> {
           </div>
         </footer>
       </template>
+
+      <div v-if="alerts.length > 0" class="pointer-events-none absolute inset-x-0 top-0 z-40">
+        <div class="pointer-events-auto border-b border-amber-900/60 bg-amber-950/95 shadow-lg">
+          <div
+            v-for="(alert, index) in alerts"
+            :key="index"
+            class="flex items-start gap-3 px-4 py-1.5 text-[11px] text-amber-200"
+          >
+            <span class="flex-1">{{ alert }}</span>
+            <button
+              type="button"
+              class="text-amber-400 hover:text-amber-200"
+              @click="dismissAlert(index)"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div
