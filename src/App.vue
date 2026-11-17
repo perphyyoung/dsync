@@ -6,6 +6,7 @@ import FilterPanel from "./components/FilterPanel.vue";
 import ProgressPage from "./components/ProgressPage.vue";
 import RecyclePage from "./components/RecyclePage.vue";
 import RowActions from "./components/RowActions.vue";
+import ScanSettingsPage from "./components/ScanSettingsPage.vue";
 import ToastBubble from "./components/ToastBubble.vue";
 import { parseExtInput } from "./lib/exts";
 import { buildPreview } from "./lib/preview";
@@ -40,6 +41,7 @@ const executing = ref(false);
 const progress = ref<ScanProgress | null>(null);
 const forceRehashActive = ref(false);
 const progressView = ref<"hidden" | "running" | "paused" | "cancelled">("hidden");
+const settingsOpen = ref(false);
 const result = ref<ScanResult | null>(null);
 const selected = ref<Set<number>>(new Set());
 const toast = ref<string | null>(null);
@@ -151,6 +153,8 @@ onMounted(() => {
     rightRoot.value = pair.right;
   });
 
+  /* 启动即打开扫描设置页：先确认目录与过滤条件，再开始扫描 */
+  settingsOpen.value = true;
   void restoreLastPair();
 });
 
@@ -196,6 +200,7 @@ async function openDir(side: "left" | "right"): Promise<void> {
 function resetResult(): void {
   result.value = null;
   selected.value = new Set();
+  previewSide.value = null;
 }
 
 // 目录或过滤条件任一变化，旧结果不再可信，避免用户在过时数据上执行操作
@@ -205,7 +210,7 @@ watch([leftRoot, rightRoot, minSizeKb, includeInput, excludeInput], () => {
 
 const emptyText = computed(() => {
   if (!leftRoot.value || !rightRoot.value) return "先选择左右两个目录";
-  if (!result.value) return "点「扫描」比较两侧";
+  if (!result.value) return "点「扫描」设置条件并开始比较";
   return "两侧内容一致";
 });
 
@@ -214,6 +219,7 @@ async function scan(forceRehash = false): Promise<void> {
     pushAlert("请先选择左右两个目录");
     return;
   }
+  settingsOpen.value = false;
   previewSide.value = null;
   scanning.value = true;
   forceRehashActive.value = forceRehash;
@@ -701,15 +707,7 @@ async function executePreview(): Promise<void> {
       @back="closeProgress"
     />
 
-    <RecyclePage
-      v-else-if="recycleOpen"
-      :items="recycleItems"
-      :busy="recycleBusy"
-      @restore="restoreItem"
-      @close="recycleOpen = false"
-    />
-
-    <template v-else>
+    <div v-else class="flex min-h-0 flex-1 flex-col">
       <div v-if="alerts.length > 0" class="border-b border-amber-900/60 bg-amber-950/40">
         <div
           v-for="(alert, index) in alerts"
@@ -727,174 +725,198 @@ async function executePreview(): Promise<void> {
         </div>
       </div>
 
-      <div class="relative">
-        <FilterPanel
-          v-model:minSizeKb="minSizeKb"
-          v-model:includeInput="includeInput"
-          v-model:excludeInput="excludeInput"
-          v-model:hideSame="hideSame"
-          v-model:viewMode="viewMode"
-          :view-locked="previewSide !== null"
-          :scanning="scanning"
-          :busy="busy"
-          @scan="scan()"
-          @force-rehash="scan(true)"
-        />
-      </div>
+      <RecyclePage
+        v-if="recycleOpen"
+        class="min-h-0 flex-1"
+        :items="recycleItems"
+        :busy="recycleBusy"
+        @restore="restoreItem"
+        @close="recycleOpen = false"
+      />
 
-      <main class="flex min-h-0 flex-1 flex-col">
-        <div
-          class="flex items-center border-b border-slate-800 bg-slate-900/60 text-[11px] text-slate-400"
-        >
-          <div class="flex min-w-0 flex-1 items-center gap-3 px-3 py-1.5">
-            <span
-              class="min-w-0 flex-1 truncate font-medium"
-              :class="leftRoot ? 'text-slate-300' : 'text-slate-600'"
-              :title="leftRoot ?? ''"
-            >
-              {{ leftRoot || "未选择左侧目录" }}
-            </span>
-            <div class="flex shrink-0 items-center gap-1">
-              <button
-                type="button"
-                class="rounded border border-slate-700 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                :disabled="!leftRoot"
-                title="在文件管理器中打开"
-                @click="openDir('left')"
-              >
-                打开
-              </button>
-              <button
-                type="button"
-                class="rounded border border-slate-700 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800"
-                title="更改左侧目录"
-                @click="pick('left')"
-              >
-                更改
-              </button>
-            </div>
-          </div>
-          <div v-if="previewSide !== null" class="flex w-24 shrink-0 items-center justify-center">
-            <input
-              type="checkbox"
-              class="h-3 w-3 accent-sky-500"
-              :checked="allSelected"
-              :indeterminate="someSelected"
-              :disabled="selectableIndexes.length === 0"
-              title="全选 / 取消全选"
-              @change="toggleAll"
-            />
-          </div>
-          <div v-else class="w-24 shrink-0"></div>
-          <div class="flex min-w-0 flex-1 items-center gap-3 px-3 py-1.5">
-            <span
-              class="min-w-0 flex-1 truncate font-medium"
-              :class="rightRoot ? 'text-slate-300' : 'text-slate-600'"
-              :title="rightRoot ?? ''"
-            >
-              {{ rightRoot || "未选择右侧目录" }}
-            </span>
-            <div class="flex shrink-0 items-center gap-1">
-              <button
-                type="button"
-                class="rounded border border-slate-700 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                :disabled="!rightRoot"
-                title="在文件管理器中打开"
-                @click="openDir('right')"
-              >
-                打开
-              </button>
-              <button
-                type="button"
-                class="rounded border border-slate-700 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800"
-                title="更改右侧目录"
-                @click="pick('right')"
-              >
-                更改
-              </button>
-            </div>
-          </div>
+      <ScanSettingsPage
+        v-else-if="settingsOpen"
+        v-model:left-root="leftRoot"
+        v-model:right-root="rightRoot"
+        v-model:min-size-kb="minSizeKb"
+        v-model:include-input="includeInput"
+        v-model:exclude-input="excludeInput"
+        class="min-h-0 flex-1"
+        @pick="pick"
+        @start="scan()"
+        @force-rehash="scan(true)"
+        @close="settingsOpen = false"
+      />
+
+      <template v-else>
+        <div class="relative">
+          <FilterPanel
+            v-model:minSizeKb="minSizeKb"
+            v-model:includeInput="includeInput"
+            v-model:excludeInput="excludeInput"
+            v-model:hideSame="hideSame"
+            v-model:viewMode="viewMode"
+            :view-locked="previewSide !== null"
+            :busy="busy"
+            @open-settings="settingsOpen = true"
+          />
         </div>
 
-        <div class="min-h-0 flex-1 overflow-auto">
-          <div v-if="items.length === 0" class="px-3 py-12 text-center text-xs text-slate-600">
-            {{ emptyText }}
-          </div>
-          <div v-else class="flex">
-            <div class="min-w-0 flex-1">
-              <FileList side="left" :items="items" @toggle="toggle" @menu="onRowMenu" />
+        <main class="flex min-h-0 flex-1 flex-col">
+          <div
+            class="flex items-center border-b border-slate-800 bg-slate-900/60 text-[11px] text-slate-400"
+          >
+            <div class="flex min-w-0 flex-1 items-center gap-3 px-3 py-1.5">
+              <span
+                class="min-w-0 flex-1 truncate font-medium"
+                :class="leftRoot ? 'text-slate-300' : 'text-slate-600'"
+                :title="leftRoot ?? ''"
+              >
+                {{ leftRoot || "未选择左侧目录" }}
+              </span>
+              <div class="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  class="rounded border border-slate-700 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  :disabled="!leftRoot"
+                  title="在文件管理器中打开"
+                  @click="openDir('left')"
+                >
+                  打开
+                </button>
+                <button
+                  type="button"
+                  class="rounded border border-slate-700 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800"
+                  title="更改左侧目录"
+                  @click="pick('left')"
+                >
+                  更改
+                </button>
+              </div>
             </div>
-            <div class="w-24 shrink-0 border-x border-slate-800 bg-slate-900/30">
-              <RowActions
-                :items="items"
-                :selected="selected"
-                :busy="busy"
-                :highlight="previewSide"
-                :show-checkbox="previewSide !== null"
-                @run-left="runRow($event, 'left')"
-                @run-right="runRow($event, 'right')"
-                @toggle="toggle"
+            <div v-if="previewSide !== null" class="flex w-24 shrink-0 items-center justify-center">
+              <input
+                type="checkbox"
+                class="h-3 w-3 accent-sky-500"
+                :checked="allSelected"
+                :indeterminate="someSelected"
+                :disabled="selectableIndexes.length === 0"
+                title="全选 / 取消全选"
+                @change="toggleAll"
               />
             </div>
-            <div class="min-w-0 flex-1">
-              <FileList side="right" :items="items" @toggle="toggle" @menu="onRowMenu" />
+            <div v-else class="w-24 shrink-0"></div>
+            <div class="flex min-w-0 flex-1 items-center gap-3 px-3 py-1.5">
+              <span
+                class="min-w-0 flex-1 truncate font-medium"
+                :class="rightRoot ? 'text-slate-300' : 'text-slate-600'"
+                :title="rightRoot ?? ''"
+              >
+                {{ rightRoot || "未选择右侧目录" }}
+              </span>
+              <div class="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  class="rounded border border-slate-700 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  :disabled="!rightRoot"
+                  title="在文件管理器中打开"
+                  @click="openDir('right')"
+                >
+                  打开
+                </button>
+                <button
+                  type="button"
+                  class="rounded border border-slate-700 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800"
+                  title="更改右侧目录"
+                  @click="pick('right')"
+                >
+                  更改
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      </main>
 
-      <footer class="border-t border-slate-800 px-4 py-2">
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-slate-400">
-          <div v-if="statItems.length > 0" class="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span v-for="item in statItems" :key="item.key" class="flex items-center gap-1">
-              <span class="h-1.5 w-1.5 rounded-full" :class="item.dot"></span>
-              {{ item.label }} {{ item.count }}
-            </span>
+          <div class="min-h-0 flex-1 overflow-auto">
+            <div v-if="items.length === 0" class="px-3 py-12 text-center text-xs text-slate-600">
+              {{ emptyText }}
+            </div>
+            <div v-else class="flex">
+              <div class="min-w-0 flex-1">
+                <FileList side="left" :items="items" @toggle="toggle" @menu="onRowMenu" />
+              </div>
+              <div class="w-24 shrink-0 border-x border-slate-800 bg-slate-900/30">
+                <RowActions
+                  :items="items"
+                  :selected="selected"
+                  :busy="busy"
+                  :highlight="previewSide"
+                  :show-checkbox="previewSide !== null"
+                  @run-left="runRow($event, 'left')"
+                  @run-right="runRow($event, 'right')"
+                  @toggle="toggle"
+                />
+              </div>
+              <div class="min-w-0 flex-1">
+                <FileList side="right" :items="items" @toggle="toggle" @menu="onRowMenu" />
+              </div>
+            </div>
           </div>
+        </main>
 
-          <div class="ml-auto flex flex-wrap items-center gap-2">
-            <template v-if="previewSide !== null">
-              <span class="text-slate-300">
-                复制 {{ preview?.stats.copy ?? 0 }} · 改名 {{ preview?.stats.rename ?? 0 }} · 软删除
-                {{ preview?.stats.softDelete ?? 0 }} · 忽略 {{ preview?.stats.ignored ?? 0 }}
+        <footer class="border-t border-slate-800 px-4 py-2">
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-slate-400">
+            <div v-if="statItems.length > 0" class="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span v-for="item in statItems" :key="item.key" class="flex items-center gap-1">
+                <span class="h-1.5 w-1.5 rounded-full" :class="item.dot"></span>
+                {{ item.label }} {{ item.count }}
               </span>
+            </div>
+
+            <div class="ml-auto flex flex-wrap items-center gap-2">
+              <template v-if="previewSide !== null">
+                <span class="text-slate-300">
+                  复制 {{ preview?.stats.copy ?? 0 }} · 改名 {{ preview?.stats.rename ?? 0 }} ·
+                  软删除 {{ preview?.stats.softDelete ?? 0 }} · 忽略
+                  {{ preview?.stats.ignored ?? 0 }}
+                </span>
+                <button
+                  type="button"
+                  class="rounded bg-rose-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="busy || !preview || preview.actions.length === 0"
+                  @click="executePreview"
+                >
+                  执行同步
+                </button>
+              </template>
+
+              <button
+                v-for="option in PREVIEW_OPTIONS"
+                :key="option.value"
+                type="button"
+                class="min-w-24 rounded border px-3 py-1.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                :class="
+                  previewSide === option.value
+                    ? 'border-sky-600 bg-sky-600/20 text-sky-300'
+                    : 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                "
+                :disabled="busy || !result"
+                @click="togglePreview(option.value)"
+              >
+                {{ previewSide === option.value ? "退出预览" : option.label }}
+              </button>
+
               <button
                 type="button"
-                class="rounded bg-rose-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="busy || !preview || preview.actions.length === 0"
-                @click="executePreview"
+                class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+                @click="openRecycle"
               >
-                执行同步
+                回收站
               </button>
-            </template>
-
-            <button
-              v-for="option in PREVIEW_OPTIONS"
-              :key="option.value"
-              type="button"
-              class="min-w-24 rounded border px-3 py-1.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-              :class="
-                previewSide === option.value
-                  ? 'border-sky-600 bg-sky-600/20 text-sky-300'
-                  : 'border-slate-700 text-slate-300 hover:bg-slate-800'
-              "
-              :disabled="busy || !result"
-              @click="togglePreview(option.value)"
-            >
-              {{ previewSide === option.value ? "退出预览" : option.label }}
-            </button>
-
-            <button
-              type="button"
-              class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
-              @click="openRecycle"
-            >
-              回收站
-            </button>
+            </div>
           </div>
-        </div>
-      </footer>
-    </template>
+        </footer>
+      </template>
+    </div>
 
     <div
       v-if="rowMenu"

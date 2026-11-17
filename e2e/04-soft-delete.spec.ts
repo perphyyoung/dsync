@@ -1,7 +1,16 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { log } from "./e2e-logger";
+
+/** 从当前页面发起扫描：在设置页直接开始，在主界面先点「扫描」进入设置页 */
+async function scanViaSettings(page: Page): Promise<void> {
+  if (!(await page.getByText("扫描设置", { exact: true }).isVisible())) {
+    await page.getByRole("button", { name: "扫描", exact: true }).click();
+  }
+  await page.getByRole("button", { name: "开始扫描", exact: true }).click();
+}
 
 test("右键软删除进回收站，重扫后不再出现", async ({ slot }) => {
   const { app, page, base } = slot;
@@ -24,7 +33,7 @@ test("右键软删除进回收站，重扫后不再出现", async ({ slot }) => 
   await pickInto(right);
   await page.getByTitle("更改右侧目录").click();
 
-  await page.getByRole("button", { name: "扫描", exact: true }).click();
+  await scanViaSettings(page);
   await expect(page.getByText("a.md", { exact: true })).toBeVisible();
   log.info("[e2e] 扫描完成，a.md 已在列表");
 
@@ -51,7 +60,7 @@ test("右键软删除进回收站，重扫后不再出现", async ({ slot }) => 
 
   await page.getByRole("button", { name: "返回", exact: true }).click();
 
-  await page.getByRole("button", { name: "扫描", exact: true }).click();
+  await scanViaSettings(page);
   await expect(page.getByRole("button", { name: "扫描", exact: true })).toBeVisible();
   await expect(page.getByText("a.md", { exact: true })).toHaveCount(0);
   log.info("[e2e] 重扫后已删除内容不再出现");
@@ -64,7 +73,7 @@ test("软删除移除整行，还原后行恢复", async ({ slot }) => {
   /* 目录对已在上个用例选定，这里只补一个新文件，与回收站里的 a.md 区分 */
   await writeFile(join(left, "b.md"), "left-only", "utf8");
 
-  await page.getByRole("button", { name: "扫描", exact: true }).click();
+  await scanViaSettings(page);
   await expect(page.getByText("b.md", { exact: true })).toBeVisible();
 
   await page.getByText("b.md", { exact: true }).click({ button: "right" });
@@ -111,7 +120,7 @@ test("配对行软删除只清一侧，还原后恢复配对", async ({ slot }) 
   await writeFile(join(left, "deep", "c.md"), "paired", "utf8");
   await writeFile(join(right, "c.md"), "paired", "utf8");
 
-  await page.getByRole("button", { name: "扫描", exact: true }).click();
+  await scanViaSettings(page);
   await expect(page.getByRole("button", { name: "扫描", exact: true })).toBeVisible();
   await expect(page.getByText("deep/c.md", { exact: true })).toBeVisible();
   await expect(page.getByText("c.md", { exact: true })).toBeVisible();

@@ -40,6 +40,8 @@ test("扫描成功后目录对进入最近列表，重启后自动回填", async
   await slot.relaunch();
   log.info("[e2e] 已重启应用");
 
+  /* 重启后落在扫描设置页，先返回主界面再验证表头回填 */
+  await slot.page.getByRole("button", { name: "返回", exact: true }).click();
   await expect(slot.page.getByText(left, { exact: true })).toBeVisible();
   await expect(slot.page.getByText(right, { exact: true })).toBeVisible();
   log.info("[e2e] 重启后目录已回填");
