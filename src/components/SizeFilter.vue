@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SizeUnit } from "../lib/types";
+import Tooltip from "./Tooltip.vue";
 
 const enabled = defineModel<boolean>("enabled", { required: true });
 const min = defineModel<number>("min", { required: true });
@@ -46,5 +47,12 @@ const unitClass =
     <select v-model="maxUnit" title="最大值单位" :disabled="!enabled" :class="unitClass">
       <option v-for="unit in UNITS" :key="unit" :value="unit">{{ unit }}</option>
     </select>
+    <Tooltip text="0 表示该侧不限">
+      <span
+        class="flex h-4 w-4 items-center justify-center rounded-full border border-slate-700 text-[10px] text-slate-500"
+      >
+        ?
+      </span>
+    </Tooltip>
   </div>
 </template>

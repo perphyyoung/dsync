@@ -38,6 +38,8 @@ export default [
     },
     rules: {
       "vue/no-unused-vars": "error",
+      /* 允许 Tooltip 这类单个单词的组件名 */
+      "vue/multi-word-component-names": "off",
     },
   },
   {

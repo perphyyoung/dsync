@@ -11,6 +11,24 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
   await expect(page.getByTitle("更改左侧目录")).toBeVisible();
   await expect(page.getByTitle("更改右侧目录")).toBeVisible();
   await expect(page.getByText("文件大小", { exact: true })).toBeVisible();
+  /* 0 的含义走行末 ? 的悬停提示：问号常显，提示按空间翻转且不越出视口 */
+  const sizeHint = page.getByText("0 表示该侧不限");
+  await expect(sizeHint).not.toBeVisible();
+  const questionMark = page.getByText("?", { exact: true });
+  await questionMark.hover();
+  await expect(sizeHint).toBeVisible();
+  const viewport = await page.evaluate(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }));
+  const hintBox = await sizeHint.boundingBox();
+  expect(hintBox).not.toBeNull();
+  if (hintBox) {
+    expect(hintBox.x).toBeGreaterThanOrEqual(0);
+    expect(hintBox.y).toBeGreaterThanOrEqual(0);
+    expect(hintBox.x + hintBox.width).toBeLessThanOrEqual(viewport.width);
+    expect(hintBox.y + hintBox.height).toBeLessThanOrEqual(viewport.height);
+  }
   await expect(page.getByText("目录层级", { exact: true })).toBeVisible();
   await expect(page.getByText("排除路径", { exact: true })).toBeVisible();
   await expect(page.getByText("修改时间", { exact: true })).toBeVisible();
@@ -29,6 +47,17 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
   /* 非预览模式不渲染复选框（表头的全选与行内勾选都只在预览时出现） */
   await expect(page.getByTitle("全选 / 取消全选")).toHaveCount(0);
   await expect(page.getByText("文件大小", { exact: true })).toBeVisible();
+  /* 主界面过滤行贴近窗口顶部：提示翻到下方且不越界 */
+  await page.getByText("?", { exact: true }).hover();
+  await expect(sizeHint).toBeVisible();
+  const mainHintBox = await sizeHint.boundingBox();
+  expect(mainHintBox).not.toBeNull();
+  if (mainHintBox) {
+    expect(mainHintBox.x).toBeGreaterThanOrEqual(0);
+    expect(mainHintBox.y).toBeGreaterThanOrEqual(0);
+    expect(mainHintBox.x + mainHintBox.width).toBeLessThanOrEqual(viewport.width);
+    expect(mainHintBox.y + mainHintBox.height).toBeLessThanOrEqual(viewport.height);
+  }
   await expect(page.getByText("目录层级", { exact: true })).toBeVisible();
   await expect(page.getByText("排除路径", { exact: true })).toBeVisible();
   await expect(page.getByText("修改时间", { exact: true })).toBeVisible();
