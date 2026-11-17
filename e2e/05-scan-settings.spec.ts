@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "./fixtures";
 import { log } from "./e2e-logger";
@@ -145,4 +145,16 @@ test("删除目录对需要确认，当前目录对不可删", async ({ slot }) 
   await expect(pairRow).toHaveCount(0);
   await expect(page.getByText("还没有扫描成功过的目录对")).toBeVisible();
   log.info("[e2e] 当前目录对不可删，其他目录对确认后删除");
+});
+
+test("目录不存在时开始扫描留在设置页并告警", async ({ slot }) => {
+  const { page, base } = slot;
+  const left = join(base, "left");
+
+  /* 上个用例结束在设置页，右侧目录就是原 left；删掉它制造失效目录 */
+  await rm(left, { recursive: true, force: true });
+  await page.getByRole("button", { name: "开始扫描", exact: true }).click();
+  await expect(page.getByText(/目录不存在/)).toBeVisible();
+  await expect(page.getByText("扫描设置", { exact: true })).toBeVisible();
+  log.info("[e2e] 目录失效时开始扫描被拦截，停留在设置页");
 });

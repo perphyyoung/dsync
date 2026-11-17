@@ -409,6 +409,21 @@ async function scan(forceRehash = false): Promise<void> {
     pushAlert("请先选择左右两个目录");
     return;
   }
+  /* 只在开始扫描时校验目录：失效则留在设置页，不进进度页 */
+  try {
+    const [leftOk, rightOk] = await window.api.checkDirs([leftRoot.value, rightRoot.value]);
+    if (!leftOk || !rightOk) {
+      pushAlert(
+        !leftOk
+          ? `左侧目录不存在：${leftRoot.value}，请重新选择目录`
+          : `右侧目录不存在：${rightRoot.value}，请重新选择目录`,
+      );
+      return;
+    }
+  } catch (error) {
+    pushAlert(error instanceof Error ? error.message : String(error));
+    return;
+  }
   /* 先落盘条件，主进程扫描成功时只更新使用时间 */
   await savePairFiltersNow();
   settingsOpen.value = false;

@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld("api", {
   pickDirectory: (defaultPath?: string): Promise<string | null> =>
     ipcRenderer.invoke("dir:pick", defaultPath),
   openDirectory: (path: string): Promise<void> => ipcRenderer.invoke("dir:open", path),
+  checkDirs: (paths: string[]): Promise<boolean[]> => ipcRenderer.invoke("dirs:check", paths),
   scan: (request: ScanRequest): Promise<ScanOutcome> => ipcRenderer.invoke("sync:scan", request),
   pauseScan: (): Promise<void> => ipcRenderer.invoke("sync:pause"),
   resumeScan: (): Promise<void> => ipcRenderer.invoke("sync:resume"),

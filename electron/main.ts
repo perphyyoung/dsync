@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
-import { rm } from "node:fs/promises";
+import { rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { executeActions } from "../src/lib/execute";
 import { ScanCancelledError, ScanController } from "../src/lib/controller";
@@ -150,6 +150,18 @@ ipcMain.handle("dir:open", async (_event, raw?: unknown): Promise<void> => {
   if (typeof raw !== "string" || !raw) throw new Error("无效目录");
   const error = await shell.openPath(raw);
   if (error) throw new Error(error);
+});
+
+ipcMain.handle("dirs:check", async (_event, raw: unknown): Promise<boolean[]> => {
+  if (!Array.isArray(raw)) throw new Error("无效参数");
+  const paths = raw.filter((item): item is string => typeof item === "string");
+  return Promise.all(
+    paths.map((path) =>
+      stat(path)
+        .then((info) => info.isDirectory())
+        .catch(() => false),
+    ),
+  );
 });
 
 ipcMain.handle("recent:list", (): RecentPair[] =>

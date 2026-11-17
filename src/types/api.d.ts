@@ -19,6 +19,7 @@ import type {
 export interface Api {
   pickDirectory(defaultPath?: string): Promise<string | null>;
   openDirectory(path: string): Promise<void>;
+  checkDirs(paths: string[]): Promise<boolean[]>;
   scan(request: ScanRequest): Promise<ScanOutcome>;
   pauseScan(): Promise<void>;
   resumeScan(): Promise<void>;
