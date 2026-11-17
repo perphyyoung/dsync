@@ -14,7 +14,7 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
   /* 0 的含义走行末 ? 的悬停提示：问号常显，提示按空间翻转且不越出视口 */
   const sizeHint = page.getByText("0 表示该侧不限");
   await expect(sizeHint).not.toBeVisible();
-  const questionMark = page.getByText("?", { exact: true });
+  const questionMark = page.getByText("?", { exact: true }).first();
   await questionMark.hover();
   await expect(sizeHint).toBeVisible();
   const viewport = await page.evaluate(() => ({
@@ -32,7 +32,7 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
   await expect(page.getByText("目录层级", { exact: true })).toBeVisible();
   await expect(page.getByText("排除路径", { exact: true })).toBeVisible();
   await expect(page.getByText("修改时间", { exact: true })).toBeVisible();
-  await expect(page.getByText("跳过隐藏文件")).toBeVisible();
+  await expect(page.getByText("隐藏文件", { exact: true })).toBeVisible();
   await expect(page.getByText("只含后缀", { exact: true })).toBeVisible();
   await expect(page.getByText("排除后缀", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "开始扫描", exact: true })).toBeVisible();
@@ -48,7 +48,7 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
   await expect(page.getByTitle("全选 / 取消全选")).toHaveCount(0);
   await expect(page.getByText("文件大小", { exact: true })).toBeVisible();
   /* 主界面过滤行贴近窗口顶部：提示翻到下方且不越界 */
-  await page.getByText("?", { exact: true }).hover();
+  await page.getByText("?", { exact: true }).first().hover();
   await expect(sizeHint).toBeVisible();
   const mainHintBox = await sizeHint.boundingBox();
   expect(mainHintBox).not.toBeNull();

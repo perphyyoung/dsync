@@ -4,6 +4,7 @@ import { pairKey, type DirPairEntry } from "../lib/dir-pairs";
 import type { Side, SizeUnit } from "../lib/types";
 import ConfirmBubble from "./ConfirmBubble.vue";
 import ExtChips from "./ExtChips.vue";
+import HelpMark from "./HelpMark.vue";
 import SizeFilter from "./SizeFilter.vue";
 
 const leftRoot = defineModel<string>("leftRoot", { required: true });
@@ -255,11 +256,14 @@ function confirmForceRehash(): void {
           <span class="text-slate-500">天（0 不限，与起止日期取交集）</span>
         </label>
 
-        <label class="flex cursor-pointer items-center gap-3 text-slate-400">
-          <span class="w-16 shrink-0"></span>
-          <input v-model="skipHidden" type="checkbox" class="accent-sky-500" />
-          <span>跳过隐藏文件（. 开头，默认跳过）</span>
-        </label>
+        <div class="flex items-center gap-3">
+          <span class="w-16 shrink-0 text-slate-500">隐藏文件</span>
+          <label class="flex cursor-pointer items-center gap-2 text-slate-400">
+            <input v-model="skipHidden" type="checkbox" class="accent-sky-500" />
+            <span>跳过</span>
+          </label>
+          <HelpMark text="隐藏文件是指以 . 开头的文件或目录" />
+        </div>
       </div>
     </div>
 
