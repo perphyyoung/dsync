@@ -12,7 +12,14 @@ export const TMP_SUFFIX = ".dsynctmp";
 
 const ALWAYS_IGNORED = new Set([DSYNC_DIR, ".DS_Store", "Thumbs.db"]);
 
-export type IgnoreReason = "internal" | "size" | "ext" | "symlink" | "special" | "unreadable";
+export type IgnoreReason =
+  | "internal"
+  | "size"
+  | "time"
+  | "ext"
+  | "symlink"
+  | "special"
+  | "unreadable";
 
 export interface IgnoredFile {
   path: RelPath;
@@ -27,12 +34,32 @@ export interface ScanOutcome {
   nestedIndexDirs: RelPath[];
 }
 
-function filterReason(name: string, size: number, options: FilterOptions): IgnoreReason | null {
+function filterReason(
+  name: string,
+  size: number,
+  mtimeMs: number,
+  options: FilterOptions,
+): IgnoreReason | null {
   if (ALWAYS_IGNORED.has(name) || name.toLowerCase().endsWith(TMP_SUFFIX)) return "internal";
   if (size < options.minSize) return "size";
+  if (options.maxSize > 0 && size > options.maxSize) return "size";
+  if (options.modifiedAfter > 0 && mtimeMs < options.modifiedAfter) return "time";
+  if (options.modifiedBefore > 0 && mtimeMs > options.modifiedBefore) return "time";
   if (options.includeExts.length > 0 && !extMatch(name, options.includeExts)) return "ext";
   if (extMatch(name, options.excludeExts)) return "ext";
   return null;
+}
+
+/** 目录层级：文件层级 = 目录深度 + 1；超过上限的目录整棵跳过（不计入 ignored） */
+function tooDeep(depth: number, maxDepth: number): boolean {
+  return maxDepth > 0 && depth + 1 >= maxDepth;
+}
+
+/** 路径关键词：相对路径包含任一关键词即跳过，限制扫描范围（不计入 ignored） */
+function pathExcluded(rel: string, keywords: string[]): boolean {
+  if (keywords.length === 0) return false;
+  const lower = rel.toLowerCase();
+  return keywords.some((keyword) => lower.includes(keyword));
 }
 
 /** 每个条目都检查一次中断，让扫描阶段也能暂停与取消 */
@@ -49,28 +76,35 @@ async function gate(controller?: ScanController): Promise<void> {
  */
 export async function countFiles(
   root: string,
+  options: FilterOptions,
   onDiscover?: (found: number) => void,
   controller?: ScanController,
 ): Promise<number> {
   let count = 0;
 
-  async function walk(dir: string): Promise<void> {
+  async function walk(dir: string, depth: number): Promise<void> {
     const entries = await readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
       await gate(controller);
       if (entry.isSymbolicLink()) continue;
+      const rel = relativePosix(root, join(dir, entry.name));
       if (entry.isDirectory()) {
         if (entry.name === DSYNC_DIR) continue;
-        await walk(join(dir, entry.name));
+        if (options.skipHidden && entry.name.startsWith(".")) continue;
+        if (pathExcluded(rel, options.excludePaths)) continue;
+        if (tooDeep(depth, options.maxDepth)) continue;
+        await walk(join(dir, entry.name), depth + 1);
         continue;
       }
       if (!entry.isFile()) continue;
+      if (options.skipHidden && entry.name.startsWith(".")) continue;
+      if (pathExcluded(rel, options.excludePaths)) continue;
       count += 1;
       onDiscover?.(count);
     }
   }
 
-  await walk(root);
+  await walk(root, 0);
   return count;
 }
 
@@ -85,7 +119,7 @@ export async function collectFiles(
   const ignored: IgnoredFile[] = [];
   const nestedIndexDirs: RelPath[] = [];
 
-  async function walk(dir: string): Promise<void> {
+  async function walk(dir: string, depth: number): Promise<void> {
     const entries = await readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
       await gate(controller);
@@ -106,13 +140,18 @@ export async function collectFiles(
           }
           continue;
         }
-        await walk(full);
+        if (options.skipHidden && entry.name.startsWith(".")) continue;
+        if (pathExcluded(rel, options.excludePaths)) continue;
+        if (tooDeep(depth, options.maxDepth)) continue;
+        await walk(full, depth + 1);
         continue;
       }
       if (!entry.isFile()) {
         ignored.push({ path: rel, reason: "special", size: 0 });
         continue;
       }
+      if (options.skipHidden && entry.name.startsWith(".")) continue;
+      if (pathExcluded(rel, options.excludePaths)) continue;
 
       onFile?.();
 
@@ -124,7 +163,7 @@ export async function collectFiles(
         continue;
       }
 
-      const reason = filterReason(entry.name, info.size, options);
+      const reason = filterReason(entry.name, info.size, info.mtimeMs, options);
       if (reason) {
         ignored.push({ path: rel, reason, size: info.size });
         continue;
@@ -134,6 +173,6 @@ export async function collectFiles(
     }
   }
 
-  await walk(root);
+  await walk(root, 0);
   return { files, ignored, nestedIndexDirs };
 }

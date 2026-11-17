@@ -8,6 +8,7 @@ import { collectFiles, countFiles, normalizeExts, type IgnoredFile } from "./sca
 import type {
   FileEntry,
   FileStat,
+  FilterOptions,
   HashCache,
   RelPath,
   ScanProgress,
@@ -125,8 +126,23 @@ export async function runScan(request: ScanRequest, hooks: ScanHooks = {}): Prom
   const controller = hooks.controller ?? new ScanController();
   const emit = createEmitter(hooks);
 
-  const filters = {
+  const filters: FilterOptions = {
     minSize: Math.max(0, Number.isFinite(request.minSize) ? request.minSize : 0),
+    maxSize: Math.max(0, Number.isFinite(request.maxSize) ? request.maxSize : 0),
+    maxDepth: Math.max(0, Math.floor(Number.isFinite(request.maxDepth) ? request.maxDepth : 0)),
+    excludePaths: [
+      ...new Set(
+        (Array.isArray(request.excludePaths) ? request.excludePaths : [])
+          .map((item) => item.trim().toLowerCase())
+          .filter((item) => item.length > 0),
+      ),
+    ],
+    modifiedAfter: Math.max(0, Number.isFinite(request.modifiedAfter) ? request.modifiedAfter : 0),
+    modifiedBefore: Math.max(
+      0,
+      Number.isFinite(request.modifiedBefore) ? request.modifiedBefore : 0,
+    ),
+    skipHidden: request.skipHidden !== false,
     includeExts: normalizeExts(request.includeExts),
     excludeExts: normalizeExts(request.excludeExts),
   };
@@ -147,6 +163,7 @@ export async function runScan(request: ScanRequest, hooks: ScanHooks = {}): Prom
   const [leftCount, rightCount] = await Promise.all([
     countFiles(
       request.leftRoot,
+      filters,
       (found) => {
         discoveredLeft = found;
         emitDiscover();
@@ -155,6 +172,7 @@ export async function runScan(request: ScanRequest, hooks: ScanHooks = {}): Prom
     ),
     countFiles(
       request.rightRoot,
+      filters,
       (found) => {
         discoveredRight = found;
         emitDiscover();

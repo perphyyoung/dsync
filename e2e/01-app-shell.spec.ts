@@ -11,6 +11,11 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
   await expect(page.getByTitle("更改左侧目录")).toBeVisible();
   await expect(page.getByTitle("更改右侧目录")).toBeVisible();
   await expect(page.getByText("最小大小", { exact: true })).toBeVisible();
+  await expect(page.getByText("最大大小", { exact: true })).toBeVisible();
+  await expect(page.getByText("目录层级", { exact: true })).toBeVisible();
+  await expect(page.getByText("排除路径", { exact: true })).toBeVisible();
+  await expect(page.getByText("修改时间", { exact: true })).toBeVisible();
+  await expect(page.getByText("跳过隐藏文件")).toBeVisible();
   await expect(page.getByText("只含后缀", { exact: true })).toBeVisible();
   await expect(page.getByText("排除后缀", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "开始扫描", exact: true })).toBeVisible();
@@ -26,6 +31,11 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
   await expect(page.getByTitle("在文件管理器中打开")).toHaveCount(2);
   /* 非预览模式不渲染复选框（表头的全选与行内勾选都只在预览时出现） */
   await expect(page.getByTitle("全选 / 取消全选")).toHaveCount(0);
+  await expect(page.getByText("最大大小", { exact: true })).toBeVisible();
+  await expect(page.getByText("目录层级", { exact: true })).toBeVisible();
+  await expect(page.getByText("排除路径", { exact: true })).toBeVisible();
+  await expect(page.getByText("修改时间", { exact: true })).toBeVisible();
+  await expect(page.getByText("跳过隐藏文件", { exact: true })).toBeVisible();
   await expect(page.getByText("显示模式", { exact: true })).toBeVisible();
   for (const name of ["全部", "左侧", "右侧", "重复", "占用"]) {
     await expect(page.getByRole("button", { name, exact: true })).toBeVisible();

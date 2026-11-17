@@ -48,19 +48,19 @@
 
 ### P1 高优先
 
-- [ ] 目录层级 `maxDepth`：`FilterOptions` 加字段（默认不限）→ `scan.ts` 递归带深度 → `main.ts` parseScanRequest 补默认 → `pipeline.ts` 透传 → 设置页与过滤行同步展示 → `pipeline.test.ts` 补用例
-- [ ] 文件大小上限 `maxSize`：与 `minSize` 对称，同一条链路
+- [x] 目录层级 `maxDepth`：`FilterOptions` 加字段（默认不限）→ `scan.ts` 递归带深度 → `main.ts` parseScanRequest 补默认 → `pipeline.ts` 透传 → 设置页与过滤行同步展示 → `pipeline.test.ts` 补用例
+- [x] 文件大小上限 `maxSize`：与 `minSize` 对称，同一条链路
 
 ### P2 常用筛选
 
-- [ ] 路径包含 / 排除（按目录名或路径关键字，如 node_modules、dist）
-- [ ] 修改时间范围（mtime 窗口）
-- [ ] 隐藏文件开关（`.` 开头）
-- [ ] 常见后缀快捷 chips（图片 / 文档 / 代码一键勾选，替代纯文本输入）
+- [x] 路径包含 / 排除（按目录名或路径关键字，如 node_modules、dist）
+- [x] 修改时间范围（mtime 窗口）
+- [x] 隐藏文件开关（`.` 开头）
+- [x] 常见后缀快捷 chips（图片 / 文档 / 代码一键勾选，替代纯文本输入）
 
 ### P3 体验
 
-- [ ] 扫描条件持久化（重启记住上次条件，当前每次回默认）
+- [x] 扫描条件持久化（重启记住上次条件，当前每次回默认）
 
 ## 执行约定
 

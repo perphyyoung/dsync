@@ -76,6 +76,18 @@ export type AlignMode = "keep" | "align-left" | "align-right";
 
 export interface FilterOptions {
   minSize: number;
+  /** 0 表示不限；超过上限的文件被过滤 */
+  maxSize: number;
+  /** 0 表示不限；正整数限制目录深度，1 只扫根目录文件 */
+  maxDepth: number;
+  /** 相对路径包含任一关键词即跳过，大小写不敏感；空数组表示不限 */
+  excludePaths: string[];
+  /** 修改时间下界（毫秒时间戳），0 表示不限 */
+  modifiedAfter: number;
+  /** 修改时间上界（毫秒时间戳），0 表示不限 */
+  modifiedBefore: number;
+  /** 跳过以 . 开头的文件与目录 */
+  skipHidden: boolean;
   includeExts: string[];
   excludeExts: string[];
 }

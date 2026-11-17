@@ -31,8 +31,15 @@ import type {
 const leftRoot = ref("");
 const rightRoot = ref("");
 const minSizeKb = ref(0);
+const maxSizeKb = ref(0);
+const maxDepth = ref(0);
 const includeInput = ref("");
 const excludeInput = ref("");
+const excludePathsInput = ref("");
+const dateFrom = ref("");
+const dateTo = ref("");
+const recentDays = ref(0);
+const skipHidden = ref(true);
 const hideSame = ref(true);
 const viewMode = ref<ViewMode>("all");
 
@@ -153,7 +160,8 @@ onMounted(() => {
     rightRoot.value = pair.right;
   });
 
-  /* 启动即打开扫描设置页：先确认目录与过滤条件，再开始扫描 */
+  /* 先恢复上次的扫描条件，再打开扫描设置页 */
+  loadFilters();
   settingsOpen.value = true;
   void restoreLastPair();
 });
@@ -204,15 +212,121 @@ function resetResult(): void {
 }
 
 // 目录或过滤条件任一变化，旧结果不再可信，避免用户在过时数据上执行操作
-watch([leftRoot, rightRoot, minSizeKb, includeInput, excludeInput], () => {
-  resetResult();
-});
+watch(
+  [
+    leftRoot,
+    rightRoot,
+    minSizeKb,
+    maxSizeKb,
+    maxDepth,
+    includeInput,
+    excludeInput,
+    excludePathsInput,
+    dateFrom,
+    dateTo,
+    recentDays,
+    skipHidden,
+  ],
+  () => {
+    resetResult();
+  },
+);
+
+/* 扫描条件持久化：重启后回到上次条件；目录对仍由主进程单独记录 */
+const FILTER_STORAGE_KEY = "dsync.filters";
+
+interface StoredFilters {
+  minSizeKb: number;
+  maxSizeKb: number;
+  maxDepth: number;
+  includeInput: string;
+  excludeInput: string;
+  excludePathsInput: string;
+  dateFrom: string;
+  dateTo: string;
+  recentDays: number;
+  skipHidden: boolean;
+}
+
+function loadFilters(): void {
+  try {
+    const raw = localStorage.getItem(FILTER_STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw) as Partial<StoredFilters>;
+    if (typeof data.minSizeKb === "number") minSizeKb.value = data.minSizeKb;
+    if (typeof data.maxSizeKb === "number") maxSizeKb.value = data.maxSizeKb;
+    if (typeof data.maxDepth === "number") maxDepth.value = data.maxDepth;
+    if (typeof data.includeInput === "string") includeInput.value = data.includeInput;
+    if (typeof data.excludeInput === "string") excludeInput.value = data.excludeInput;
+    if (typeof data.excludePathsInput === "string")
+      excludePathsInput.value = data.excludePathsInput;
+    if (typeof data.dateFrom === "string") dateFrom.value = data.dateFrom;
+    if (typeof data.dateTo === "string") dateTo.value = data.dateTo;
+    if (typeof data.recentDays === "number") recentDays.value = data.recentDays;
+    if (typeof data.skipHidden === "boolean") skipHidden.value = data.skipHidden;
+  } catch {
+    /* 本地偏好损坏时静默回默认 */
+  }
+}
+
+watch(
+  [
+    minSizeKb,
+    maxSizeKb,
+    maxDepth,
+    includeInput,
+    excludeInput,
+    excludePathsInput,
+    dateFrom,
+    dateTo,
+    recentDays,
+    skipHidden,
+  ],
+  () => {
+    const data: StoredFilters = {
+      minSizeKb: minSizeKb.value,
+      maxSizeKb: maxSizeKb.value,
+      maxDepth: maxDepth.value,
+      includeInput: includeInput.value,
+      excludeInput: excludeInput.value,
+      excludePathsInput: excludePathsInput.value,
+      dateFrom: dateFrom.value,
+      dateTo: dateTo.value,
+      recentDays: recentDays.value,
+      skipHidden: skipHidden.value,
+    };
+    try {
+      localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(data));
+    } catch {
+      /* 存储不可用时忽略 */
+    }
+  },
+);
 
 const emptyText = computed(() => {
   if (!leftRoot.value || !rightRoot.value) return "先选择左右两个目录";
   if (!result.value) return "点「扫描」设置条件并开始比较";
   return "两侧内容一致";
 });
+
+/** 路径关键词：逗号或分号分隔，大小写不敏感 */
+function parseKeywordInput(input: string): string[] {
+  return input
+    .split(/[,;，；]+/)
+    .map((item) => item.trim().toLowerCase())
+    .filter((item) => item.length > 0);
+}
+
+/** 时间窗口：起止日期与「最近 N 天」取交集，任一为空表示该侧不限 */
+function timeWindow(): { modifiedAfter: number; modifiedBefore: number } {
+  const fromDate = dateFrom.value ? new Date(`${dateFrom.value}T00:00:00`).getTime() : 0;
+  const toDate = dateTo.value ? new Date(`${dateTo.value}T23:59:59.999`).getTime() : 0;
+  const recent = recentDays.value > 0 ? Date.now() - recentDays.value * 86_400_000 : 0;
+  return {
+    modifiedAfter: Math.max(fromDate, recent),
+    modifiedBefore: toDate,
+  };
+}
 
 async function scan(forceRehash = false): Promise<void> {
   if (!leftRoot.value || !rightRoot.value) {
@@ -229,6 +343,11 @@ async function scan(forceRehash = false): Promise<void> {
       leftRoot: leftRoot.value,
       rightRoot: rightRoot.value,
       minSize: Math.max(0, Math.round(minSizeKb.value * 1024)),
+      maxSize: Math.max(0, Math.round(maxSizeKb.value * 1024)),
+      maxDepth: Math.max(0, Math.round(maxDepth.value)),
+      excludePaths: parseKeywordInput(excludePathsInput.value),
+      ...timeWindow(),
+      skipHidden: skipHidden.value,
       includeExts: parseExtInput(includeInput.value),
       excludeExts: parseExtInput(excludeInput.value),
       forceRehash,
@@ -739,8 +858,15 @@ async function executePreview(): Promise<void> {
         v-model:left-root="leftRoot"
         v-model:right-root="rightRoot"
         v-model:min-size-kb="minSizeKb"
+        v-model:max-size-kb="maxSizeKb"
+        v-model:max-depth="maxDepth"
         v-model:include-input="includeInput"
         v-model:exclude-input="excludeInput"
+        v-model:exclude-paths-input="excludePathsInput"
+        v-model:date-from="dateFrom"
+        v-model:date-to="dateTo"
+        v-model:recent-days="recentDays"
+        v-model:skip-hidden="skipHidden"
         class="min-h-0 flex-1"
         @pick="pick"
         @start="scan()"
@@ -752,8 +878,15 @@ async function executePreview(): Promise<void> {
         <div class="relative">
           <FilterPanel
             v-model:minSizeKb="minSizeKb"
+            v-model:maxSizeKb="maxSizeKb"
+            v-model:maxDepth="maxDepth"
             v-model:includeInput="includeInput"
             v-model:excludeInput="excludeInput"
+            v-model:excludePathsInput="excludePathsInput"
+            v-model:dateFrom="dateFrom"
+            v-model:dateTo="dateTo"
+            v-model:recentDays="recentDays"
+            v-model:skipHidden="skipHidden"
             v-model:hideSame="hideSame"
             v-model:viewMode="viewMode"
             :view-locked="previewSide !== null"

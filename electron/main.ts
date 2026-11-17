@@ -34,6 +34,11 @@ function dataRoot(): string {
   return devUrl ? join(app.getAppPath(), "ds-data") : app.getPath("userData");
 }
 
+/* localStorage 等 Chromium 数据跟着应用数据目录走：e2e 与 dev 都不污染真实用户配置 */
+if (process.env["DSYNC_DATA_DIR"] || devUrl) {
+  app.setPath("userData", dataRoot());
+}
+
 function recentFilePath(): string {
   return join(dataRoot(), "recent-pairs.json");
 }
@@ -77,11 +82,20 @@ function parseScanRequest(value: unknown): ScanRequest {
 
   const includeExts = input["includeExts"];
   const excludeExts = input["excludeExts"];
+  const excludePaths = input["excludePaths"];
 
   return {
     leftRoot,
     rightRoot,
     minSize: typeof input["minSize"] === "number" ? input["minSize"] : 0,
+    maxSize: typeof input["maxSize"] === "number" ? input["maxSize"] : 0,
+    maxDepth: typeof input["maxDepth"] === "number" ? input["maxDepth"] : 0,
+    excludePaths: Array.isArray(excludePaths)
+      ? excludePaths.filter((item): item is string => typeof item === "string")
+      : [],
+    modifiedAfter: typeof input["modifiedAfter"] === "number" ? input["modifiedAfter"] : 0,
+    modifiedBefore: typeof input["modifiedBefore"] === "number" ? input["modifiedBefore"] : 0,
+    skipHidden: input["skipHidden"] !== false,
     includeExts: Array.isArray(includeExts)
       ? includeExts.filter((item): item is string => typeof item === "string")
       : [],

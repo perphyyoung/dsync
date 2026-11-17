@@ -26,6 +26,12 @@ function request(left: string, right: string, overrides: Partial<ScanRequest> = 
     leftRoot: left,
     rightRoot: right,
     minSize: 0,
+    maxSize: 0,
+    maxDepth: 0,
+    excludePaths: [],
+    modifiedAfter: 0,
+    modifiedBefore: 0,
+    skipHidden: false,
     includeExts: [],
     excludeExts: [],
     forceRehash: false,
@@ -115,6 +121,68 @@ describe("端到端扫描与执行", () => {
     expect(scan.rows.find((row) => row.left === "skip.log")?.status).toBe("ignored");
     expect(scan.rows.find((row) => row.left === "tiny.md")?.status).toBe("ignored");
     expect(scan.rows.find((row) => row.left === "keep.md")?.status).toBe("left-only");
+  });
+
+  it("最大大小上限只影响可见性", async () => {
+    const { left, right } = await setup();
+    await writeRel(left, "small.md", "1");
+    await writeRel(left, "big.md", "0123456789");
+
+    const scan = await runScan(request(left, right, { maxSize: 5 }));
+    expect(scan.rows.find((row) => row.left === "big.md")?.status).toBe("ignored");
+    expect(scan.rows.find((row) => row.left === "small.md")?.status).toBe("left-only");
+  });
+
+  it("目录层级超限的目录整棵跳过，不产生 ignored 行", async () => {
+    const { left, right } = await setup();
+    await writeRel(left, "root.md", "root");
+    await writeRel(left, "one/inner.md", "inner");
+    await writeRel(left, "one/two/deep.md", "deep");
+
+    const scan = await runScan(request(left, right, { maxDepth: 2 }));
+    expect(scan.rows.find((row) => row.left === "root.md")?.status).toBe("left-only");
+    expect(scan.rows.find((row) => row.left === "one/inner.md")?.status).toBe("left-only");
+    expect(scan.rows.find((row) => row.left === "one/two/deep.md")).toBeUndefined();
+  });
+
+  it("排除路径跳过目录整棵与命中文件", async () => {
+    const { left, right } = await setup();
+    await writeRel(left, "keep.md", "keep");
+    await writeRel(left, "node_modules/pkg.mjs", "pkg");
+    await writeRel(left, "dist/out.md", "out");
+
+    const scan = await runScan(request(left, right, { excludePaths: ["node_modules", "out.md"] }));
+    expect(scan.rows.find((row) => row.left === "keep.md")?.status).toBe("left-only");
+    expect(scan.rows.find((row) => row.left === "node_modules/pkg.mjs")).toBeUndefined();
+    expect(scan.rows.find((row) => row.left === "dist/out.md")).toBeUndefined();
+  });
+
+  it("隐藏文件按开关整棵跳过", async () => {
+    const { left, right } = await setup();
+    await writeRel(left, ".env", "secret");
+    await writeRel(left, ".git/config", "config");
+    await writeRel(left, "visible.md", "visible");
+
+    const hidden = await runScan(request(left, right, { skipHidden: true }));
+    expect(hidden.rows.find((row) => row.left === ".env")).toBeUndefined();
+    expect(hidden.rows.find((row) => row.left === ".git/config")).toBeUndefined();
+    expect(hidden.rows.find((row) => row.left === "visible.md")?.status).toBe("left-only");
+
+    const shown = await runScan(request(left, right, { skipHidden: false }));
+    expect(shown.rows.find((row) => row.left === ".env")?.status).toBe("left-only");
+  });
+
+  it("修改时间窗口过滤过期文件", async () => {
+    const { left, right } = await setup();
+    const old = new Date("2026-01-01T00:00:00.000Z");
+    await writeRel(left, "old.md", "old");
+    await utimes(join(left, "old.md"), old, old);
+    await writeRel(left, "new.md", "new");
+
+    const after = new Date("2026-06-01T00:00:00.000Z").getTime();
+    const scan = await runScan(request(left, right, { modifiedAfter: after }));
+    expect(scan.rows.find((row) => row.left === "old.md")?.status).toBe("ignored");
+    expect(scan.rows.find((row) => row.left === "new.md")?.status).toBe("left-only");
   });
 
   it("拒绝相同或互相包含的根目录", async () => {
