@@ -10,7 +10,7 @@ import ScanSettingsPage from "./components/ScanSettingsPage.vue";
 import ToastBubble from "./components/ToastBubble.vue";
 import { pairKey, type DirPairEntry } from "./lib/dir-pairs";
 import { parseExtInput } from "./lib/exts";
-import { buildPreview } from "./lib/preview";
+import { buildPreview, previewKindRows, type PreviewKind } from "./lib/preview";
 import { rowDirections } from "./lib/row-actions";
 import { verifyOutcome } from "./lib/verify";
 import type {
@@ -303,6 +303,43 @@ const preview = computed(() => {
   if (!side) return null;
   return buildPreview(result.value?.rows ?? [], selected.value, side);
 });
+
+const PREVIEW_KINDS: { kind: PreviewKind; label: string }[] = [
+  { kind: "copy", label: "复制" },
+  { kind: "rename", label: "改名" },
+  { kind: "softDelete", label: "软删除" },
+];
+
+/* 预览统计的批量开关：全选状态下每一类动作涉及的行 */
+const previewKindGroups = computed(() =>
+  previewSide.value ? previewKindRows(result.value?.rows ?? [], previewSide.value) : null,
+);
+
+const previewKindState = computed(() =>
+  PREVIEW_KINDS.map(({ kind, label }) => {
+    const indexes = previewKindGroups.value?.[kind] ?? [];
+    const picked = indexes.filter((index) => selected.value.has(index)).length;
+    return {
+      kind,
+      label,
+      count: preview.value?.stats[kind] ?? 0,
+      total: indexes.length,
+      picked,
+    };
+  }),
+);
+
+function togglePreviewKind(kind: PreviewKind): void {
+  const indexes = previewKindGroups.value?.[kind] ?? [];
+  if (indexes.length === 0) return;
+  const allIn = indexes.every((index) => selected.value.has(index));
+  const next = new Set(selected.value);
+  for (const index of indexes) {
+    if (allIn) next.delete(index);
+    else next.add(index);
+  }
+  selected.value = next;
+}
 
 const progressStatus = computed<"running" | "paused" | "cancelled">(() =>
   progressView.value === "hidden" ? "running" : progressView.value,
@@ -1103,10 +1140,23 @@ async function executePreview(): Promise<void> {
 
             <div class="ml-auto flex flex-wrap items-center gap-2">
               <template v-if="previewSide !== null">
-                <span class="text-slate-300">
-                  复制 {{ preview?.stats.copy ?? 0 }} · 改名 {{ preview?.stats.rename ?? 0 }} ·
-                  软删除 {{ preview?.stats.softDelete ?? 0 }} · 忽略
-                  {{ preview?.stats.ignored ?? 0 }}
+                <span class="flex flex-wrap items-center gap-3 text-slate-300">
+                  <label
+                    v-for="item in previewKindState"
+                    :key="item.kind"
+                    class="flex items-center gap-1"
+                  >
+                    <input
+                      type="checkbox"
+                      class="h-3.5 w-3.5 accent-sky-500 disabled:opacity-40"
+                      :checked="item.total > 0 && item.picked === item.total"
+                      :indeterminate="item.picked > 0 && item.picked < item.total"
+                      :disabled="item.total === 0"
+                      @change="togglePreviewKind(item.kind)"
+                    />
+                    <span>{{ item.label }} {{ item.count }}</span>
+                  </label>
+                  <span>忽略 {{ preview?.stats.ignored ?? 0 }}</span>
                 </span>
                 <button
                   type="button"

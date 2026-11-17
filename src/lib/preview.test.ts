@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPreview } from "./preview";
+import { buildPreview, previewKindRows } from "./preview";
 import type { DiffRow } from "./types";
 
 function makeRow(overrides: Partial<DiffRow>): DiffRow {
@@ -61,5 +61,30 @@ describe("预览统计", () => {
     ];
     const preview = buildPreview(rows, new Set([0, 1]), "right");
     expect(preview.stats).toMatchObject({ copy: 1, softDelete: 1 });
+  });
+
+  it("按动作类型聚合涉及的行号", () => {
+    const rows = [
+      makeRow({ status: "left-only", left: "a.md" }),
+      makeRow({ status: "right-only", right: "b.md" }),
+      makeRow({ status: "moved", left: "c.md", right: "deep/c.md" }),
+      makeRow({ status: "same", left: "d.md", right: "d.md" }),
+    ];
+    const groups = previewKindRows(rows, "left");
+    expect(groups.softDelete).toEqual([0]);
+    expect(groups.copy).toEqual([1]);
+    expect(groups.rename).toEqual([2]);
+    /* 一致行不参与任何动作 */
+    expect(groups.copy).not.toContain(3);
+  });
+
+  it("重排目标被占用时不归入改名列", () => {
+    const rows = [
+      makeRow({ status: "moved", left: "a.md", right: "b.md" }),
+      makeRow({ status: "left-only", left: "b.md" }),
+    ];
+    const groups = previewKindRows(rows, "left");
+    expect(groups.rename).toEqual([]);
+    expect(groups.softDelete).toEqual([1]);
   });
 });

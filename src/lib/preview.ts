@@ -13,6 +13,28 @@ export interface Preview {
   actions: SyncAction[];
 }
 
+export type PreviewKind = "copy" | "rename" | "softDelete";
+
+/** 全选状态下每一类动作涉及的行号，供预览统计的批量开关使用（同一行去重） */
+export function previewKindRows(rows: DiffRow[], side: Side): Record<PreviewKind, number[]> {
+  const all = new Set(rows.map((_, index) => index));
+  const groups: Record<PreviewKind, Set<number>> = {
+    copy: new Set(),
+    rename: new Set(),
+    softDelete: new Set(),
+  };
+  for (const action of buildPreview(rows, all, side).actions) {
+    if (action.kind === "copy") groups.copy.add(action.rowIndex);
+    else if (action.kind === "move") groups.rename.add(action.rowIndex);
+    else groups.softDelete.add(action.rowIndex);
+  }
+  return {
+    copy: [...groups.copy],
+    rename: [...groups.rename],
+    softDelete: [...groups.softDelete],
+  };
+}
+
 /**
  * 预览某个方向的批量结果：勾选的行全部参与，重排路径也包含在内。
  * 忽略 = 勾选但不可执行：一致 + 已忽略 + 重复 + 目标占用 + 重排目标被占。

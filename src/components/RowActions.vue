@@ -115,6 +115,7 @@ function confirmRun(): void {
           v-if="props.showCheckbox"
           type="checkbox"
           class="h-3 w-3 accent-sky-500"
+          :aria-label="`选择第 ${entry.index + 1} 行`"
           :checked="selected.has(entry.index)"
           @change="emit('toggle', entry.index)"
         />
