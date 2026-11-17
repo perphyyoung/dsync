@@ -158,3 +158,28 @@ test("目录不存在时开始扫描留在设置页并告警", async ({ slot }) 
   await expect(page.getByText("扫描设置", { exact: true })).toBeVisible();
   log.info("[e2e] 目录失效时开始扫描被拦截，停留在设置页");
 });
+
+test("修改时间范围三种方式互斥", async ({ slot }) => {
+  const { page } = slot;
+  const recent = page.getByRole("radio", { name: "最近" });
+  const custom = page.getByRole("radio", { name: "自定义" });
+  const days = page.getByLabel("最近天数");
+  const from = page.getByLabel("开始日期");
+
+  /* 默认不限，两种输入都禁用 */
+  await expect(page.getByRole("radio", { name: "不限" })).toBeChecked();
+  await expect(days).toBeDisabled();
+  await expect(from).toBeDisabled();
+
+  /* 选最近：天数启用并补默认值，日期仍禁用 */
+  await recent.check();
+  await expect(days).toBeEnabled();
+  await expect(days).toHaveValue("7");
+  await expect(from).toBeDisabled();
+
+  /* 选自定义：日期启用，天数禁用 */
+  await custom.check();
+  await expect(from).toBeEnabled();
+  await expect(days).toBeDisabled();
+  log.info("[e2e] 修改时间范围三态互斥");
+});

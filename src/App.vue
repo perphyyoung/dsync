@@ -28,6 +28,7 @@ import type {
   SizeUnit,
   StaleEntry,
   SyncAction,
+  TimeMode,
   ViewMode,
 } from "./lib/types";
 
@@ -42,6 +43,7 @@ const maxDepth = ref(0);
 const includeInput = ref("");
 const excludeInput = ref("");
 const excludePathsInput = ref("");
+const timeMode = ref<TimeMode>("none");
 const dateFrom = ref("");
 const dateTo = ref("");
 const recentDays = ref(0);
@@ -89,6 +91,7 @@ const DEFAULT_FILTERS: FilterPrefs = {
   includeInput: "",
   excludeInput: "",
   excludePathsInput: "",
+  timeMode: "none",
   dateFrom: "",
   dateTo: "",
   recentDays: 0,
@@ -108,6 +111,7 @@ function currentFilters(): FilterPrefs {
     includeInput: includeInput.value,
     excludeInput: excludeInput.value,
     excludePathsInput: excludePathsInput.value,
+    timeMode: timeMode.value,
     dateFrom: dateFrom.value,
     dateTo: dateTo.value,
     recentDays: recentDays.value,
@@ -125,6 +129,7 @@ function applyFilters(data: FilterPrefs): void {
   includeInput.value = data.includeInput;
   excludeInput.value = data.excludeInput;
   excludePathsInput.value = data.excludePathsInput;
+  timeMode.value = data.timeMode;
   dateFrom.value = data.dateFrom;
   dateTo.value = data.dateTo;
   recentDays.value = data.recentDays;
@@ -198,6 +203,7 @@ watch(
     includeInput,
     excludeInput,
     excludePathsInput,
+    timeMode,
     dateFrom,
     dateTo,
     recentDays,
@@ -208,6 +214,11 @@ watch(
     scheduleSaveFilters();
   },
 );
+
+/* 切到「最近」时给个可用默认值 */
+watch(timeMode, (mode) => {
+  if (mode === "recent" && recentDays.value < 1) recentDays.value = 7;
+});
 
 const softDeleteMessage = computed(() => {
   const target = softDeleteConfirm.value;
@@ -393,15 +404,17 @@ function parseKeywordInput(input: string): string[] {
     .filter((item) => item.length > 0);
 }
 
-/** 时间窗口：起止日期与「最近 N 天」取交集，任一为空表示该侧不限 */
+/** 时间范围：三态互斥，只按当前模式取一侧 */
 function timeWindow(): { modifiedAfter: number; modifiedBefore: number } {
-  const fromDate = dateFrom.value ? new Date(`${dateFrom.value}T00:00:00`).getTime() : 0;
-  const toDate = dateTo.value ? new Date(`${dateTo.value}T23:59:59.999`).getTime() : 0;
-  const recent = recentDays.value > 0 ? Date.now() - recentDays.value * 86_400_000 : 0;
-  return {
-    modifiedAfter: Math.max(fromDate, recent),
-    modifiedBefore: toDate,
-  };
+  if (timeMode.value === "recent") {
+    return { modifiedAfter: Date.now() - recentDays.value * 86_400_000, modifiedBefore: 0 };
+  }
+  if (timeMode.value === "custom") {
+    const fromDate = dateFrom.value ? new Date(`${dateFrom.value}T00:00:00`).getTime() : 0;
+    const toDate = dateTo.value ? new Date(`${dateTo.value}T23:59:59.999`).getTime() : 0;
+    return { modifiedAfter: fromDate, modifiedBefore: toDate };
+  }
+  return { modifiedAfter: 0, modifiedBefore: 0 };
 }
 
 async function scan(forceRehash = false): Promise<void> {
@@ -947,6 +960,7 @@ async function executePreview(): Promise<void> {
         v-model:include-input="includeInput"
         v-model:exclude-input="excludeInput"
         v-model:exclude-paths-input="excludePathsInput"
+        v-model:time-mode="timeMode"
         v-model:date-from="dateFrom"
         v-model:date-to="dateTo"
         v-model:recent-days="recentDays"
@@ -972,6 +986,7 @@ async function executePreview(): Promise<void> {
             v-model:includeInput="includeInput"
             v-model:excludeInput="excludeInput"
             v-model:excludePathsInput="excludePathsInput"
+            v-model:timeMode="timeMode"
             v-model:dateFrom="dateFrom"
             v-model:dateTo="dateTo"
             v-model:recentDays="recentDays"

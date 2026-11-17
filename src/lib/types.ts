@@ -259,6 +259,9 @@ export interface DeletedRecord {
 /** 大小过滤的单位；换算在界面层做，IPC 仍传字节 */
 export type SizeUnit = "KB" | "MB" | "GB";
 
+/** 时间范围三态：三种方式互斥，最多选一种 */
+export type TimeMode = "none" | "recent" | "custom";
+
 /** 扫描设置页的条件快照，按目录对持久化（大小存数值 + 各自单位） */
 export interface FilterPrefs {
   sizeEnabled: boolean;
@@ -270,6 +273,7 @@ export interface FilterPrefs {
   includeInput: string;
   excludeInput: string;
   excludePathsInput: string;
+  timeMode: TimeMode;
   dateFrom: string;
   dateTo: string;
   recentDays: number;
