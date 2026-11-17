@@ -23,16 +23,18 @@ test("过滤条件在主界面与设置页双向同步", async ({ slot }) => {
 
   /* 主界面改条件后打开设置页，应看到同一个值 */
   await expect(page.getByRole("button", { name: "扫描", exact: true })).toBeVisible();
-  await page.getByLabel("最小大小").fill("128");
+  await page.getByLabel("启用").check();
+  await page.getByTitle("最小值", { exact: true }).fill("128");
   await page.getByLabel("目录层级").fill("2");
   await page.getByRole("button", { name: "扫描", exact: true }).click();
-  await expect(page.getByLabel("最小大小")).toHaveValue("128");
+  await expect(page.getByLabel("启用")).toBeChecked();
+  await expect(page.getByTitle("最小值", { exact: true })).toHaveValue("128");
   await expect(page.getByLabel("目录层级")).toHaveValue("2");
 
   /* 设置页改条件后返回主界面，过滤行同步显示 */
-  await page.getByLabel("最小大小").fill("256");
+  await page.getByTitle("最小值", { exact: true }).fill("256");
   await page.getByRole("button", { name: "返回", exact: true }).click();
-  await expect(page.getByLabel("最小大小")).toHaveValue("256");
+  await expect(page.getByTitle("最小值", { exact: true })).toHaveValue("256");
   log.info("[e2e] 条件在设置页与过滤行之间双向同步");
 });
 
@@ -64,7 +66,8 @@ test("过滤条件随目录对保存，重启后恢复", async ({ slot }) => {
   await pickInto(right);
   await page.getByTitle("更改右侧目录").click();
 
-  await page.getByLabel("最小大小").fill("512");
+  await page.getByLabel("启用").check();
+  await page.getByTitle("最小值", { exact: true }).fill("512");
   /* 扫描成功才记录目录对；条件在开始扫描时强制落盘 */
   await page.getByRole("button", { name: "开始扫描", exact: true }).click();
   await expect(page.getByRole("button", { name: "扫描", exact: true })).toBeVisible();
@@ -73,7 +76,8 @@ test("过滤条件随目录对保存，重启后恢复", async ({ slot }) => {
 
   await expect(slot.page.getByText("扫描设置", { exact: true })).toBeVisible();
   await expect(slot.page.getByText(left, { exact: true })).toBeVisible();
-  await expect(slot.page.getByLabel("最小大小")).toHaveValue("512");
+  await expect(slot.page.getByLabel("启用")).toBeChecked();
+  await expect(slot.page.getByTitle("最小值", { exact: true })).toHaveValue("512");
   /* 当前目录对在候选列表里带对勾与高亮 */
   const pairRow = slot.page.getByTitle(`${left} ⇄ ${right}`);
   await expect(pairRow).toHaveClass(/border-sky-700/);
@@ -103,6 +107,6 @@ test("左右目录互换沿用同一套条件", async ({ slot }) => {
   await pickInto(left);
   await page.getByTitle("更改右侧目录").click();
 
-  await expect(page.getByLabel("最小大小")).toHaveValue("512");
+  await expect(page.getByTitle("最小值", { exact: true })).toHaveValue("512");
   log.info("[e2e] 左右互换后条件保持不变");
 });

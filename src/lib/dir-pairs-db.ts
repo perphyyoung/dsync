@@ -28,8 +28,11 @@ function isFilterPrefs(value: unknown): value is FilterPrefs {
   if (typeof value !== "object" || value === null) return false;
   const item = value as Record<string, unknown>;
   return (
-    typeof item["minSizeKb"] === "number" &&
-    typeof item["maxSizeKb"] === "number" &&
+    typeof item["sizeEnabled"] === "boolean" &&
+    typeof item["sizeMin"] === "number" &&
+    typeof item["sizeMax"] === "number" &&
+    typeof item["sizeMinUnit"] === "string" &&
+    typeof item["sizeMaxUnit"] === "string" &&
     typeof item["maxDepth"] === "number" &&
     typeof item["includeInput"] === "string" &&
     typeof item["excludeInput"] === "string" &&

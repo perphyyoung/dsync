@@ -5,8 +5,11 @@ import type { FilterPrefs } from "./types";
 
 function filters(overrides: Partial<FilterPrefs> = {}): FilterPrefs {
   return {
-    minSizeKb: 0,
-    maxSizeKb: 0,
+    sizeEnabled: false,
+    sizeMin: 0,
+    sizeMax: 0,
+    sizeMinUnit: "MB",
+    sizeMaxUnit: "MB",
     maxDepth: 0,
     includeInput: "",
     excludeInput: "",
@@ -22,8 +25,8 @@ function filters(overrides: Partial<FilterPrefs> = {}): FilterPrefs {
 describe("目录对档案库", () => {
   it("保存条件不动使用排序，扫描成功才置顶", () => {
     const store = openDirPairsDb(":memory:");
-    store.save("A", "B", filters({ minSizeKb: 100 }));
-    expect(store.list()[0]).toMatchObject({ usedAt: null, filters: { minSizeKb: 100 } });
+    store.save("A", "B", filters({ sizeMin: 100 }));
+    expect(store.list()[0]).toMatchObject({ usedAt: null, filters: { sizeMin: 100 } });
 
     store.touch("C", "D");
     expect(store.list()[0].left).toBe("C");
@@ -31,7 +34,7 @@ describe("目录对档案库", () => {
     /* 左右互换命中同一组，条件保留 */
     store.touch("B", "A");
     expect(store.list()[0].right).toBe("A");
-    expect(store.list()[0].filters).toMatchObject({ minSizeKb: 100 });
+    expect(store.list()[0].filters).toMatchObject({ sizeMin: 100 });
     expect(store.list()).toHaveLength(2);
     expect(store.recent()).toHaveLength(2);
     store.close();

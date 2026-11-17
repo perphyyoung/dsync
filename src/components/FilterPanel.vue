@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import type { ViewMode } from "../lib/types";
+import type { SizeUnit, ViewMode } from "../lib/types";
+import SizeFilter from "./SizeFilter.vue";
 
-const minSizeKb = defineModel<number>("minSizeKb", { required: true });
-const maxSizeKb = defineModel<number>("maxSizeKb", { required: true });
+const sizeEnabled = defineModel<boolean>("sizeEnabled", { required: true });
+const sizeMin = defineModel<number>("sizeMin", { required: true });
+const sizeMax = defineModel<number>("sizeMax", { required: true });
+const sizeMinUnit = defineModel<SizeUnit>("sizeMinUnit", { required: true });
+const sizeMaxUnit = defineModel<SizeUnit>("sizeMaxUnit", { required: true });
 const maxDepth = defineModel<number>("maxDepth", { required: true });
 const includeInput = defineModel<string>("includeInput", { required: true });
 const excludeInput = defineModel<string>("excludeInput", { required: true });
@@ -37,30 +41,16 @@ const emit = defineEmits<{
   <div
     class="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-slate-800 px-4 py-2 text-xs"
   >
-    <label class="flex items-center gap-2">
-      <span class="text-slate-500">最小大小</span>
-      <input
-        v-model.number="minSizeKb"
-        type="number"
-        min="0"
-        step="1"
-        class="w-20 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200"
+    <div class="flex items-center gap-2">
+      <span class="text-slate-500">文件大小</span>
+      <SizeFilter
+        v-model:enabled="sizeEnabled"
+        v-model:min="sizeMin"
+        v-model:max="sizeMax"
+        v-model:minUnit="sizeMinUnit"
+        v-model:maxUnit="sizeMaxUnit"
       />
-      <span class="text-slate-500">KB</span>
-    </label>
-
-    <label class="flex items-center gap-2">
-      <span class="text-slate-500">最大大小</span>
-      <input
-        v-model.number="maxSizeKb"
-        type="number"
-        min="0"
-        step="1"
-        title="0 表示不限"
-        class="w-20 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200"
-      />
-      <span class="text-slate-500">KB</span>
-    </label>
+    </div>
 
     <label class="flex items-center gap-2">
       <span class="text-slate-500">目录层级</span>

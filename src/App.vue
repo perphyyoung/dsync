@@ -25,6 +25,7 @@ import type {
   ScanResult,
   ScanStats,
   Side,
+  SizeUnit,
   StaleEntry,
   SyncAction,
   ViewMode,
@@ -32,8 +33,11 @@ import type {
 
 const leftRoot = ref("");
 const rightRoot = ref("");
-const minSizeKb = ref(0);
-const maxSizeKb = ref(0);
+const sizeEnabled = ref(false);
+const sizeMin = ref(0);
+const sizeMax = ref(0);
+const sizeMinUnit = ref<SizeUnit>("MB");
+const sizeMaxUnit = ref<SizeUnit>("MB");
 const maxDepth = ref(0);
 const includeInput = ref("");
 const excludeInput = ref("");
@@ -67,10 +71,20 @@ const softDeleteConfirm = ref<{ rowIndex: number; side: Side } | null>(null);
 
 const busy = computed(() => scanning.value || executing.value);
 
+/* 大小过滤的单位换算在界面层做，IPC 仍传字节 */
+const SIZE_UNIT_FACTORS: Record<SizeUnit, number> = {
+  KB: 1024,
+  MB: 1024 * 1024,
+  GB: 1024 * 1024 * 1024,
+};
+
 /* 每个目录对一套扫描条件；目录对首次进入用默认值，左右互换命中同一组 */
 const DEFAULT_FILTERS: FilterPrefs = {
-  minSizeKb: 0,
-  maxSizeKb: 0,
+  sizeEnabled: false,
+  sizeMin: 0,
+  sizeMax: 0,
+  sizeMinUnit: "MB",
+  sizeMaxUnit: "MB",
   maxDepth: 0,
   includeInput: "",
   excludeInput: "",
@@ -85,8 +99,11 @@ const pairEntries = ref<DirPairEntry[]>([]);
 
 function currentFilters(): FilterPrefs {
   return {
-    minSizeKb: minSizeKb.value,
-    maxSizeKb: maxSizeKb.value,
+    sizeEnabled: sizeEnabled.value,
+    sizeMin: sizeMin.value,
+    sizeMax: sizeMax.value,
+    sizeMinUnit: sizeMinUnit.value,
+    sizeMaxUnit: sizeMaxUnit.value,
     maxDepth: maxDepth.value,
     includeInput: includeInput.value,
     excludeInput: excludeInput.value,
@@ -99,8 +116,11 @@ function currentFilters(): FilterPrefs {
 }
 
 function applyFilters(data: FilterPrefs): void {
-  minSizeKb.value = data.minSizeKb;
-  maxSizeKb.value = data.maxSizeKb;
+  sizeEnabled.value = data.sizeEnabled;
+  sizeMin.value = data.sizeMin;
+  sizeMax.value = data.sizeMax;
+  sizeMinUnit.value = data.sizeMinUnit;
+  sizeMaxUnit.value = data.sizeMaxUnit;
   maxDepth.value = data.maxDepth;
   includeInput.value = data.includeInput;
   excludeInput.value = data.excludeInput;
@@ -169,8 +189,11 @@ watch([leftRoot, rightRoot], () => {
 // 条件变化：结果作废并延迟保存
 watch(
   [
-    minSizeKb,
-    maxSizeKb,
+    sizeEnabled,
+    sizeMin,
+    sizeMax,
+    sizeMinUnit,
+    sizeMaxUnit,
     maxDepth,
     includeInput,
     excludeInput,
@@ -385,8 +408,12 @@ async function scan(forceRehash = false): Promise<void> {
     const outcome = await window.api.scan({
       leftRoot: leftRoot.value,
       rightRoot: rightRoot.value,
-      minSize: Math.max(0, Math.round(minSizeKb.value * 1024)),
-      maxSize: Math.max(0, Math.round(maxSizeKb.value * 1024)),
+      minSize: sizeEnabled.value
+        ? Math.max(0, Math.round(sizeMin.value * SIZE_UNIT_FACTORS[sizeMinUnit.value]))
+        : 0,
+      maxSize: sizeEnabled.value
+        ? Math.max(0, Math.round(sizeMax.value * SIZE_UNIT_FACTORS[sizeMaxUnit.value]))
+        : 0,
       maxDepth: Math.max(0, Math.round(maxDepth.value)),
       excludePaths: parseKeywordInput(excludePathsInput.value),
       ...timeWindow(),
@@ -901,8 +928,11 @@ async function executePreview(): Promise<void> {
         v-else-if="settingsOpen"
         v-model:left-root="leftRoot"
         v-model:right-root="rightRoot"
-        v-model:min-size-kb="minSizeKb"
-        v-model:max-size-kb="maxSizeKb"
+        v-model:size-enabled="sizeEnabled"
+        v-model:size-min="sizeMin"
+        v-model:size-max="sizeMax"
+        v-model:size-min-unit="sizeMinUnit"
+        v-model:size-max-unit="sizeMaxUnit"
         v-model:max-depth="maxDepth"
         v-model:include-input="includeInput"
         v-model:exclude-input="excludeInput"
@@ -923,8 +953,11 @@ async function executePreview(): Promise<void> {
       <template v-else>
         <div class="relative">
           <FilterPanel
-            v-model:minSizeKb="minSizeKb"
-            v-model:maxSizeKb="maxSizeKb"
+            v-model:sizeEnabled="sizeEnabled"
+            v-model:sizeMin="sizeMin"
+            v-model:sizeMax="sizeMax"
+            v-model:sizeMinUnit="sizeMinUnit"
+            v-model:sizeMaxUnit="sizeMaxUnit"
             v-model:maxDepth="maxDepth"
             v-model:includeInput="includeInput"
             v-model:excludeInput="excludeInput"

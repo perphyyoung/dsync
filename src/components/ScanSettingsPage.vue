@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { pairKey, type DirPairEntry } from "../lib/dir-pairs";
-import type { Side } from "../lib/types";
+import type { Side, SizeUnit } from "../lib/types";
 import ConfirmBubble from "./ConfirmBubble.vue";
 import ExtChips from "./ExtChips.vue";
+import SizeFilter from "./SizeFilter.vue";
 
 const leftRoot = defineModel<string>("leftRoot", { required: true });
 const rightRoot = defineModel<string>("rightRoot", { required: true });
-const minSizeKb = defineModel<number>("minSizeKb", { required: true });
-const maxSizeKb = defineModel<number>("maxSizeKb", { required: true });
+const sizeEnabled = defineModel<boolean>("sizeEnabled", { required: true });
+const sizeMin = defineModel<number>("sizeMin", { required: true });
+const sizeMax = defineModel<number>("sizeMax", { required: true });
+const sizeMinUnit = defineModel<SizeUnit>("sizeMinUnit", { required: true });
+const sizeMaxUnit = defineModel<SizeUnit>("sizeMaxUnit", { required: true });
 const maxDepth = defineModel<number>("maxDepth", { required: true });
 const includeInput = defineModel<string>("includeInput", { required: true });
 const excludeInput = defineModel<string>("excludeInput", { required: true });
@@ -166,29 +170,16 @@ function confirmForceRehash(): void {
           </button>
         </div>
 
-        <label class="flex items-center gap-3">
-          <span class="w-16 shrink-0 text-slate-500">最小大小</span>
-          <input
-            v-model.number="minSizeKb"
-            type="number"
-            min="0"
-            step="1"
-            class="w-24 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200"
+        <div class="flex items-center gap-3">
+          <span class="w-16 shrink-0 text-slate-500">文件大小</span>
+          <SizeFilter
+            v-model:enabled="sizeEnabled"
+            v-model:min="sizeMin"
+            v-model:max="sizeMax"
+            v-model:minUnit="sizeMinUnit"
+            v-model:maxUnit="sizeMaxUnit"
           />
-          <span class="text-slate-500">KB</span>
-        </label>
-
-        <label class="flex items-center gap-3">
-          <span class="w-16 shrink-0 text-slate-500">最大大小</span>
-          <input
-            v-model.number="maxSizeKb"
-            type="number"
-            min="0"
-            step="1"
-            class="w-24 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200"
-          />
-          <span class="text-slate-500">KB（0 不限）</span>
-        </label>
+        </div>
 
         <label class="flex items-center gap-3">
           <span class="w-16 shrink-0 text-slate-500">目录层级</span>
