@@ -78,6 +78,12 @@ test("过滤条件随目录对保存，重启后恢复", async ({ slot }) => {
   const pairRow = slot.page.getByTitle(`${left} ⇄ ${right}`);
   await expect(pairRow).toHaveClass(/border-sky-700/);
   await expect(pairRow.getByText("✓")).toBeVisible();
+
+  /* 搜索可一键清空 */
+  const searchBox = slot.page.getByPlaceholder("搜索路径");
+  await searchBox.fill("left");
+  await slot.page.getByTitle("清空搜索").click();
+  await expect(searchBox).toHaveValue("");
   log.info("[e2e] 重启后目录对与扫描条件均已恢复");
 });
 

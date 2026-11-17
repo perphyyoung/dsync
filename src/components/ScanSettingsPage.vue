@@ -30,6 +30,7 @@ const emit = defineEmits<{
 
 const rehashConfirmOpen = ref(false);
 const search = ref("");
+const searchInput = ref<HTMLInputElement | null>(null);
 
 /** 无关键词显示最近 10 组；输入后搜索全部档案（100 组） */
 const filteredPairs = computed(() => {
@@ -49,6 +50,11 @@ function isSelected(pair: DirPairEntry): boolean {
 function pickPair(pair: DirPairEntry): void {
   if (isSelected(pair)) return;
   emit("pickPair", pair);
+}
+
+function clearSearch(): void {
+  search.value = "";
+  searchInput.value?.focus();
 }
 
 function confirmForceRehash(): void {
@@ -74,12 +80,24 @@ function confirmForceRehash(): void {
       <div class="mx-auto flex w-full max-w-2xl flex-col gap-2 text-xs">
         <div class="flex items-center gap-3">
           <span class="w-16 shrink-0 text-slate-500">最近目录对</span>
-          <input
-            v-model="search"
-            type="text"
-            placeholder="搜索路径"
-            class="w-64 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
-          />
+          <div class="relative">
+            <input
+              ref="searchInput"
+              v-model="search"
+              type="text"
+              placeholder="搜索路径"
+              class="w-64 rounded border border-slate-700 bg-slate-900 px-2 py-1 pr-7 text-slate-200 placeholder:text-slate-600"
+            />
+            <button
+              v-if="search"
+              type="button"
+              class="absolute top-1/2 right-1 -translate-y-1/2 rounded px-1 text-slate-500 hover:text-slate-200"
+              title="清空搜索"
+              @click="clearSearch"
+            >
+              ×
+            </button>
+          </div>
           <span class="text-[11px] text-slate-600">{{ filteredPairs.length }} 组</span>
         </div>
         <div v-if="filteredPairs.length > 0" class="max-h-40 space-y-1 overflow-auto pl-16">
