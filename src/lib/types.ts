@@ -82,6 +82,8 @@ export interface FilterOptions {
   maxDepth: number;
   /** 相对路径包含任一关键词即跳过，大小写不敏感；空数组表示不限 */
   excludePaths: string[];
+  /** 文件名关键词：文件名的 basename 包含任一关键词即跳过 */
+  excludeNames: string[];
   /** 修改时间下界（毫秒时间戳），0 表示不限 */
   modifiedAfter: number;
   /** 修改时间上界（毫秒时间戳），0 表示不限 */
@@ -273,6 +275,7 @@ export interface FilterPrefs {
   includeInput: string;
   excludeInput: string;
   excludePathsInput: string;
+  excludeNamesInput: string;
   timeMode: TimeMode;
   dateFrom: string;
   dateTo: string;

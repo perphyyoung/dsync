@@ -14,6 +14,7 @@ function filters(overrides: Partial<FilterPrefs> = {}): FilterPrefs {
     includeInput: "",
     excludeInput: "",
     excludePathsInput: "",
+    excludeNamesInput: "",
     timeMode: "none",
     dateFrom: "",
     dateTo: "",

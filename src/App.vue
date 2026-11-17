@@ -43,6 +43,7 @@ const maxDepth = ref(0);
 const includeInput = ref("");
 const excludeInput = ref("");
 const excludePathsInput = ref("");
+const excludeNamesInput = ref("");
 const timeMode = ref<TimeMode>("none");
 const dateFrom = ref("");
 const dateTo = ref("");
@@ -91,6 +92,7 @@ const DEFAULT_FILTERS: FilterPrefs = {
   includeInput: "",
   excludeInput: "",
   excludePathsInput: "",
+  excludeNamesInput: "",
   timeMode: "none",
   dateFrom: "",
   dateTo: "",
@@ -111,6 +113,7 @@ function currentFilters(): FilterPrefs {
     includeInput: includeInput.value,
     excludeInput: excludeInput.value,
     excludePathsInput: excludePathsInput.value,
+    excludeNamesInput: excludeNamesInput.value,
     timeMode: timeMode.value,
     dateFrom: dateFrom.value,
     dateTo: dateTo.value,
@@ -129,6 +132,7 @@ function applyFilters(data: FilterPrefs): void {
   includeInput.value = data.includeInput;
   excludeInput.value = data.excludeInput;
   excludePathsInput.value = data.excludePathsInput;
+  excludeNamesInput.value = data.excludeNamesInput;
   timeMode.value = data.timeMode;
   dateFrom.value = data.dateFrom;
   dateTo.value = data.dateTo;
@@ -203,6 +207,7 @@ watch(
     includeInput,
     excludeInput,
     excludePathsInput,
+    excludeNamesInput,
     timeMode,
     dateFrom,
     dateTo,
@@ -456,6 +461,7 @@ async function scan(forceRehash = false): Promise<void> {
         : 0,
       maxDepth: Math.max(0, Math.round(maxDepth.value)),
       excludePaths: parseKeywordInput(excludePathsInput.value),
+      excludeNames: parseKeywordInput(excludeNamesInput.value),
       ...timeWindow(),
       skipHidden: skipHidden.value,
       includeExts: parseExtInput(includeInput.value),
@@ -960,6 +966,7 @@ async function executePreview(): Promise<void> {
         v-model:include-input="includeInput"
         v-model:exclude-input="excludeInput"
         v-model:exclude-paths-input="excludePathsInput"
+        v-model:exclude-names-input="excludeNamesInput"
         v-model:time-mode="timeMode"
         v-model:date-from="dateFrom"
         v-model:date-to="dateTo"
@@ -986,6 +993,7 @@ async function executePreview(): Promise<void> {
             v-model:includeInput="includeInput"
             v-model:excludeInput="excludeInput"
             v-model:excludePathsInput="excludePathsInput"
+            v-model:excludeNamesInput="excludeNamesInput"
             v-model:timeMode="timeMode"
             v-model:dateFrom="dateFrom"
             v-model:dateTo="dateTo"

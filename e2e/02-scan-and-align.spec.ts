@@ -21,6 +21,7 @@ test("扫描后按结构对齐把文件移到对侧路径", async ({ slot }) => 
     maxSize: 0,
     maxDepth: 0,
     excludePaths: [],
+    excludeNames: [],
     modifiedAfter: 0,
     modifiedBefore: 0,
     skipHidden: false,

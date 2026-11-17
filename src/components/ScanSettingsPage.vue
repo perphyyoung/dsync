@@ -18,6 +18,7 @@ const maxDepth = defineModel<number>("maxDepth", { required: true });
 const includeInput = defineModel<string>("includeInput", { required: true });
 const excludeInput = defineModel<string>("excludeInput", { required: true });
 const excludePathsInput = defineModel<string>("excludePathsInput", { required: true });
+const excludeNamesInput = defineModel<string>("excludeNamesInput", { required: true });
 const timeMode = defineModel<TimeMode>("timeMode", { required: true });
 const dateFrom = defineModel<string>("dateFrom", { required: true });
 const dateTo = defineModel<string>("dateTo", { required: true });
@@ -107,7 +108,7 @@ function confirmRemove(): void {
     <section class="border-b border-slate-800 px-4 py-3">
       <div class="mx-auto flex w-full max-w-2xl flex-col gap-2 text-xs">
         <div class="flex items-center gap-3">
-          <span class="w-20 shrink-0 text-right text-slate-500">最近目录对</span>
+          <span class="w-24 shrink-0 text-right text-slate-500">最近目录对</span>
           <div class="relative">
             <input
               ref="searchInput"
@@ -129,7 +130,7 @@ function confirmRemove(): void {
           <span class="text-[11px] text-slate-600">{{ filteredPairs.length }} 组</span>
         </div>
         <div class="flex gap-3">
-          <span class="w-20 shrink-0"></span>
+          <span class="w-24 shrink-0"></span>
           <div class="min-w-0 flex-1">
             <div v-if="filteredPairs.length > 0" class="max-h-40 space-y-1 overflow-auto">
               <div
@@ -176,7 +177,7 @@ function confirmRemove(): void {
     <div class="min-h-0 flex-1 overflow-auto px-4 py-6">
       <div class="mx-auto flex w-full max-w-2xl flex-col gap-3 text-xs">
         <div class="flex items-center gap-3">
-          <span class="w-20 shrink-0 text-right text-slate-500">左侧目录</span>
+          <span class="w-24 shrink-0 text-right text-slate-500">左侧目录</span>
           <span
             class="min-w-0 flex-1 truncate rounded border border-slate-800 bg-slate-900 px-2 py-1.5"
             :class="leftRoot ? 'text-slate-200' : 'text-slate-600'"
@@ -195,7 +196,7 @@ function confirmRemove(): void {
         </div>
 
         <div class="flex items-center gap-3">
-          <span class="w-20 shrink-0 text-right text-slate-500">右侧目录</span>
+          <span class="w-24 shrink-0 text-right text-slate-500">右侧目录</span>
           <span
             class="min-w-0 flex-1 truncate rounded border border-slate-800 bg-slate-900 px-2 py-1.5"
             :class="rightRoot ? 'text-slate-200' : 'text-slate-600'"
@@ -214,7 +215,7 @@ function confirmRemove(): void {
         </div>
 
         <div class="flex items-center gap-3">
-          <span class="w-20 shrink-0 text-right text-slate-500">文件大小</span>
+          <span class="w-24 shrink-0 text-right text-slate-500">文件大小</span>
           <SizeFilter
             v-model:enabled="sizeEnabled"
             v-model:min="sizeMin"
@@ -225,7 +226,7 @@ function confirmRemove(): void {
         </div>
 
         <label class="flex items-center gap-3">
-          <span class="w-20 shrink-0 text-right text-slate-500">目录层级</span>
+          <span class="w-24 shrink-0 text-right text-slate-500">目录层级</span>
           <input
             v-model.number="maxDepth"
             type="number"
@@ -237,7 +238,7 @@ function confirmRemove(): void {
         </label>
 
         <label class="flex items-center gap-3">
-          <span class="w-20 shrink-0 text-right text-slate-500">只含后缀</span>
+          <span class="w-24 shrink-0 text-right text-slate-500">只含后缀</span>
           <input
             v-model="includeInput"
             type="text"
@@ -247,12 +248,12 @@ function confirmRemove(): void {
         </label>
 
         <div class="flex items-center gap-3">
-          <span class="w-20 shrink-0"></span>
+          <span class="w-24 shrink-0"></span>
           <ExtChips v-model="includeInput" />
         </div>
 
         <label class="flex items-center gap-3">
-          <span class="w-20 shrink-0 text-right text-slate-500">排除后缀</span>
+          <span class="w-24 shrink-0 text-right text-slate-500">排除后缀</span>
           <input
             v-model="excludeInput"
             type="text"
@@ -262,7 +263,7 @@ function confirmRemove(): void {
         </label>
 
         <label class="flex items-center gap-3">
-          <span class="w-20 shrink-0 text-right text-slate-500">排除路径</span>
+          <span class="w-24 shrink-0 text-right text-slate-500">排除路径关键字</span>
           <input
             v-model="excludePathsInput"
             type="text"
@@ -271,8 +272,18 @@ function confirmRemove(): void {
           />
         </label>
 
+        <label class="flex items-center gap-3">
+          <span class="w-24 shrink-0 text-right text-slate-500">排除文件名关键字</span>
+          <input
+            v-model="excludeNamesInput"
+            type="text"
+            placeholder="thumbs.db, .tmp"
+            class="w-64 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
+          />
+        </label>
+
         <div class="flex items-start gap-3">
-          <span class="w-20 shrink-0 pt-1 text-right text-slate-500">修改时间范围</span>
+          <span class="w-24 shrink-0 pt-1 text-right text-slate-500">修改时间范围</span>
           <div class="flex flex-col gap-2">
             <label class="flex cursor-pointer items-center gap-2 text-slate-400">
               <input
@@ -333,7 +344,7 @@ function confirmRemove(): void {
         </div>
 
         <div class="flex items-center gap-3">
-          <span class="w-20 shrink-0 text-right text-slate-500">隐藏文件</span>
+          <span class="w-24 shrink-0 text-right text-slate-500">隐藏文件</span>
           <label class="flex cursor-pointer items-center gap-2 text-slate-400">
             <input v-model="skipHidden" type="checkbox" class="accent-sky-500" />
             <span>跳过</span>

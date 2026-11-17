@@ -37,6 +37,7 @@ function isFilterPrefs(value: unknown): value is FilterPrefs {
     typeof item["includeInput"] === "string" &&
     typeof item["excludeInput"] === "string" &&
     typeof item["excludePathsInput"] === "string" &&
+    typeof item["excludeNamesInput"] === "string" &&
     (item["timeMode"] === "none" ||
       item["timeMode"] === "recent" ||
       item["timeMode"] === "custom") &&

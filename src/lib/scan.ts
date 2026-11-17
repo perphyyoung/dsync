@@ -14,6 +14,7 @@ const ALWAYS_IGNORED = new Set([DSYNC_DIR, ".DS_Store", "Thumbs.db"]);
 
 export type IgnoreReason =
   | "internal"
+  | "name"
   | "size"
   | "time"
   | "ext"
@@ -41,6 +42,7 @@ function filterReason(
   options: FilterOptions,
 ): IgnoreReason | null {
   if (ALWAYS_IGNORED.has(name) || name.toLowerCase().endsWith(TMP_SUFFIX)) return "internal";
+  if (nameExcluded(name, options.excludeNames)) return "name";
   if (size < options.minSize) return "size";
   if (options.maxSize > 0 && size > options.maxSize) return "size";
   if (options.modifiedAfter > 0 && mtimeMs < options.modifiedAfter) return "time";
@@ -59,6 +61,13 @@ function tooDeep(depth: number, maxDepth: number): boolean {
 function pathExcluded(rel: string, keywords: string[]): boolean {
   if (keywords.length === 0) return false;
   const lower = rel.toLowerCase();
+  return keywords.some((keyword) => lower.includes(keyword));
+}
+
+/** 文件名关键词：文件名（含扩展名）包含任一关键词即跳过，只作用于文件 */
+function nameExcluded(name: string, keywords: string[]): boolean {
+  if (keywords.length === 0) return false;
+  const lower = name.toLowerCase();
   return keywords.some((keyword) => lower.includes(keyword));
 }
 
@@ -99,6 +108,7 @@ export async function countFiles(
       if (!entry.isFile()) continue;
       if (options.skipHidden && entry.name.startsWith(".")) continue;
       if (pathExcluded(rel, options.excludePaths)) continue;
+      if (nameExcluded(entry.name, options.excludeNames)) continue;
       count += 1;
       onDiscover?.(count);
     }

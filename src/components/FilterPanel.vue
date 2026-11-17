@@ -11,6 +11,7 @@ const maxDepth = defineModel<number>("maxDepth", { required: true });
 const includeInput = defineModel<string>("includeInput", { required: true });
 const excludeInput = defineModel<string>("excludeInput", { required: true });
 const excludePathsInput = defineModel<string>("excludePathsInput", { required: true });
+const excludeNamesInput = defineModel<string>("excludeNamesInput", { required: true });
 const timeMode = defineModel<TimeMode>("timeMode", { required: true });
 const dateFrom = defineModel<string>("dateFrom", { required: true });
 const dateTo = defineModel<string>("dateTo", { required: true });
@@ -87,11 +88,21 @@ const emit = defineEmits<{
     </label>
 
     <label class="flex items-center gap-2">
-      <span class="text-slate-500">排除路径</span>
+      <span class="text-slate-500">排除路径关键字</span>
       <input
         v-model="excludePathsInput"
         type="text"
         placeholder="node_modules, dist"
+        class="w-40 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
+      />
+    </label>
+
+    <label class="flex items-center gap-2">
+      <span class="text-slate-500">排除文件名关键字</span>
+      <input
+        v-model="excludeNamesInput"
+        type="text"
+        placeholder="thumbs.db, .tmp"
         class="w-40 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
       />
     </label>

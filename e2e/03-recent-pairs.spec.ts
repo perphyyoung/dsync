@@ -21,6 +21,7 @@ test("扫描成功后目录对进入最近列表，重启后自动回填", async
     maxSize: 0,
     maxDepth: 0,
     excludePaths: [],
+    excludeNames: [],
     modifiedAfter: 0,
     modifiedBefore: 0,
     skipHidden: false,

@@ -29,6 +29,7 @@ function request(left: string, right: string, overrides: Partial<ScanRequest> = 
     maxSize: 0,
     maxDepth: 0,
     excludePaths: [],
+    excludeNames: [],
     modifiedAfter: 0,
     modifiedBefore: 0,
     skipHidden: false,
@@ -155,6 +156,21 @@ describe("端到端扫描与执行", () => {
     expect(scan.rows.find((row) => row.left === "keep.md")?.status).toBe("left-only");
     expect(scan.rows.find((row) => row.left === "node_modules/pkg.mjs")).toBeUndefined();
     expect(scan.rows.find((row) => row.left === "dist/out.md")).toBeUndefined();
+  });
+
+  it("排除文件名关键词只作用于文件，不匹配目录", async () => {
+    const { left, right } = await setup();
+    await writeRel(left, "keep.md", "keep");
+    await writeRel(left, "photo.tmp", "tmp");
+    await writeRel(left, "notes.bak", "bak");
+    await writeRel(left, "cache/inner.md", "inner");
+
+    const scan = await runScan(request(left, right, { excludeNames: [".tmp", ".bak", "cache"] }));
+    expect(scan.rows.find((row) => row.left === "keep.md")?.status).toBe("left-only");
+    expect(scan.rows.find((row) => row.left === "photo.tmp")?.status).toBe("ignored");
+    expect(scan.rows.find((row) => row.left === "notes.bak")?.status).toBe("ignored");
+    /* 目录名即使包含关键词也不跳过，目录排除走路径关键词 */
+    expect(scan.rows.find((row) => row.left === "cache/inner.md")?.status).toBe("left-only");
   });
 
   it("隐藏文件按开关整棵跳过", async () => {

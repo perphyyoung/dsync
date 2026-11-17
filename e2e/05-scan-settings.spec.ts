@@ -26,15 +26,19 @@ test("过滤条件在主界面与设置页双向同步", async ({ slot }) => {
   await page.getByLabel("启用").check();
   await page.getByTitle("最小值", { exact: true }).fill("128");
   await page.getByLabel("目录层级").fill("2");
+  await page.getByLabel("排除文件名关键字").fill("tmp");
   await page.getByRole("button", { name: "扫描", exact: true }).click();
   await expect(page.getByLabel("启用")).toBeChecked();
   await expect(page.getByTitle("最小值", { exact: true })).toHaveValue("128");
   await expect(page.getByLabel("目录层级")).toHaveValue("2");
+  await expect(page.getByLabel("排除文件名关键字")).toHaveValue("tmp");
 
   /* 设置页改条件后返回主界面，过滤行同步显示 */
   await page.getByTitle("最小值", { exact: true }).fill("256");
+  await page.getByLabel("排除文件名关键字").fill("bak");
   await page.getByRole("button", { name: "返回", exact: true }).click();
   await expect(page.getByTitle("最小值", { exact: true })).toHaveValue("256");
+  await expect(page.getByLabel("排除文件名关键字")).toHaveValue("bak");
   log.info("[e2e] 条件在设置页与过滤行之间双向同步");
 });
 

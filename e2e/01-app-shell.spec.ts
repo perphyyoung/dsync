@@ -30,7 +30,8 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
     expect(hintBox.y + hintBox.height).toBeLessThanOrEqual(viewport.height);
   }
   await expect(page.getByText("目录层级", { exact: true })).toBeVisible();
-  await expect(page.getByText("排除路径", { exact: true })).toBeVisible();
+  await expect(page.getByText("排除路径关键字", { exact: true })).toBeVisible();
+  await expect(page.getByText("排除文件名关键字", { exact: true })).toBeVisible();
   await expect(page.getByText("修改时间范围", { exact: true })).toBeVisible();
   await expect(page.getByRole("radio", { name: "不限" })).toBeChecked();
   await expect(page.getByText("隐藏文件", { exact: true })).toBeVisible();
@@ -69,7 +70,8 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
     expect(mainHintBox.y + mainHintBox.height).toBeLessThanOrEqual(viewport.height);
   }
   await expect(page.getByText("目录层级", { exact: true })).toBeVisible();
-  await expect(page.getByText("排除路径", { exact: true })).toBeVisible();
+  await expect(page.getByText("排除路径关键字", { exact: true })).toBeVisible();
+  await expect(page.getByText("排除文件名关键字", { exact: true })).toBeVisible();
   await expect(page.getByText("修改时间范围", { exact: true })).toBeVisible();
   await expect(page.getByText("跳过隐藏文件", { exact: true })).toBeVisible();
   await expect(page.getByText("显示模式", { exact: true })).toBeVisible();
