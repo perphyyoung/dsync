@@ -8,6 +8,7 @@
 
 ## 执行规则（省 token）
 
+- 提交由用户执行：agent 只根据规范提供提交信息，不运行 `jj commit` / `jj describe`。
 - 定位一律用 `rg`（ripgrep）不用 `grep`：先 `rg -n` 拿行号，再只读那一段，不 Read 全文。
 - 不读全量 diff：提交信息用 `jj diff --stat` 确认文件范围，只对没把握的文件跑 `jj diff <路径>`；编辑工具返回的 diff 已经覆盖过一遍，不重复读。
 - 文档改动超过整篇三成时用一次 Write 覆盖；必须用 SearchReplace 时先读目标片段（30 行内）确认格式，避免因格式化差异反复重试。
