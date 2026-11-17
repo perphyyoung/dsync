@@ -956,8 +956,7 @@ async function executePreview(): Promise<void> {
         @pick="pick"
         @pick-pair="pickPairRoots"
         @remove-pair="removePair"
-        @start="scan()"
-        @force-rehash="scan(true)"
+        @start="scan($event)"
         @close="settingsOpen = false"
       />
 

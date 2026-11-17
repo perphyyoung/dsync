@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { pairKey, type DirPairEntry } from "../lib/dir-pairs";
 import type { Side, SizeUnit } from "../lib/types";
 import ConfirmBubble from "./ConfirmBubble.vue";
@@ -29,12 +29,26 @@ const emit = defineEmits<{
   pick: [side: Side];
   pickPair: [pair: DirPairEntry];
   removePair: [pair: DirPairEntry];
-  start: [];
-  forceRehash: [];
+  start: [forceRehash: boolean];
   close: [];
 }>();
 
+const forceRehash = ref(false);
 const rehashConfirmOpen = ref(false);
+
+/* 勾选时先弹确认；取消勾选直接生效 */
+watch(forceRehash, (value) => {
+  if (value) rehashConfirmOpen.value = true;
+});
+
+function confirmForceRehash(): void {
+  rehashConfirmOpen.value = false;
+}
+
+function cancelForceRehash(): void {
+  forceRehash.value = false;
+  rehashConfirmOpen.value = false;
+}
 const search = ref("");
 const searchInput = ref<HTMLInputElement | null>(null);
 
@@ -73,11 +87,6 @@ function confirmRemove(): void {
   const target = removeTarget.value;
   removeTarget.value = null;
   if (target) emit("removePair", target);
-}
-
-function confirmForceRehash(): void {
-  rehashConfirmOpen.value = false;
-  emit("forceRehash");
 }
 </script>
 
@@ -304,18 +313,15 @@ function confirmForceRehash(): void {
     >
       <span>扫描只读，不会修改任何文件</span>
       <div class="ml-auto flex items-center gap-2">
-        <button
-          type="button"
-          class="rounded border border-rose-800 px-3 py-1.5 text-xs text-rose-300 hover:bg-rose-950/60"
-          title="不使用哈希缓存，重新读取所有文件内容"
-          @click="rehashConfirmOpen = true"
-        >
-          强制重算
-        </button>
+        <label class="flex cursor-pointer items-center gap-2 text-xs text-rose-300">
+          <input v-model="forceRehash" type="checkbox" class="accent-rose-500" />
+          <span>强制重算</span>
+        </label>
+        <HelpMark text="不使用哈希缓存，重新读取全部文件内容；不会修改任何文件，耗时可能较长" />
         <button
           type="button"
           class="rounded bg-sky-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-sky-500"
-          @click="emit('start')"
+          @click="emit('start', forceRehash)"
         >
           开始扫描
         </button>
@@ -341,16 +347,16 @@ function confirmForceRehash(): void {
     <div
       v-if="rehashConfirmOpen"
       class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60"
-      @click.self="rehashConfirmOpen = false"
+      @click.self="cancelForceRehash"
     >
       <ConfirmBubble
         floating
         title="强制重算"
-        message="重新读取全部文件内容，耗时可能很长。&#10;不会修改任何文件，但之前因缓存被跳过的改动会重新出现。"
-        confirm-text="开始重算"
+        message="重新计算全部文件哈希，耗时可能较长。&#10;不会修改任何文件，但之前因缓存被跳过的改动会重新出现。"
+        confirm-text="启用"
         danger
         @confirm="confirmForceRehash"
-        @cancel="rehashConfirmOpen = false"
+        @cancel="cancelForceRehash"
       />
     </div>
   </div>

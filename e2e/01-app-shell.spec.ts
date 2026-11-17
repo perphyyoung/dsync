@@ -36,7 +36,16 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
   await expect(page.getByText("只含后缀", { exact: true })).toBeVisible();
   await expect(page.getByText("排除后缀", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "开始扫描", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "强制重算", exact: true })).toBeVisible();
+  /* 强制重算是红色复选框：默认不选中，勾选时弹确认 */
+  const forceRehash = page.getByLabel("强制重算");
+  await expect(forceRehash).not.toBeChecked();
+  await forceRehash.check();
+  await expect(page.getByText("重新计算全部文件哈希")).toBeVisible();
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(forceRehash).not.toBeChecked();
+  await forceRehash.check();
+  await page.getByRole("button", { name: "启用", exact: true }).click();
+  await expect(forceRehash).toBeChecked();
   log.info("[e2e] 扫描设置页骨架检查通过");
 
   await page.getByRole("button", { name: "返回", exact: true }).click();
