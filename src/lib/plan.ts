@@ -28,7 +28,7 @@ const IGNORE_NOTE: Record<IgnoredFile["reason"], string> = {
   internal: "内部文件",
   name: "命中文件名关键词",
   size: "大小被过滤",
-  time: "修改时间被过滤",
+  time: "修改日期被过滤",
   ext: "后缀被过滤",
   symlink: "符号链接",
   special: "特殊文件",

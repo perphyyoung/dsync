@@ -108,10 +108,10 @@ const emit = defineEmits<{
     </label>
 
     <div class="flex items-center gap-2">
-      <span class="text-slate-500">修改时间范围</span>
+      <span class="text-slate-500">修改日期范围</span>
       <select
         v-model="timeMode"
-        aria-label="修改时间范围"
+        aria-label="修改日期范围"
         class="rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-slate-200"
       >
         <option value="none">不限</option>

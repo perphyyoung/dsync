@@ -12,6 +12,7 @@ import { pairKey, type DirPairEntry } from "./lib/dir-pairs";
 import { parseExtInput } from "./lib/exts";
 import { buildPreview, previewKindRows, type PreviewKind } from "./lib/preview";
 import { rowDirections } from "./lib/row-actions";
+import { resolveTimeWindow } from "./lib/time-window";
 import { verifyOutcome } from "./lib/verify";
 import type {
   DeletedRecord,
@@ -446,17 +447,14 @@ function parseKeywordInput(input: string): string[] {
     .filter((item) => item.length > 0);
 }
 
-/** 时间范围：三态互斥，只按当前模式取一侧 */
+/** 修改日期窗口：三态互斥，按自然日计算 */
 function timeWindow(): { modifiedAfter: number; modifiedBefore: number } {
-  if (timeMode.value === "recent") {
-    return { modifiedAfter: Date.now() - recentDays.value * 86_400_000, modifiedBefore: 0 };
-  }
-  if (timeMode.value === "custom") {
-    const fromDate = dateFrom.value ? new Date(`${dateFrom.value}T00:00:00`).getTime() : 0;
-    const toDate = dateTo.value ? new Date(`${dateTo.value}T23:59:59.999`).getTime() : 0;
-    return { modifiedAfter: fromDate, modifiedBefore: toDate };
-  }
-  return { modifiedAfter: 0, modifiedBefore: 0 };
+  return resolveTimeWindow({
+    mode: timeMode.value,
+    recentDays: recentDays.value,
+    dateFrom: dateFrom.value,
+    dateTo: dateTo.value,
+  });
 }
 
 async function scan(forceRehash = false): Promise<void> {

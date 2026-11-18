@@ -84,9 +84,9 @@ export interface FilterOptions {
   excludePaths: string[];
   /** 文件名关键词：文件名的 basename 包含任一关键词即跳过 */
   excludeNames: string[];
-  /** 修改时间下界（毫秒时间戳），0 表示不限 */
+  /** 修改日期下界（毫秒时间戳，按日期换算），0 表示不限 */
   modifiedAfter: number;
-  /** 修改时间上界（毫秒时间戳），0 表示不限 */
+  /** 修改日期上界（毫秒时间戳，按日期换算），0 表示不限 */
   modifiedBefore: number;
   /** 跳过以 . 开头的文件与目录 */
   skipHidden: boolean;

@@ -283,7 +283,7 @@ function confirmRemove(): void {
         </label>
 
         <div class="flex items-start gap-3">
-          <span class="w-32 shrink-0 pt-1 text-right text-slate-400">修改时间范围</span>
+          <span class="w-32 shrink-0 pt-1 text-right text-slate-400">修改日期范围</span>
           <div class="flex flex-col gap-2">
             <label class="flex cursor-pointer items-center gap-2 text-slate-400">
               <input

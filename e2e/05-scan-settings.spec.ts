@@ -163,7 +163,7 @@ test("目录不存在时开始扫描留在设置页并告警", async ({ slot }) 
   log.info("[e2e] 目录失效时开始扫描被拦截，停留在设置页");
 });
 
-test("修改时间范围三种方式互斥", async ({ slot }) => {
+test("修改日期范围三种方式互斥", async ({ slot }) => {
   const { page } = slot;
   const recent = page.getByRole("radio", { name: "最近" });
   const custom = page.getByRole("radio", { name: "自定义" });
@@ -185,5 +185,5 @@ test("修改时间范围三种方式互斥", async ({ slot }) => {
   await custom.check();
   await expect(from).toBeEnabled();
   await expect(days).toBeDisabled();
-  log.info("[e2e] 修改时间范围三态互斥");
+  log.info("[e2e] 修改日期范围三态互斥");
 });

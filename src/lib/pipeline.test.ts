@@ -188,7 +188,7 @@ describe("端到端扫描与执行", () => {
     expect(shown.rows.find((row) => row.left === ".env")?.status).toBe("left-only");
   });
 
-  it("修改时间窗口过滤过期文件", async () => {
+  it("修改日期窗口过滤过期文件", async () => {
     const { left, right } = await setup();
     const old = new Date("2026-01-01T00:00:00.000Z");
     await writeRel(left, "old.md", "old");
