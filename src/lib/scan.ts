@@ -14,7 +14,6 @@ const ALWAYS_IGNORED = new Set([DSYNC_DIR, ".DS_Store", "Thumbs.db"]);
 
 export type IgnoreReason =
   | "internal"
-  | "name"
   | "size"
   | "time"
   | "ext"
@@ -42,7 +41,6 @@ function filterReason(
   options: FilterOptions,
 ): IgnoreReason | null {
   if (ALWAYS_IGNORED.has(name) || name.toLowerCase().endsWith(TMP_SUFFIX)) return "internal";
-  if (nameExcluded(name, options.excludeNames)) return "name";
   if (size < options.minSize) return "size";
   if (options.maxSize > 0 && size > options.maxSize) return "size";
   if (options.modifiedAfter > 0 && mtimeMs < options.modifiedAfter) return "time";
@@ -57,18 +55,15 @@ function tooDeep(depth: number, maxDepth: number): boolean {
   return maxDepth > 0 && depth + 1 >= maxDepth;
 }
 
-/** 路径关键词：相对路径包含任一关键词即跳过，限制扫描范围（不计入 ignored） */
-function pathExcluded(rel: string, keywords: string[]): boolean {
-  if (keywords.length === 0) return false;
-  const lower = rel.toLowerCase();
-  return keywords.some((keyword) => lower.includes(keyword));
+/** 排除关键字：相对路径（含文件名）包含即跳过，限制扫描范围（不计入 ignored） */
+function keywordExcluded(rel: string, keyword: string): boolean {
+  if (!keyword) return false;
+  return rel.toLowerCase().includes(keyword);
 }
 
-/** 文件名关键词：文件名（含扩展名）包含任一关键词即跳过，只作用于文件 */
-function nameExcluded(name: string, keywords: string[]): boolean {
-  if (keywords.length === 0) return false;
-  const lower = name.toLowerCase();
-  return keywords.some((keyword) => lower.includes(keyword));
+/** 只含关键字：相对路径（含文件名）不包含则跳过，只作用于文件 */
+function keywordMissed(rel: string, keyword: string): boolean {
+  return keyword !== "" && !rel.toLowerCase().includes(keyword);
 }
 
 /** 每个条目都检查一次中断，让扫描阶段也能暂停与取消 */
@@ -100,15 +95,15 @@ export async function countFiles(
       if (entry.isDirectory()) {
         if (entry.name === DSYNC_DIR) continue;
         if (options.skipHidden && entry.name.startsWith(".")) continue;
-        if (pathExcluded(rel, options.excludePaths)) continue;
+        if (keywordExcluded(rel, options.excludeKeyword)) continue;
         if (tooDeep(depth, options.maxDepth)) continue;
         await walk(join(dir, entry.name), depth + 1);
         continue;
       }
       if (!entry.isFile()) continue;
       if (options.skipHidden && entry.name.startsWith(".")) continue;
-      if (pathExcluded(rel, options.excludePaths)) continue;
-      if (nameExcluded(entry.name, options.excludeNames)) continue;
+      if (keywordExcluded(rel, options.excludeKeyword)) continue;
+      if (keywordMissed(rel, options.includeKeyword)) continue;
       count += 1;
       onDiscover?.(count);
     }
@@ -151,7 +146,7 @@ export async function collectFiles(
           continue;
         }
         if (options.skipHidden && entry.name.startsWith(".")) continue;
-        if (pathExcluded(rel, options.excludePaths)) continue;
+        if (keywordExcluded(rel, options.excludeKeyword)) continue;
         if (tooDeep(depth, options.maxDepth)) continue;
         await walk(full, depth + 1);
         continue;
@@ -161,7 +156,8 @@ export async function collectFiles(
         continue;
       }
       if (options.skipHidden && entry.name.startsWith(".")) continue;
-      if (pathExcluded(rel, options.excludePaths)) continue;
+      if (keywordExcluded(rel, options.excludeKeyword)) continue;
+      if (keywordMissed(rel, options.includeKeyword)) continue;
 
       onFile?.();
 

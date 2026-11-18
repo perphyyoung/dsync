@@ -26,7 +26,6 @@ export interface PlanOutcome {
 
 const IGNORE_NOTE: Record<IgnoredFile["reason"], string> = {
   internal: "内部文件",
-  name: "命中文件名关键词",
   size: "大小被过滤",
   time: "修改日期被过滤",
   ext: "后缀被过滤",

@@ -30,13 +30,13 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
     expect(hintBox.y + hintBox.height).toBeLessThanOrEqual(viewport.height);
   }
   await expect(page.getByText("目录层级", { exact: true })).toBeVisible();
-  await expect(page.getByText("排除路径关键字", { exact: true })).toBeVisible();
-  await expect(page.getByText("排除文件名关键字", { exact: true })).toBeVisible();
-  await expect(page.getByText("修改日期范围", { exact: true })).toBeVisible();
-  await expect(page.getByRole("radio", { name: "不限" })).toBeChecked();
-  await expect(page.getByText("隐藏文件", { exact: true })).toBeVisible();
+  await expect(page.getByText("只含关键字", { exact: true })).toBeVisible();
+  await expect(page.getByText("排除关键字", { exact: true })).toBeVisible();
   await expect(page.getByText("只含后缀", { exact: true })).toBeVisible();
   await expect(page.getByText("排除后缀", { exact: true })).toBeVisible();
+  await expect(page.getByText("修改日期范围", { exact: true })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "不限" })).toBeChecked();
+  await expect(page.getByText("跳过隐藏文件", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "开始扫描", exact: true })).toBeVisible();
   /* 强制重算是红色复选框：默认不选中，勾选时弹确认 */
   const forceRehash = page.getByLabel("强制重算");
@@ -60,34 +60,30 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
   await expect(page.getByTitle("左右目录互换")).toBeDisabled();
   /* 非预览模式不渲染复选框（表头的全选与行内勾选都只在预览时出现） */
   await expect(page.getByTitle("全选 / 取消全选")).toHaveCount(0);
-  await expect(page.getByText("文件大小", { exact: true })).toBeVisible();
-  /* 文件列表三列表头：左右各一组，均可点击排序 */
-  await expect(page.getByRole("button", { name: /^路径/ })).toHaveCount(2);
-  await expect(page.getByRole("button", { name: /^修改日期/ })).toHaveCount(2);
-  await expect(page.getByRole("button", { name: /^大小/ })).toHaveCount(2);
-  /* 主界面过滤行贴近窗口顶部：提示翻到下方且不越界 */
-  await page.getByText("?", { exact: true }).first().hover();
-  await expect(sizeHint).toBeVisible();
-  const mainHintBox = await sizeHint.boundingBox();
-  expect(mainHintBox).not.toBeNull();
-  if (mainHintBox) {
-    expect(mainHintBox.x).toBeGreaterThanOrEqual(0);
-    expect(mainHintBox.y).toBeGreaterThanOrEqual(0);
-    expect(mainHintBox.x + mainHintBox.width).toBeLessThanOrEqual(viewport.width);
-    expect(mainHintBox.y + mainHintBox.height).toBeLessThanOrEqual(viewport.height);
-  }
+
+  /* 扫描过滤行：只读摘要 + 重新扫描入口 */
+  await expect(page.getByText("扫描条件", { exact: true })).toBeVisible();
+  await expect(page.getByText("无过滤条件，全量显示")).toBeVisible();
+  await expect(page.getByRole("button", { name: "重新扫描", exact: true })).toBeVisible();
+
+  /* 显示过滤行：按列序排列的显示条件 */
   await expect(page.getByText("目录层级", { exact: true })).toBeVisible();
-  await expect(page.getByText("排除路径关键字", { exact: true })).toBeVisible();
-  await expect(page.getByText("排除文件名关键字", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("关键字模式")).toHaveValue("include");
+  await expect(page.getByLabel("后缀模式")).toHaveValue("include");
   await expect(page.getByText("修改日期范围", { exact: true })).toBeVisible();
+  await expect(page.getByText("文件大小范围", { exact: true })).toBeVisible();
   await expect(page.getByText("跳过隐藏文件", { exact: true })).toBeVisible();
+  await expect(page.getByText("隐藏一致项", { exact: true })).toBeVisible();
   await expect(page.getByText("显示模式", { exact: true })).toBeVisible();
   for (const name of ["全部", "左侧", "右侧", "重复", "占用"]) {
     await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
   }
-  /* 过滤行保留扫描入口，强制重算已移入设置页 */
-  await expect(page.getByRole("button", { name: "扫描", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "强制重算", exact: true })).toHaveCount(0);
+
+  /* 文件列表三列表头：左右各一组，均可点击排序 */
+  await expect(page.getByRole("button", { name: /^路径/ })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: /^修改日期/ })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: /^大小/ })).toHaveCount(2);
+
   await expect(page.getByRole("button", { name: "向左同步预览", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "向右同步预览", exact: true })).toBeVisible();
   log.info("[e2e] 窗口骨架检查通过");

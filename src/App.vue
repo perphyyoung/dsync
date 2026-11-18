@@ -6,9 +6,12 @@ import FilterPanel from "./components/FilterPanel.vue";
 import ProgressPage from "./components/ProgressPage.vue";
 import RecyclePage from "./components/RecyclePage.vue";
 import RowActions from "./components/RowActions.vue";
+import ScanFilterLine from "./components/ScanFilterLine.vue";
 import ScanSettingsPage from "./components/ScanSettingsPage.vue";
 import ToastBubble from "./components/ToastBubble.vue";
 import { pairKey, type DirPairEntry } from "./lib/dir-pairs";
+import { matchesDisplayFilter, type DisplayFilter } from "./lib/display-filter";
+import { findWiderReasons, type ScanScope } from "./lib/display-scope";
 import { parseExtInput } from "./lib/exts";
 import { mirrorScanResult } from "./lib/mirror";
 import { buildPreview, previewKindRows, type PreviewKind } from "./lib/preview";
@@ -45,8 +48,8 @@ const sizeMaxUnit = ref<SizeUnit>("MB");
 const maxDepth = ref(0);
 const includeInput = ref("");
 const excludeInput = ref("");
-const excludePathsInput = ref("");
-const excludeNamesInput = ref("");
+const includeKeywordInput = ref("");
+const excludeKeywordInput = ref("");
 const timeMode = ref<TimeMode>("none");
 const dateFrom = ref("");
 const dateTo = ref("");
@@ -54,6 +57,20 @@ const recentDays = ref(0);
 const skipHidden = ref(true);
 const hideSame = ref(true);
 const viewMode = ref<ViewMode>("all");
+
+/* 显示过滤：只作用于列表，不进入扫描条件，也不持久化 */
+const displayKeywordMode = ref<"include" | "exclude">("include");
+const displayKeywordInput = ref("");
+const displaySuffixMode = ref<"include" | "exclude">("include");
+const displaySuffixInput = ref("");
+const displayDateFrom = ref("");
+const displayDateTo = ref("");
+const displaySizeMin = ref(0);
+const displaySizeMax = ref(0);
+const displaySizeMinUnit = ref<SizeUnit>("MB");
+const displaySizeMaxUnit = ref<SizeUnit>("MB");
+const displayDepth = ref(0);
+const displaySkipHidden = ref(true);
 
 const scanning = ref(false);
 const executing = ref(false);
@@ -94,8 +111,8 @@ const DEFAULT_FILTERS: FilterPrefs = {
   maxDepth: 0,
   includeInput: "",
   excludeInput: "",
-  excludePathsInput: "",
-  excludeNamesInput: "",
+  includeKeywordInput: "",
+  excludeKeywordInput: "",
   timeMode: "none",
   dateFrom: "",
   dateTo: "",
@@ -115,8 +132,8 @@ function currentFilters(): FilterPrefs {
     maxDepth: maxDepth.value,
     includeInput: includeInput.value,
     excludeInput: excludeInput.value,
-    excludePathsInput: excludePathsInput.value,
-    excludeNamesInput: excludeNamesInput.value,
+    includeKeywordInput: includeKeywordInput.value,
+    excludeKeywordInput: excludeKeywordInput.value,
     timeMode: timeMode.value,
     dateFrom: dateFrom.value,
     dateTo: dateTo.value,
@@ -134,8 +151,8 @@ function applyFilters(data: FilterPrefs): void {
   maxDepth.value = data.maxDepth;
   includeInput.value = data.includeInput;
   excludeInput.value = data.excludeInput;
-  excludePathsInput.value = data.excludePathsInput;
-  excludeNamesInput.value = data.excludeNamesInput;
+  includeKeywordInput.value = data.includeKeywordInput;
+  excludeKeywordInput.value = data.excludeKeywordInput;
   timeMode.value = data.timeMode;
   dateFrom.value = data.dateFrom;
   dateTo.value = data.dateTo;
@@ -214,8 +231,8 @@ watch(
     maxDepth,
     includeInput,
     excludeInput,
-    excludePathsInput,
-    excludeNamesInput,
+    includeKeywordInput,
+    excludeKeywordInput,
     timeMode,
     dateFrom,
     dateTo,
@@ -255,10 +272,151 @@ const items = computed(() => {
   const filtered = rows
     .map((row, index) => ({ row, index }))
     .filter((item) => !hideSame.value || item.row.status !== "same")
-    .filter((item) => matchesView(item.row));
+    .filter((item) => matchesView(item.row))
+    .filter((item) => matchesDisplayFilter(item.row, displayFilter.value));
   const state = sortState.value;
   return state ? sortItems(filtered, state.key, state.dir) : filtered;
 });
+
+/* 显示过滤：界面状态换算成过滤器，只作用于列表 */
+const displayFilter = computed<DisplayFilter>(() => ({
+  keywordMode: displayKeywordMode.value,
+  keyword: displayKeywordInput.value.trim(),
+  suffixMode: displaySuffixMode.value,
+  suffixes: parseExtInput(displaySuffixInput.value),
+  dateFrom: displayDateFrom.value,
+  dateTo: displayDateTo.value,
+  sizeMin: Math.max(
+    0,
+    Math.round(displaySizeMin.value * SIZE_UNIT_FACTORS[displaySizeMinUnit.value]),
+  ),
+  sizeMax: Math.max(
+    0,
+    Math.round(displaySizeMax.value * SIZE_UNIT_FACTORS[displaySizeMaxUnit.value]),
+  ),
+  depth: Math.max(0, Math.round(displayDepth.value)),
+  skipHidden: displaySkipHidden.value,
+}));
+
+/* 扫描条件里与显示范围相关的部分，用于判断显示是否超出扫描 */
+const scanScope = computed<ScanScope>(() => ({
+  minSize: sizeEnabled.value
+    ? Math.max(0, Math.round(sizeMin.value * SIZE_UNIT_FACTORS[sizeMinUnit.value]))
+    : 0,
+  maxSize: sizeEnabled.value
+    ? Math.max(0, Math.round(sizeMax.value * SIZE_UNIT_FACTORS[sizeMaxUnit.value]))
+    : 0,
+  modifiedAfter: timeWindow().modifiedAfter,
+  modifiedBefore: timeWindow().modifiedBefore,
+  skipHidden: skipHidden.value,
+  excludeKeyword: excludeKeywordInput.value,
+}));
+
+interface DisplaySnapshot {
+  keywordMode: "include" | "exclude";
+  keywordInput: string;
+  suffixMode: "include" | "exclude";
+  suffixInput: string;
+  dateFrom: string;
+  dateTo: string;
+  sizeMin: number;
+  sizeMax: number;
+  sizeMinUnit: SizeUnit;
+  sizeMaxUnit: SizeUnit;
+  depth: number;
+  skipHidden: boolean;
+}
+
+interface WiderNotice {
+  reasons: { key: string; label: string }[];
+  before: DisplaySnapshot;
+}
+
+const widerNotice = ref<WiderNotice | null>(null);
+let announcedWider = "";
+
+function currentDisplaySnapshot(): DisplaySnapshot {
+  return {
+    keywordMode: displayKeywordMode.value,
+    keywordInput: displayKeywordInput.value,
+    suffixMode: displaySuffixMode.value,
+    suffixInput: displaySuffixInput.value,
+    dateFrom: displayDateFrom.value,
+    dateTo: displayDateTo.value,
+    sizeMin: displaySizeMin.value,
+    sizeMax: displaySizeMax.value,
+    sizeMinUnit: displaySizeMinUnit.value,
+    sizeMaxUnit: displaySizeMaxUnit.value,
+    depth: displayDepth.value,
+    skipHidden: displaySkipHidden.value,
+  };
+}
+
+let lastDisplaySnapshot = currentDisplaySnapshot();
+
+function applyDisplaySnapshot(snapshot: DisplaySnapshot): void {
+  displayKeywordMode.value = snapshot.keywordMode;
+  displayKeywordInput.value = snapshot.keywordInput;
+  displaySuffixMode.value = snapshot.suffixMode;
+  displaySuffixInput.value = snapshot.suffixInput;
+  displayDateFrom.value = snapshot.dateFrom;
+  displayDateTo.value = snapshot.dateTo;
+  displaySizeMin.value = snapshot.sizeMin;
+  displaySizeMax.value = snapshot.sizeMax;
+  displaySizeMinUnit.value = snapshot.sizeMinUnit;
+  displaySizeMaxUnit.value = snapshot.sizeMaxUnit;
+  displayDepth.value = snapshot.depth;
+  displaySkipHidden.value = snapshot.skipHidden;
+}
+
+/* 显示条件变化：超出扫描范围时弹提醒，同一原因组合只弹一次 */
+watch(
+  [
+    displayKeywordMode,
+    displayKeywordInput,
+    displaySuffixMode,
+    displaySuffixInput,
+    displayDateFrom,
+    displayDateTo,
+    displaySizeMin,
+    displaySizeMax,
+    displaySizeMinUnit,
+    displaySizeMaxUnit,
+    displayDepth,
+    displaySkipHidden,
+  ],
+  () => {
+    const previous = lastDisplaySnapshot;
+    lastDisplaySnapshot = currentDisplaySnapshot();
+    const reasons = findWiderReasons(displayFilter.value, scanScope.value);
+    const signature = reasons.map((reason) => reason.key).join(",");
+    if (!signature) {
+      announcedWider = "";
+      return;
+    }
+    if (signature === announcedWider) return;
+    announcedWider = signature;
+    widerNotice.value = { reasons, before: previous };
+  },
+);
+
+const widerMessage = computed(() => {
+  const notice = widerNotice.value;
+  if (!notice) return "";
+  const lines = notice.reasons.map((reason) => `· ${reason.label}`).join("\n");
+  return `以下显示条件需要重新扫描才能看到：\n${lines}\n当前结果已保留；还原修改会恢复本次改动。`;
+});
+
+function restoreDisplayNotice(): void {
+  const notice = widerNotice.value;
+  widerNotice.value = null;
+  if (notice) applyDisplaySnapshot(notice.before);
+}
+
+function rescanFromNotice(): void {
+  widerNotice.value = null;
+  settingsOpen.value = true;
+}
 
 /* 点击列头三态循环：默认 → 升序 → 降序 → 默认；空值排末尾 */
 interface SortState {
@@ -490,14 +648,6 @@ const emptyText = computed(() => {
   return "两侧内容一致";
 });
 
-/** 路径关键词：逗号或分号分隔，大小写不敏感 */
-function parseKeywordInput(input: string): string[] {
-  return input
-    .split(/[,;，；]+/)
-    .map((item) => item.trim().toLowerCase())
-    .filter((item) => item.length > 0);
-}
-
 /** 修改日期窗口：三态互斥，按自然日计算 */
 function timeWindow(): { modifiedAfter: number; modifiedBefore: number } {
   return resolveTimeWindow({
@@ -507,6 +657,34 @@ function timeWindow(): { modifiedAfter: number; modifiedBefore: number } {
     dateTo: dateTo.value,
   });
 }
+
+/* 扫描过滤行：只列相对默认值被改过的项，顺序与显示过滤行一致 */
+const scanFilterTags = computed(() => {
+  const tags: string[] = [];
+  if (maxDepth.value > 0) tags.push(`层级 ≤ ${maxDepth.value}`);
+  if (includeKeywordInput.value.trim()) tags.push(`只含关键字 ${includeKeywordInput.value.trim()}`);
+  if (excludeKeywordInput.value.trim()) tags.push(`排除关键字 ${excludeKeywordInput.value.trim()}`);
+  if (includeInput.value.trim()) tags.push(`只含后缀 ${includeInput.value.trim()}`);
+  if (excludeInput.value.trim()) tags.push(`排除后缀 ${excludeInput.value.trim()}`);
+  if (timeMode.value === "recent") {
+    tags.push(`最近 ${recentDays.value} 天`);
+  } else if (timeMode.value === "custom") {
+    if (dateFrom.value && dateTo.value) tags.push(`${dateFrom.value} 至 ${dateTo.value}`);
+    else if (dateFrom.value) tags.push(`起始 ${dateFrom.value}`);
+    else if (dateTo.value) tags.push(`截止 ${dateTo.value}`);
+  }
+  if (sizeEnabled.value && (sizeMin.value > 0 || sizeMax.value > 0)) {
+    if (sizeMin.value > 0 && sizeMax.value > 0) {
+      tags.push(`大小 ${sizeMin.value} ${sizeMinUnit.value}–${sizeMax.value} ${sizeMaxUnit.value}`);
+    } else if (sizeMin.value > 0) {
+      tags.push(`大小 ≥ ${sizeMin.value} ${sizeMinUnit.value}`);
+    } else {
+      tags.push(`大小 ≤ ${sizeMax.value} ${sizeMaxUnit.value}`);
+    }
+  }
+  if (!skipHidden.value) tags.push("不跳过隐藏文件");
+  return tags;
+});
 
 async function scan(forceRehash = false): Promise<void> {
   if (!leftRoot.value || !rightRoot.value) {
@@ -546,8 +724,8 @@ async function scan(forceRehash = false): Promise<void> {
         ? Math.max(0, Math.round(sizeMax.value * SIZE_UNIT_FACTORS[sizeMaxUnit.value]))
         : 0,
       maxDepth: Math.max(0, Math.round(maxDepth.value)),
-      excludePaths: parseKeywordInput(excludePathsInput.value),
-      excludeNames: parseKeywordInput(excludeNamesInput.value),
+      includeKeyword: includeKeywordInput.value.trim(),
+      excludeKeyword: excludeKeywordInput.value.trim(),
       ...timeWindow(),
       skipHidden: skipHidden.value,
       includeExts: parseExtInput(includeInput.value),
@@ -1053,8 +1231,8 @@ async function executePreview(): Promise<void> {
         v-model:max-depth="maxDepth"
         v-model:include-input="includeInput"
         v-model:exclude-input="excludeInput"
-        v-model:exclude-paths-input="excludePathsInput"
-        v-model:exclude-names-input="excludeNamesInput"
+        v-model:include-keyword-input="includeKeywordInput"
+        v-model:exclude-keyword-input="excludeKeywordInput"
         v-model:time-mode="timeMode"
         v-model:date-from="dateFrom"
         v-model:date-to="dateTo"
@@ -1071,27 +1249,23 @@ async function executePreview(): Promise<void> {
 
       <template v-else>
         <div class="relative">
+          <ScanFilterLine :tags="scanFilterTags" @rescan="settingsOpen = true" />
           <FilterPanel
-            v-model:sizeEnabled="sizeEnabled"
-            v-model:sizeMin="sizeMin"
-            v-model:sizeMax="sizeMax"
-            v-model:sizeMinUnit="sizeMinUnit"
-            v-model:sizeMaxUnit="sizeMaxUnit"
-            v-model:maxDepth="maxDepth"
-            v-model:includeInput="includeInput"
-            v-model:excludeInput="excludeInput"
-            v-model:excludePathsInput="excludePathsInput"
-            v-model:excludeNamesInput="excludeNamesInput"
-            v-model:timeMode="timeMode"
-            v-model:dateFrom="dateFrom"
-            v-model:dateTo="dateTo"
-            v-model:recentDays="recentDays"
-            v-model:skipHidden="skipHidden"
+            v-model:keywordMode="displayKeywordMode"
+            v-model:keywordInput="displayKeywordInput"
+            v-model:suffixMode="displaySuffixMode"
+            v-model:suffixInput="displaySuffixInput"
+            v-model:dateFrom="displayDateFrom"
+            v-model:dateTo="displayDateTo"
+            v-model:sizeMin="displaySizeMin"
+            v-model:sizeMax="displaySizeMax"
+            v-model:sizeMinUnit="displaySizeMinUnit"
+            v-model:sizeMaxUnit="displaySizeMaxUnit"
+            v-model:depth="displayDepth"
+            v-model:skipHidden="displaySkipHidden"
             v-model:hideSame="hideSame"
             v-model:viewMode="viewMode"
             :view-locked="previewSide !== null"
-            :busy="busy"
-            @open-settings="settingsOpen = true"
           />
         </div>
 
@@ -1375,6 +1549,22 @@ async function executePreview(): Promise<void> {
           </div>
         </div>
       </div>
+    </div>
+
+    <div
+      v-if="widerNotice"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60"
+      @click.self="restoreDisplayNotice"
+    >
+      <ConfirmBubble
+        floating
+        title="显示条件超出扫描范围"
+        :message="widerMessage"
+        confirm-text="重新扫描"
+        cancel-text="还原修改"
+        @confirm="rescanFromNotice"
+        @cancel="restoreDisplayNotice"
+      />
     </div>
 
     <div

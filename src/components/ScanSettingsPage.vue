@@ -17,8 +17,8 @@ const sizeMaxUnit = defineModel<SizeUnit>("sizeMaxUnit", { required: true });
 const maxDepth = defineModel<number>("maxDepth", { required: true });
 const includeInput = defineModel<string>("includeInput", { required: true });
 const excludeInput = defineModel<string>("excludeInput", { required: true });
-const excludePathsInput = defineModel<string>("excludePathsInput", { required: true });
-const excludeNamesInput = defineModel<string>("excludeNamesInput", { required: true });
+const includeKeywordInput = defineModel<string>("includeKeywordInput", { required: true });
+const excludeKeywordInput = defineModel<string>("excludeKeywordInput", { required: true });
 const timeMode = defineModel<TimeMode>("timeMode", { required: true });
 const dateFrom = defineModel<string>("dateFrom", { required: true });
 const dateTo = defineModel<string>("dateTo", { required: true });
@@ -214,17 +214,6 @@ function confirmRemove(): void {
           </button>
         </div>
 
-        <div class="flex items-center gap-3">
-          <span class="w-32 shrink-0 text-right text-slate-400">文件大小</span>
-          <SizeFilter
-            v-model:enabled="sizeEnabled"
-            v-model:min="sizeMin"
-            v-model:max="sizeMax"
-            v-model:minUnit="sizeMinUnit"
-            v-model:maxUnit="sizeMaxUnit"
-          />
-        </div>
-
         <label class="flex items-center gap-3">
           <span class="w-32 shrink-0 text-right text-slate-400">目录层级</span>
           <input
@@ -235,6 +224,26 @@ function confirmRemove(): void {
             class="w-24 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200"
           />
           <span class="text-slate-500">层（0 不限，1 只扫根目录）</span>
+        </label>
+
+        <label class="flex items-center gap-3">
+          <span class="w-32 shrink-0 text-right text-slate-400">只含关键字</span>
+          <input
+            v-model="includeKeywordInput"
+            type="text"
+            placeholder="输入单个词来命中"
+            class="w-64 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
+          />
+        </label>
+
+        <label class="flex items-center gap-3">
+          <span class="w-32 shrink-0 text-right text-slate-400">排除关键字</span>
+          <input
+            v-model="excludeKeywordInput"
+            type="text"
+            placeholder="输入单个词来排除"
+            class="w-64 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
+          />
         </label>
 
         <label class="flex items-center gap-3">
@@ -258,26 +267,6 @@ function confirmRemove(): void {
             v-model="excludeInput"
             type="text"
             placeholder="log, tmp"
-            class="w-64 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
-          />
-        </label>
-
-        <label class="flex items-center gap-3">
-          <span class="w-32 shrink-0 text-right text-slate-400">排除路径关键字</span>
-          <input
-            v-model="excludePathsInput"
-            type="text"
-            placeholder="node_modules, dist"
-            class="w-64 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
-          />
-        </label>
-
-        <label class="flex items-center gap-3">
-          <span class="w-32 shrink-0 text-right text-slate-400">排除文件名关键字</span>
-          <input
-            v-model="excludeNamesInput"
-            type="text"
-            placeholder="thumbs.db, .tmp"
             class="w-64 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
           />
         </label>
@@ -344,12 +333,20 @@ function confirmRemove(): void {
         </div>
 
         <div class="flex items-center gap-3">
-          <span class="w-32 shrink-0 text-right text-slate-400">隐藏文件</span>
-          <label class="flex cursor-pointer items-center gap-2 text-slate-400">
-            <input v-model="skipHidden" type="checkbox" class="accent-sky-500" />
-            <span>跳过</span>
-          </label>
-          <HelpMark text="隐藏文件是指以 . 开头的文件或目录" />
+          <span class="w-32 shrink-0 text-right text-slate-400">文件大小</span>
+          <SizeFilter
+            v-model:enabled="sizeEnabled"
+            v-model:min="sizeMin"
+            v-model:max="sizeMax"
+            v-model:minUnit="sizeMinUnit"
+            v-model:maxUnit="sizeMaxUnit"
+          />
+        </div>
+
+        <div class="flex items-center gap-3">
+          <span class="w-32 shrink-0 text-right text-slate-400">跳过隐藏文件</span>
+          <input v-model="skipHidden" type="checkbox" class="accent-sky-500" />
+          <HelpMark text="勾选后，跳过以 . 开头的文件与目录" />
         </div>
       </div>
     </div>

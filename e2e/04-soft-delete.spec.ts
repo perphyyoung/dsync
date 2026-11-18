@@ -7,7 +7,7 @@ import { log } from "./e2e-logger";
 /** 从当前页面发起扫描：在设置页直接开始，在主界面先点「扫描」进入设置页 */
 async function scanViaSettings(page: Page): Promise<void> {
   if (!(await page.getByText("扫描设置", { exact: true }).isVisible())) {
-    await page.getByRole("button", { name: "扫描", exact: true }).click();
+    await page.getByRole("button", { name: "重新扫描", exact: true }).click();
   }
   await page.getByRole("button", { name: "开始扫描", exact: true }).click();
 }
@@ -61,7 +61,7 @@ test("右键软删除进回收站，重扫后不再出现", async ({ slot }) => 
   await page.getByRole("button", { name: "返回", exact: true }).click();
 
   await scanViaSettings(page);
-  await expect(page.getByRole("button", { name: "扫描", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "重新扫描", exact: true })).toBeVisible();
   await expect(page.getByText("a.md", { exact: true })).toHaveCount(0);
   log.info("[e2e] 重扫后已删除内容不再出现");
 });
@@ -121,7 +121,7 @@ test("配对行软删除只清一侧，还原后恢复配对", async ({ slot }) 
   await writeFile(join(right, "c.md"), "paired", "utf8");
 
   await scanViaSettings(page);
-  await expect(page.getByRole("button", { name: "扫描", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "重新扫描", exact: true })).toBeVisible();
   await expect(page.getByText("deep/c.md", { exact: true })).toBeVisible();
   await expect(page.getByText("c.md", { exact: true })).toBeVisible();
   await expect(page.getByTitle("仅路径不同", { exact: true })).toHaveCount(2);

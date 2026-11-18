@@ -130,20 +130,10 @@ export async function runScan(request: ScanRequest, hooks: ScanHooks = {}): Prom
     minSize: Math.max(0, Number.isFinite(request.minSize) ? request.minSize : 0),
     maxSize: Math.max(0, Number.isFinite(request.maxSize) ? request.maxSize : 0),
     maxDepth: Math.max(0, Math.floor(Number.isFinite(request.maxDepth) ? request.maxDepth : 0)),
-    excludePaths: [
-      ...new Set(
-        (Array.isArray(request.excludePaths) ? request.excludePaths : [])
-          .map((item) => item.trim().toLowerCase())
-          .filter((item) => item.length > 0),
-      ),
-    ],
-    excludeNames: [
-      ...new Set(
-        (Array.isArray(request.excludeNames) ? request.excludeNames : [])
-          .map((item) => item.trim().toLowerCase())
-          .filter((item) => item.length > 0),
-      ),
-    ],
+    includeKeyword:
+      typeof request.includeKeyword === "string" ? request.includeKeyword.trim().toLowerCase() : "",
+    excludeKeyword:
+      typeof request.excludeKeyword === "string" ? request.excludeKeyword.trim().toLowerCase() : "",
     modifiedAfter: Math.max(0, Number.isFinite(request.modifiedAfter) ? request.modifiedAfter : 0),
     modifiedBefore: Math.max(
       0,

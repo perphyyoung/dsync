@@ -23,7 +23,7 @@ test("预览统计的复选框批量控制行勾选", async ({ slot }) => {
   await pickInto(right);
   await page.getByTitle("更改右侧目录").click();
   await page.getByRole("button", { name: "开始扫描", exact: true }).click();
-  await expect(page.getByRole("button", { name: "扫描", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "重新扫描", exact: true })).toBeVisible();
 
   /* 行内显示修改日期，只到天 */
   await expect(page.getByText(/^\d{4}-\d{2}-\d{2}$/).first()).toBeVisible();

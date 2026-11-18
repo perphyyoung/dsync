@@ -1,24 +1,23 @@
 <script setup lang="ts">
-import type { SizeUnit, TimeMode, ViewMode } from "../lib/types";
-import SizeFilter from "./SizeFilter.vue";
+import type { SizeUnit, ViewMode } from "../lib/types";
 
-const sizeEnabled = defineModel<boolean>("sizeEnabled", { required: true });
+/* 显示过滤：只作用于列表，不进入扫描条件，也不持久化 */
+const keywordMode = defineModel<"include" | "exclude">("keywordMode", { required: true });
+const keywordInput = defineModel<string>("keywordInput", { required: true });
+const suffixMode = defineModel<"include" | "exclude">("suffixMode", { required: true });
+const suffixInput = defineModel<string>("suffixInput", { required: true });
+const dateFrom = defineModel<string>("dateFrom", { required: true });
+const dateTo = defineModel<string>("dateTo", { required: true });
 const sizeMin = defineModel<number>("sizeMin", { required: true });
 const sizeMax = defineModel<number>("sizeMax", { required: true });
 const sizeMinUnit = defineModel<SizeUnit>("sizeMinUnit", { required: true });
 const sizeMaxUnit = defineModel<SizeUnit>("sizeMaxUnit", { required: true });
-const maxDepth = defineModel<number>("maxDepth", { required: true });
-const includeInput = defineModel<string>("includeInput", { required: true });
-const excludeInput = defineModel<string>("excludeInput", { required: true });
-const excludePathsInput = defineModel<string>("excludePathsInput", { required: true });
-const excludeNamesInput = defineModel<string>("excludeNamesInput", { required: true });
-const timeMode = defineModel<TimeMode>("timeMode", { required: true });
-const dateFrom = defineModel<string>("dateFrom", { required: true });
-const dateTo = defineModel<string>("dateTo", { required: true });
-const recentDays = defineModel<number>("recentDays", { required: true });
+const depth = defineModel<number>("depth", { required: true });
 const skipHidden = defineModel<boolean>("skipHidden", { required: true });
 const hideSame = defineModel<boolean>("hideSame", { required: true });
 const viewMode = defineModel<ViewMode>("viewMode", { required: true });
+
+const UNITS: SizeUnit[] = ["KB", "MB", "GB"];
 
 const VIEW_OPTIONS: { value: ViewMode; label: string; title: string }[] = [
   { value: "all", label: "全部", title: "显示所有差异行" },
@@ -29,132 +28,137 @@ const VIEW_OPTIONS: { value: ViewMode; label: string; title: string }[] = [
 ];
 
 const props = defineProps<{
-  busy: boolean;
   /** 预览模式锁定显示模式，避免隐藏已勾选的行 */
   viewLocked: boolean;
-}>();
-
-const emit = defineEmits<{
-  openSettings: [];
 }>();
 </script>
 
 <template>
   <div
-    class="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-slate-800 px-4 py-2 text-xs"
+    class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-slate-800 px-4 py-2 text-xs"
   >
-    <div class="flex items-center gap-2">
-      <span class="text-slate-500">文件大小</span>
-      <SizeFilter
-        v-model:enabled="sizeEnabled"
-        v-model:min="sizeMin"
-        v-model:max="sizeMax"
-        v-model:minUnit="sizeMinUnit"
-        v-model:maxUnit="sizeMaxUnit"
-      />
-    </div>
-
     <label class="flex items-center gap-2">
       <span class="text-slate-500">目录层级</span>
       <input
-        v-model.number="maxDepth"
+        v-model.number="depth"
         type="number"
         min="0"
         step="1"
-        title="0 不限，1 只扫根目录"
+        title="0 表示不限；1 只显示根目录文件"
         class="w-20 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200"
       />
       <span class="text-slate-500">层</span>
     </label>
 
-    <label class="flex items-center gap-2">
-      <span class="text-slate-500">只含后缀</span>
+    <span class="text-slate-700">·</span>
+
+    <div class="flex items-center gap-2">
+      <select
+        v-model="keywordMode"
+        aria-label="关键字模式"
+        class="rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-slate-200"
+      >
+        <option value="include">只含关键字</option>
+        <option value="exclude">排除关键字</option>
+      </select>
       <input
-        v-model="includeInput"
+        v-model="keywordInput"
+        type="text"
+        :placeholder="keywordMode === 'include' ? '输入单个词来命中' : '输入单个词来排除'"
+        title="目录与文件名同时作用，只支持单个词"
+        class="w-40 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
+      />
+    </div>
+
+    <span class="text-slate-700">·</span>
+
+    <div class="flex items-center gap-2">
+      <select
+        v-model="suffixMode"
+        aria-label="后缀模式"
+        class="rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-slate-200"
+      >
+        <option value="include">只含后缀</option>
+        <option value="exclude">排除后缀</option>
+      </select>
+      <input
+        v-model="suffixInput"
         type="text"
         placeholder="md, ts"
-        class="w-40 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
+        title="多个后缀用逗号分隔"
+        class="w-32 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
       />
-    </label>
+    </div>
 
-    <label class="flex items-center gap-2">
-      <span class="text-slate-500">排除后缀</span>
-      <input
-        v-model="excludeInput"
-        type="text"
-        placeholder="log, tmp"
-        class="w-40 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
-      />
-    </label>
-
-    <label class="flex items-center gap-2">
-      <span class="text-slate-500">排除路径关键字</span>
-      <input
-        v-model="excludePathsInput"
-        type="text"
-        placeholder="node_modules, dist"
-        class="w-40 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
-      />
-    </label>
-
-    <label class="flex items-center gap-2">
-      <span class="text-slate-500">排除文件名关键字</span>
-      <input
-        v-model="excludeNamesInput"
-        type="text"
-        placeholder="thumbs.db, .tmp"
-        class="w-40 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
-      />
-    </label>
+    <span class="text-slate-700">·</span>
 
     <div class="flex items-center gap-2">
       <span class="text-slate-500">修改日期范围</span>
-      <select
-        v-model="timeMode"
-        aria-label="修改日期范围"
-        class="rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-slate-200"
-      >
-        <option value="none">不限</option>
-        <option value="recent">最近</option>
-        <option value="custom">自定义</option>
-      </select>
-      <template v-if="timeMode === 'recent'">
-        <input
-          v-model.number="recentDays"
-          type="number"
-          min="1"
-          step="1"
-          aria-label="最近天数"
-          class="w-16 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200"
-        />
-        <span class="text-slate-500">天</span>
-      </template>
-      <template v-else-if="timeMode === 'custom'">
-        <input
-          v-model="dateFrom"
-          type="date"
-          aria-label="开始日期"
-          class="w-32 rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-slate-200 [color-scheme:dark]"
-        />
-        <span class="text-slate-600">至</span>
-        <input
-          v-model="dateTo"
-          type="date"
-          aria-label="结束日期"
-          class="w-32 rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-slate-200 [color-scheme:dark]"
-        />
-      </template>
+      <input
+        v-model="dateFrom"
+        type="date"
+        aria-label="显示起始日期"
+        class="w-32 rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-slate-200 [color-scheme:dark]"
+      />
+      <span class="text-slate-600">至</span>
+      <input
+        v-model="dateTo"
+        type="date"
+        aria-label="显示结束日期"
+        class="w-32 rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-slate-200 [color-scheme:dark]"
+      />
     </div>
+
+    <span class="text-slate-700">·</span>
+
+    <div class="flex items-center gap-2">
+      <span class="text-slate-500">文件大小范围</span>
+      <input
+        v-model.number="sizeMin"
+        type="number"
+        min="0"
+        step="1"
+        title="0 表示不限"
+        class="w-20 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200"
+      />
+      <select
+        v-model="sizeMinUnit"
+        class="rounded border border-slate-600 bg-slate-900 px-1 py-1 text-slate-200"
+      >
+        <option v-for="unit in UNITS" :key="unit" :value="unit">{{ unit }}</option>
+      </select>
+      <span class="text-slate-600">至</span>
+      <input
+        v-model.number="sizeMax"
+        type="number"
+        min="0"
+        step="1"
+        title="0 表示不限"
+        class="w-20 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200"
+      />
+      <select
+        v-model="sizeMaxUnit"
+        class="rounded border border-slate-600 bg-slate-900 px-1 py-1 text-slate-200"
+      >
+        <option v-for="unit in UNITS" :key="unit" :value="unit">{{ unit }}</option>
+      </select>
+    </div>
+
+    <span class="text-slate-700">·</span>
 
     <label class="flex cursor-pointer items-center gap-2 text-slate-400">
       <input v-model="skipHidden" type="checkbox" class="accent-sky-500" />
       <span>跳过隐藏文件</span>
     </label>
 
+    <span class="text-slate-700">·</span>
+
     <label class="flex cursor-pointer items-center gap-2 text-slate-400">
       <input v-model="hideSame" type="checkbox" class="accent-sky-500" />
       <span>隐藏一致项</span>
     </label>
+
+    <span class="text-slate-700">·</span>
 
     <div class="flex items-center gap-2">
       <span class="text-slate-500">显示模式</span>
@@ -176,18 +180,6 @@ const emit = defineEmits<{
           {{ option.label }}
         </button>
       </div>
-    </div>
-
-    <div class="ml-auto flex items-center gap-2">
-      <button
-        type="button"
-        class="rounded bg-sky-600 px-4 py-1 text-xs font-medium text-white hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
-        :disabled="props.busy"
-        title="打开扫描设置"
-        @click="emit('openSettings')"
-      >
-        扫描
-      </button>
     </div>
   </div>
 </template>

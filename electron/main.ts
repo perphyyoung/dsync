@@ -87,8 +87,8 @@ function parseScanRequest(value: unknown): ScanRequest {
 
   const includeExts = input["includeExts"];
   const excludeExts = input["excludeExts"];
-  const excludePaths = input["excludePaths"];
-  const excludeNames = input["excludeNames"];
+  const includeKeyword = input["includeKeyword"];
+  const excludeKeyword = input["excludeKeyword"];
 
   return {
     leftRoot,
@@ -96,12 +96,8 @@ function parseScanRequest(value: unknown): ScanRequest {
     minSize: typeof input["minSize"] === "number" ? input["minSize"] : 0,
     maxSize: typeof input["maxSize"] === "number" ? input["maxSize"] : 0,
     maxDepth: typeof input["maxDepth"] === "number" ? input["maxDepth"] : 0,
-    excludePaths: Array.isArray(excludePaths)
-      ? excludePaths.filter((item): item is string => typeof item === "string")
-      : [],
-    excludeNames: Array.isArray(excludeNames)
-      ? excludeNames.filter((item): item is string => typeof item === "string")
-      : [],
+    includeKeyword: typeof includeKeyword === "string" ? includeKeyword : "",
+    excludeKeyword: typeof excludeKeyword === "string" ? excludeKeyword : "",
     modifiedAfter: typeof input["modifiedAfter"] === "number" ? input["modifiedAfter"] : 0,
     modifiedBefore: typeof input["modifiedBefore"] === "number" ? input["modifiedBefore"] : 0,
     skipHidden: input["skipHidden"] !== false,

@@ -83,10 +83,10 @@ export interface FilterOptions {
   maxSize: number;
   /** 0 表示不限；正整数限制目录深度，1 只扫根目录文件 */
   maxDepth: number;
-  /** 相对路径包含任一关键词即跳过，大小写不敏感；空数组表示不限 */
-  excludePaths: string[];
-  /** 文件名关键词：文件名的 basename 包含任一关键词即跳过 */
-  excludeNames: string[];
+  /** 只含关键字：相对路径或文件名包含才扫描；空字符串表示不限 */
+  includeKeyword: string;
+  /** 排除关键字：相对路径或文件名包含即跳过；空字符串表示不限 */
+  excludeKeyword: string;
   /** 修改日期下界（毫秒时间戳，按日期换算），0 表示不限 */
   modifiedAfter: number;
   /** 修改日期上界（毫秒时间戳，按日期换算），0 表示不限 */
@@ -277,8 +277,8 @@ export interface FilterPrefs {
   maxDepth: number;
   includeInput: string;
   excludeInput: string;
-  excludePathsInput: string;
-  excludeNamesInput: string;
+  includeKeywordInput: string;
+  excludeKeywordInput: string;
   timeMode: TimeMode;
   dateFrom: string;
   dateTo: string;
