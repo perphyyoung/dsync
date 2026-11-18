@@ -174,6 +174,8 @@ export interface SyncAction {
   status: RowStatus;
   /** 对应 ScanResult.rows 的下标，供界面按行勾选 */
   rowIndex: number;
+  /** copy 时源侧扫描哈希：执行时用它校验目标，不重读源 */
+  sourceHash?: string | null;
 }
 
 export interface ExecuteRequest {

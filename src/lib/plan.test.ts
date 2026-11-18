@@ -189,6 +189,24 @@ describe("单行动作", () => {
     ]);
   });
 
+  it("复制动作带上源侧扫描哈希", () => {
+    const toRight = actionForRow(
+      makeRow({ status: "left-only", left: "a.md", leftHash: "abc", rightHash: null }),
+      "right",
+      0,
+      "keep",
+    );
+    expect(toRight[0]).toMatchObject({ kind: "copy", sourceHash: "abc" });
+
+    const toLeft = actionForRow(
+      makeRow({ status: "right-only", right: "b.md", leftHash: null, rightHash: "def" }),
+      "left",
+      1,
+      "keep",
+    );
+    expect(toLeft[0]).toMatchObject({ kind: "copy", sourceHash: "def" });
+  });
+
   it("被忽略与目标阻断的行不产生动作", () => {
     expect(actionForRow(makeRow({ status: "ignored" }), "right", 0, "align-left")).toEqual([]);
     expect(actionForRow(makeRow({ status: "target-blocked" }), "right", 0, "align-left")).toEqual(

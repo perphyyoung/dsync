@@ -221,6 +221,7 @@ export function actionForRow(
 
   // 本侧没有、对侧有：复制过来
   if (!currentPath && sourcePath) {
+    const sourceHash = side === "left" ? row.rightHash : row.leftHash;
     return [
       {
         kind: "copy",
@@ -229,6 +230,7 @@ export function actionForRow(
         toPath: sourcePath,
         status: row.status,
         rowIndex,
+        ...(sourceHash ? { sourceHash } : {}),
       },
     ];
   }

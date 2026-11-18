@@ -1,4 +1,4 @@
-import { readdir, stat } from "node:fs/promises";
+import { readdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { ScanCancelledError, type ScanController } from "./controller";
 import { extMatch } from "./exts";
@@ -11,8 +11,22 @@ export const DSYNC_DIR = ".dsync";
 export const TMP_SUFFIX = ".dsynctmp";
 
 const ALWAYS_IGNORED = new Set([DSYNC_DIR, ".DS_Store", "Thumbs.db"]);
+/** 半成品保留时间：取消/崩溃后的 .dsynctmp 超过 7 天在扫描时清理 */
+export const TMP_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type IgnoreReason = "symlink" | "special" | "unreadable";
+
+/** 清理过期的复制半成品；返回是否删除 */
+export async function cleanStaleTmp(full: string, now = Date.now()): Promise<boolean> {
+  try {
+    const info = await stat(full);
+    if (now - info.mtimeMs <= TMP_MAX_AGE_MS) return false;
+    await rm(full, { force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export interface IgnoredFile {
   path: RelPath;
@@ -147,6 +161,11 @@ export async function collectFiles(
         continue;
       }
       if (options.skipHidden && entry.name.startsWith(".")) continue;
+      /* 半成品不参与比较；超过 7 天的在扫描时顺手清理（不受关键字过滤影响） */
+      if (entry.name.endsWith(TMP_SUFFIX)) {
+        await cleanStaleTmp(full);
+        continue;
+      }
       if (keywordExcluded(rel, options.excludeKeyword)) continue;
       if (keywordMissed(rel, options.includeKeyword)) continue;
 
