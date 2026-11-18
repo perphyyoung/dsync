@@ -49,6 +49,14 @@ test("预览统计的复选框批量控制行勾选", async ({ slot }) => {
   await expect(page.getByText("↓", { exact: true })).toHaveCount(0);
   expect(await yOf("a.md")).toBeLessThan(await yOf("c.md"));
 
+  /* 互换左右目录：结果直接镜像，不需要重新扫描 */
+  await page.getByTitle("左右目录互换").click();
+  await expect(page.getByText("仅右侧 2")).toBeVisible();
+  await expect(page.getByTitle("a.md", { exact: true })).toBeVisible();
+  await expect(page.getByText("先选择左右两个目录")).toHaveCount(0);
+  await page.getByTitle("左右目录互换").click();
+  await expect(page.getByText("仅左侧 2")).toBeVisible();
+
   /* 向右同步：左侧两个文件复制到右侧，右侧独有文件软删除 */
   await page.getByRole("button", { name: "向右同步预览" }).click();
   const copy = page.getByLabel(/^复制/);

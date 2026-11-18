@@ -55,6 +55,9 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
   await expect(page.getByText("未选择左侧目录", { exact: true })).toBeVisible();
   await expect(page.getByText("未选择右侧目录", { exact: true })).toBeVisible();
   await expect(page.getByTitle("在文件管理器中打开")).toHaveCount(2);
+  /* 目录表头中间列是左右互换：未选目录时禁用 */
+  await expect(page.getByTitle("左右目录互换")).toBeVisible();
+  await expect(page.getByTitle("左右目录互换")).toBeDisabled();
   /* 非预览模式不渲染复选框（表头的全选与行内勾选都只在预览时出现） */
   await expect(page.getByTitle("全选 / 取消全选")).toHaveCount(0);
   await expect(page.getByText("文件大小", { exact: true })).toBeVisible();

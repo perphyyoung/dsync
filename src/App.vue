@@ -10,6 +10,7 @@ import ScanSettingsPage from "./components/ScanSettingsPage.vue";
 import ToastBubble from "./components/ToastBubble.vue";
 import { pairKey, type DirPairEntry } from "./lib/dir-pairs";
 import { parseExtInput } from "./lib/exts";
+import { mirrorScanResult } from "./lib/mirror";
 import { buildPreview, previewKindRows, type PreviewKind } from "./lib/preview";
 import { rowDirections } from "./lib/row-actions";
 import { sortItems, type SortDir, type SortKey } from "./lib/sort";
@@ -191,8 +192,13 @@ function scheduleSaveFilters(): void {
   }, 500);
 }
 
-// 目录变化：结果作废并按目录对加载条件
+// 目录变化：结果作废并按目录对加载条件；互换时结果由 swapRoots 直接镜像
+let swappingRoots = false;
 watch([leftRoot, rightRoot], () => {
+  if (swappingRoots) {
+    swappingRoots = false;
+    return;
+  }
   resetResult();
   applyPairForRoots();
 });
@@ -422,6 +428,23 @@ async function pick(side: "left" | "right"): Promise<void> {
   if (!picked) return;
   if (side === "left") leftRoot.value = picked;
   else rightRoot.value = picked;
+}
+
+/** 互换左右目录；已扫描时直接镜像结果，不重新扫描 */
+function swapRoots(): void {
+  if (!leftRoot.value || !rightRoot.value) return;
+  swappingRoots = true;
+  const left = leftRoot.value;
+  leftRoot.value = rightRoot.value;
+  rightRoot.value = left;
+  if (result.value) {
+    result.value = mirrorScanResult(result.value);
+    previewSide.value = null;
+    selected.value = new Set();
+    showToast("已互换左右目录，结果同步翻转");
+    return;
+  }
+  showToast("已互换左右目录");
 }
 
 /** 从设置页的最近目录对列表回填左右目录 */
@@ -1073,143 +1096,109 @@ async function executePreview(): Promise<void> {
         </div>
 
         <main class="flex min-h-0 flex-1 flex-col">
-          <div
-            class="flex items-center border-b border-slate-800 bg-slate-900/60 text-xs text-slate-400"
-          >
-            <div class="flex min-w-0 flex-1 items-center gap-3 px-3 py-1.5">
-              <span
-                class="min-w-0 flex-1 truncate font-medium"
-                :class="leftRoot ? 'text-slate-300' : 'text-slate-600'"
-                :title="leftRoot ?? ''"
-              >
-                {{ leftRoot || "未选择左侧目录" }}
-              </span>
-              <div class="flex shrink-0 items-center gap-1">
-                <button
-                  type="button"
-                  class="rounded border border-slate-600 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                  :disabled="!leftRoot"
-                  title="在文件管理器中打开"
-                  @click="openDir('left')"
+          <div class="relative min-h-0 flex-1 overflow-auto">
+            <div class="flex">
+              <!-- 左列：目录表头 / 列头 / 行 -->
+              <div class="flex min-w-0 flex-1 flex-col">
+                <div
+                  class="sticky top-0 z-20 flex h-9 items-center gap-3 border-b border-slate-800 bg-slate-950 px-3 text-xs"
                 >
-                  打开
-                </button>
-              </div>
-            </div>
-            <div v-if="previewSide !== null" class="flex w-24 shrink-0 items-center justify-center">
-              <input
-                type="checkbox"
-                class="h-3 w-3 accent-sky-500"
-                :checked="allSelected"
-                :indeterminate="someSelected"
-                :disabled="selectableIndexes.length === 0"
-                title="全选 / 取消全选"
-                @change="toggleAll"
-              />
-            </div>
-            <div v-else class="w-24 shrink-0"></div>
-            <div class="flex min-w-0 flex-1 items-center gap-3 px-3 py-1.5">
-              <span
-                class="min-w-0 flex-1 truncate font-medium"
-                :class="rightRoot ? 'text-slate-300' : 'text-slate-600'"
-                :title="rightRoot ?? ''"
-              >
-                {{ rightRoot || "未选择右侧目录" }}
-              </span>
-              <div class="flex shrink-0 items-center gap-1">
-                <button
-                  type="button"
-                  class="rounded border border-slate-600 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                  :disabled="!rightRoot"
-                  title="在文件管理器中打开"
-                  @click="openDir('right')"
+                  <span
+                    class="min-w-0 flex-1 truncate font-medium"
+                    :class="leftRoot ? 'text-slate-300' : 'text-slate-600'"
+                    :title="leftRoot ?? ''"
+                  >
+                    {{ leftRoot || "未选择左侧目录" }}
+                  </span>
+                  <button
+                    type="button"
+                    class="shrink-0 rounded border border-slate-600 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    :disabled="!leftRoot"
+                    title="在文件管理器中打开"
+                    @click="openDir('left')"
+                  >
+                    打开
+                  </button>
+                </div>
+
+                <div
+                  class="sticky top-9 z-20 flex h-7 items-center gap-2 border-b border-slate-800 bg-slate-900 px-3 text-xs text-slate-500"
                 >
-                  打开
-                </button>
-              </div>
-            </div>
-          </div>
+                  <button
+                    type="button"
+                    class="flex min-w-0 flex-1 items-center gap-1 pl-3.5 text-left hover:text-slate-300"
+                    title="点击排序：升序 / 降序 / 默认"
+                    @click="toggleSort('path')"
+                  >
+                    <span class="min-w-0 flex-1 truncate">路径</span>
+                    <span class="w-3 shrink-0 text-center text-sky-400">{{
+                      sortArrow("path")
+                    }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="w-20 shrink-0 text-right hover:text-slate-300"
+                    title="点击排序：升序 / 降序 / 默认"
+                    @click="toggleSort('date')"
+                  >
+                    修改日期
+                    <span class="inline-block w-3 text-center text-sky-400">{{
+                      sortArrow("date")
+                    }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="w-16 shrink-0 text-right hover:text-slate-300"
+                    title="点击排序：升序 / 降序 / 默认"
+                    @click="toggleSort('size')"
+                  >
+                    大小
+                    <span class="inline-block w-3 text-center text-sky-400">{{
+                      sortArrow("size")
+                    }}</span>
+                  </button>
+                </div>
 
-          <div class="flex border-b border-slate-800 bg-slate-900/40 text-xs text-slate-500">
-            <div class="flex min-w-0 flex-1 items-center gap-2 px-3 py-1">
-              <button
-                type="button"
-                class="flex min-w-0 flex-1 items-center gap-1 pl-3.5 text-left hover:text-slate-300"
-                title="点击排序：升序 / 降序 / 默认"
-                @click="toggleSort('path')"
-              >
-                <span class="min-w-0 flex-1 truncate">路径</span>
-                <span class="w-3 shrink-0 text-center text-sky-400">{{ sortArrow("path") }}</span>
-              </button>
-              <button
-                type="button"
-                class="w-20 shrink-0 text-right hover:text-slate-300"
-                title="点击排序：升序 / 降序 / 默认"
-                @click="toggleSort('date')"
-              >
-                修改日期
-                <span class="inline-block w-3 text-center text-sky-400">{{
-                  sortArrow("date")
-                }}</span>
-              </button>
-              <button
-                type="button"
-                class="w-16 shrink-0 text-right hover:text-slate-300"
-                title="点击排序：升序 / 降序 / 默认"
-                @click="toggleSort('size')"
-              >
-                大小
-                <span class="inline-block w-3 text-center text-sky-400">{{
-                  sortArrow("size")
-                }}</span>
-              </button>
-            </div>
-            <div class="w-24 shrink-0 border-x border-slate-800"></div>
-            <div class="flex min-w-0 flex-1 items-center gap-2 px-3 py-1">
-              <button
-                type="button"
-                class="flex min-w-0 flex-1 items-center gap-1 pl-3.5 text-left hover:text-slate-300"
-                title="点击排序：升序 / 降序 / 默认"
-                @click="toggleSort('path')"
-              >
-                <span class="min-w-0 flex-1 truncate">路径</span>
-                <span class="w-3 shrink-0 text-center text-sky-400">{{ sortArrow("path") }}</span>
-              </button>
-              <button
-                type="button"
-                class="w-20 shrink-0 text-right hover:text-slate-300"
-                title="点击排序：升序 / 降序 / 默认"
-                @click="toggleSort('date')"
-              >
-                修改日期
-                <span class="inline-block w-3 text-center text-sky-400">{{
-                  sortArrow("date")
-                }}</span>
-              </button>
-              <button
-                type="button"
-                class="w-16 shrink-0 text-right hover:text-slate-300"
-                title="点击排序：升序 / 降序 / 默认"
-                @click="toggleSort('size')"
-              >
-                大小
-                <span class="inline-block w-3 text-center text-sky-400">{{
-                  sortArrow("size")
-                }}</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="min-h-0 flex-1 overflow-auto">
-            <div v-if="items.length === 0" class="px-3 py-12 text-center text-xs text-slate-600">
-              {{ emptyText }}
-            </div>
-            <div v-else class="flex">
-              <div class="min-w-0 flex-1">
-                <FileList side="left" :items="items" @toggle="toggle" @menu="onRowMenu" />
+                <FileList
+                  v-if="items.length > 0"
+                  side="left"
+                  :items="items"
+                  @toggle="toggle"
+                  @menu="onRowMenu"
+                />
               </div>
-              <div class="w-24 shrink-0 border-x border-slate-800 bg-slate-900/30">
+
+              <!-- 中列：互换 / 全选 / 行操作 -->
+              <div class="flex w-24 shrink-0 flex-col border-x border-slate-800 bg-slate-900/30">
+                <div
+                  class="sticky top-0 z-20 flex h-9 items-center justify-center border-b border-slate-800 bg-slate-950"
+                >
+                  <button
+                    type="button"
+                    class="rounded border border-slate-600 px-2 py-0.5 text-xs text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    :disabled="!leftRoot || !rightRoot"
+                    title="左右目录互换"
+                    @click="swapRoots"
+                  >
+                    ⇄
+                  </button>
+                </div>
+                <div
+                  class="sticky top-9 z-20 flex h-7 items-center justify-center border-b border-slate-800 bg-slate-900"
+                >
+                  <input
+                    v-if="previewSide !== null"
+                    type="checkbox"
+                    class="h-3 w-3 accent-sky-500"
+                    :checked="allSelected"
+                    :indeterminate="someSelected"
+                    :disabled="selectableIndexes.length === 0"
+                    title="全选 / 取消全选"
+                    @change="toggleAll"
+                  />
+                </div>
                 <RowActions
+                  v-if="items.length > 0"
                   :items="items"
                   :selected="selected"
                   :busy="busy"
@@ -1220,9 +1209,83 @@ async function executePreview(): Promise<void> {
                   @toggle="toggle"
                 />
               </div>
-              <div class="min-w-0 flex-1">
-                <FileList side="right" :items="items" @toggle="toggle" @menu="onRowMenu" />
+
+              <!-- 右列：目录表头 / 列头 / 行 -->
+              <div class="flex min-w-0 flex-1 flex-col">
+                <div
+                  class="sticky top-0 z-20 flex h-9 items-center gap-3 border-b border-slate-800 bg-slate-950 px-3 text-xs"
+                >
+                  <span
+                    class="min-w-0 flex-1 truncate font-medium"
+                    :class="rightRoot ? 'text-slate-300' : 'text-slate-600'"
+                    :title="rightRoot ?? ''"
+                  >
+                    {{ rightRoot || "未选择右侧目录" }}
+                  </span>
+                  <button
+                    type="button"
+                    class="shrink-0 rounded border border-slate-600 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    :disabled="!rightRoot"
+                    title="在文件管理器中打开"
+                    @click="openDir('right')"
+                  >
+                    打开
+                  </button>
+                </div>
+
+                <div
+                  class="sticky top-9 z-20 flex h-7 items-center gap-2 border-b border-slate-800 bg-slate-900 px-3 text-xs text-slate-500"
+                >
+                  <button
+                    type="button"
+                    class="flex min-w-0 flex-1 items-center gap-1 pl-3.5 text-left hover:text-slate-300"
+                    title="点击排序：升序 / 降序 / 默认"
+                    @click="toggleSort('path')"
+                  >
+                    <span class="min-w-0 flex-1 truncate">路径</span>
+                    <span class="w-3 shrink-0 text-center text-sky-400">{{
+                      sortArrow("path")
+                    }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="w-20 shrink-0 text-right hover:text-slate-300"
+                    title="点击排序：升序 / 降序 / 默认"
+                    @click="toggleSort('date')"
+                  >
+                    修改日期
+                    <span class="inline-block w-3 text-center text-sky-400">{{
+                      sortArrow("date")
+                    }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="w-16 shrink-0 text-right hover:text-slate-300"
+                    title="点击排序：升序 / 降序 / 默认"
+                    @click="toggleSort('size')"
+                  >
+                    大小
+                    <span class="inline-block w-3 text-center text-sky-400">{{
+                      sortArrow("size")
+                    }}</span>
+                  </button>
+                </div>
+
+                <FileList
+                  v-if="items.length > 0"
+                  side="right"
+                  :items="items"
+                  @toggle="toggle"
+                  @menu="onRowMenu"
+                />
               </div>
+            </div>
+
+            <div
+              v-if="items.length === 0"
+              class="pointer-events-none absolute inset-0 flex items-center justify-center px-3 text-xs text-slate-600"
+            >
+              {{ emptyText }}
             </div>
           </div>
         </main>
