@@ -717,6 +717,8 @@ async function applyRestored(side: Side, path: string): Promise<void> {
       right: side === "right" ? path : null,
       leftSize: side === "left" ? file.size : null,
       rightSize: side === "right" ? file.size : null,
+      leftDate: side === "left" ? file.mtimeMs : null,
+      rightDate: side === "right" ? file.mtimeMs : null,
       leftHash: side === "left" ? file.hash : null,
       rightHash: side === "right" ? file.hash : null,
       base: null,
@@ -1097,6 +1099,20 @@ async function executePreview(): Promise<void> {
                   打开
                 </button>
               </div>
+            </div>
+          </div>
+
+          <div class="flex border-b border-slate-800 bg-slate-900/40 text-xs text-slate-500">
+            <div class="flex min-w-0 flex-1 items-center gap-2 px-3 py-1">
+              <span class="min-w-0 flex-1 pl-3.5">路径</span>
+              <span class="w-20 shrink-0 text-right">修改日期</span>
+              <span class="w-16 shrink-0 text-right">大小</span>
+            </div>
+            <div class="w-24 shrink-0 border-x border-slate-800"></div>
+            <div class="flex min-w-0 flex-1 items-center gap-2 px-3 py-1">
+              <span class="min-w-0 flex-1 pl-3.5">路径</span>
+              <span class="w-20 shrink-0 text-right">修改日期</span>
+              <span class="w-16 shrink-0 text-right">大小</span>
             </div>
           </div>
 

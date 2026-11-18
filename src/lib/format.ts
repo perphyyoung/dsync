@@ -1,10 +1,21 @@
 import type { SyncAction } from "./types";
 
+function pad(part: number): string {
+  return String(part).padStart(2, "0");
+}
+
 export function formatSize(size: number | null): string {
   if (size === null) return "";
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/** 修改日期只显示到天，本地时区 YYYY-MM-DD */
+export function formatDate(date: number | null): string {
+  if (date === null) return "";
+  const value = new Date(date);
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
 }
 
 /**

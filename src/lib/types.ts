@@ -62,6 +62,9 @@ export interface DiffRow {
   right: RelPath | null;
   leftSize: number | null;
   rightSize: number | null;
+  /** 修改日期（毫秒时间戳），界面只显示到天 */
+  leftDate: number | null;
+  rightDate: number | null;
   leftHash: string | null;
   rightHash: string | null;
   base: string | null;

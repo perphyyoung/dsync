@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatSize } from "../lib/format";
+import { formatDate, formatSize } from "../lib/format";
 import type { DiffRow, RowStatus, Side } from "../lib/types";
 
 const props = defineProps<{
@@ -39,6 +39,10 @@ function pathOf(row: DiffRow): string | null {
 function sizeOf(row: DiffRow): number | null {
   return props.side === "left" ? row.leftSize : row.rightSize;
 }
+
+function dateOf(row: DiffRow): number | null {
+  return props.side === "left" ? row.leftDate : row.rightDate;
+}
 </script>
 
 <template>
@@ -59,13 +63,18 @@ function sizeOf(row: DiffRow): number | null {
     >
       <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="STATUS_DOT[item.row.status]"></span>
       <span
-        class="truncate"
+        class="min-w-0 flex-1 truncate"
         :class="pathOf(item.row) ? 'text-slate-200' : 'text-slate-700'"
         :title="pathOf(item.row) ?? ''"
       >
         {{ pathOf(item.row) ?? "—" }}
       </span>
-      <span class="ml-auto shrink-0 text-slate-500">{{ formatSize(sizeOf(item.row)) }}</span>
+      <span class="w-20 shrink-0 text-right text-slate-500">{{
+        formatDate(dateOf(item.row))
+      }}</span>
+      <span class="w-16 shrink-0 text-right text-slate-500">{{
+        formatSize(sizeOf(item.row))
+      }}</span>
     </button>
   </div>
 </template>

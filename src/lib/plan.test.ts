@@ -34,6 +34,8 @@ function makeRow(overrides: Partial<DiffRow>): DiffRow {
     right: null,
     leftSize: 1,
     rightSize: 1,
+    leftDate: null,
+    rightDate: null,
     leftHash: "h1",
     rightHash: "h2",
     base: null,

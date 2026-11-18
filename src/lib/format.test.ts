@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { etaHint, formatEta } from "./format";
+import { etaHint, formatDate, formatEta } from "./format";
+
+describe("formatDate", () => {
+  it("只显示到天，月日补零", () => {
+    expect(formatDate(new Date(2026, 10, 8, 23, 59).getTime())).toBe("2026-11-08");
+    expect(formatDate(new Date(2026, 0, 1, 0, 0).getTime())).toBe("2026-01-01");
+  });
+
+  it("空值返回空字符串", () => {
+    expect(formatDate(null)).toBe("");
+  });
+});
 
 describe("formatEta", () => {
   it("按量级取整，避免秒级跳动", () => {

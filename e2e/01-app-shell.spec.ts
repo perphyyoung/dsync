@@ -58,6 +58,10 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
   /* 非预览模式不渲染复选框（表头的全选与行内勾选都只在预览时出现） */
   await expect(page.getByTitle("全选 / 取消全选")).toHaveCount(0);
   await expect(page.getByText("文件大小", { exact: true })).toBeVisible();
+  /* 文件列表三列表头：左右各一组 */
+  await expect(page.getByText("路径", { exact: true })).toHaveCount(2);
+  await expect(page.getByText("修改日期", { exact: true })).toHaveCount(2);
+  await expect(page.getByText("大小", { exact: true })).toHaveCount(2);
   /* 主界面过滤行贴近窗口顶部：提示翻到下方且不越界 */
   await page.getByText("?", { exact: true }).first().hover();
   await expect(sizeHint).toBeVisible();
