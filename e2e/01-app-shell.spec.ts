@@ -73,6 +73,8 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
   await expect(page.getByText("修改日期范围", { exact: true })).toBeVisible();
   await expect(page.getByText("文件大小范围", { exact: true })).toBeVisible();
   await expect(page.getByText("跳过隐藏文件", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "重置", exact: true })).toBeVisible();
+  /* 第三行：显示模式行 */
   await expect(page.getByText("隐藏一致项", { exact: true })).toBeVisible();
   await expect(page.getByText("显示模式", { exact: true })).toBeVisible();
   for (const name of ["全部", "左侧", "右侧", "重复", "占用", "特殊"]) {

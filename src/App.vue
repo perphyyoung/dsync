@@ -9,6 +9,7 @@ import RowActions from "./components/RowActions.vue";
 import ScanFilterLine from "./components/ScanFilterLine.vue";
 import ScanSettingsPage from "./components/ScanSettingsPage.vue";
 import ToastBubble from "./components/ToastBubble.vue";
+import ViewModeLine from "./components/ViewModeLine.vue";
 import { pairKey, type DirPairEntry } from "./lib/dir-pairs";
 import { matchesDisplayFilter, type DisplayFilter } from "./lib/display-filter";
 import { findWiderReasons, type ScanScope } from "./lib/display-scope";
@@ -386,6 +387,24 @@ function restoreDisplayNotice(): void {
 function rescanFromNotice(): void {
   widerNotice.value = null;
   settingsOpen.value = true;
+}
+
+/** 重置显示过滤行；不影响扫描条件与显示模式行 */
+function resetDisplayFilter(): void {
+  displayKeywordMode.value = "include";
+  displayKeywordInput.value = "";
+  displaySuffixMode.value = "include";
+  displaySuffixInput.value = "";
+  displayDateFrom.value = "";
+  displayDateTo.value = "";
+  displaySizeMin.value = 0;
+  displaySizeMax.value = 0;
+  displaySizeMinUnit.value = "MB";
+  displaySizeMaxUnit.value = "MB";
+  displayDepth.value = 0;
+  displaySkipHidden.value = true;
+  announcedWider = "";
+  showToast("已重置显示条件");
 }
 
 /* 点击列头三态循环：默认 → 升序 → 降序 → 默认；空值排末尾 */
@@ -1242,6 +1261,9 @@ async function executePreview(): Promise<void> {
             v-model:sizeMaxUnit="displaySizeMaxUnit"
             v-model:depth="displayDepth"
             v-model:skipHidden="displaySkipHidden"
+            @reset="resetDisplayFilter"
+          />
+          <ViewModeLine
             v-model:hideSame="hideSame"
             v-model:viewMode="viewMode"
             :view-locked="previewSide !== null"

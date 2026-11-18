@@ -49,6 +49,14 @@ test("显示过滤缩小直接刷新，扩大弹窗可还原", async ({ slot }) 
   await expect(page.getByText("显示条件超出扫描范围")).toHaveCount(0);
   await expect(page.getByTitle("a.md", { exact: true })).toBeVisible();
 
+  /* 重置显示条件：一键恢复默认，列表恢复 */
+  await page.getByPlaceholder("输入单个词来命中").fill("a");
+  await expect(page.getByTitle("b.txt", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "重置", exact: true }).click();
+  await expect(page.getByPlaceholder("输入单个词来命中")).toHaveValue("");
+  await expect(page.getByTitle("b.txt", { exact: true })).toBeVisible();
+  await expect(page.getByText("显示条件超出扫描范围")).toHaveCount(0);
+
   /* 改扫描条件不扫描：旧结果与摘要都不变；点重新扫描后作废旧结果 */
   await page.getByRole("button", { name: "重新扫描", exact: true }).click();
   await page.getByLabel("排除关键字").fill("a");
