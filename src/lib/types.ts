@@ -104,8 +104,8 @@ export interface ScanRequest extends FilterOptions {
   forceRehash: boolean;
 }
 
-/** 文件列表的显示视角：全部 / 左侧 / 右侧 / 重复 / 目标占用 */
-export type ViewMode = "all" | "left" | "right" | "duplicate" | "blocked";
+/** 文件列表的显示视角：全部 / 左侧 / 右侧 / 重复 / 目标占用 / 特殊 */
+export type ViewMode = "all" | "left" | "right" | "duplicate" | "blocked" | "special";
 
 export interface ScanStats {
   same: number;

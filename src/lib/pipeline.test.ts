@@ -112,25 +112,26 @@ describe("端到端扫描与执行", () => {
     expect(forced.rows[0].status).toBe("target-blocked");
   });
 
-  it("排除后缀与最小大小只影响可见性", async () => {
+  it("排除后缀与最小大小命中后不列行", async () => {
     const { left, right } = await setup();
     await writeRel(left, "keep.md", "0123456789");
     await writeRel(left, "skip.log", "0123456789");
     await writeRel(left, "tiny.md", "1");
 
     const scan = await runScan(request(left, right, { excludeExts: [".log"], minSize: 5 }));
-    expect(scan.rows.find((row) => row.left === "skip.log")?.status).toBe("ignored");
-    expect(scan.rows.find((row) => row.left === "tiny.md")?.status).toBe("ignored");
+    expect(scan.rows.find((row) => row.left === "skip.log")).toBeUndefined();
+    expect(scan.rows.find((row) => row.left === "tiny.md")).toBeUndefined();
     expect(scan.rows.find((row) => row.left === "keep.md")?.status).toBe("left-only");
+    expect(scan.rows.find((row) => row.status === "ignored")).toBeUndefined();
   });
 
-  it("最大大小上限只影响可见性", async () => {
+  it("最大大小上限命中后不列行", async () => {
     const { left, right } = await setup();
     await writeRel(left, "small.md", "1");
     await writeRel(left, "big.md", "0123456789");
 
     const scan = await runScan(request(left, right, { maxSize: 5 }));
-    expect(scan.rows.find((row) => row.left === "big.md")?.status).toBe("ignored");
+    expect(scan.rows.find((row) => row.left === "big.md")).toBeUndefined();
     expect(scan.rows.find((row) => row.left === "small.md")?.status).toBe("left-only");
   });
 
@@ -196,7 +197,7 @@ describe("端到端扫描与执行", () => {
 
     const after = new Date("2026-06-01T00:00:00.000Z").getTime();
     const scan = await runScan(request(left, right, { modifiedAfter: after }));
-    expect(scan.rows.find((row) => row.left === "old.md")?.status).toBe("ignored");
+    expect(scan.rows.find((row) => row.left === "old.md")).toBeUndefined();
     expect(scan.rows.find((row) => row.left === "new.md")?.status).toBe("left-only");
   });
 

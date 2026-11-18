@@ -75,7 +75,7 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
   await expect(page.getByText("跳过隐藏文件", { exact: true })).toBeVisible();
   await expect(page.getByText("隐藏一致项", { exact: true })).toBeVisible();
   await expect(page.getByText("显示模式", { exact: true })).toBeVisible();
-  for (const name of ["全部", "左侧", "右侧", "重复", "占用"]) {
+  for (const name of ["全部", "左侧", "右侧", "重复", "占用", "特殊"]) {
     await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
   }
 

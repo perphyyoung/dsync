@@ -28,7 +28,7 @@ const STATUS_TEXT: Record<RowStatus, string> = {
   duplicate: "重复",
   "left-only": "仅左侧",
   "right-only": "仅右侧",
-  ignored: "已忽略",
+  ignored: "特殊",
   "target-blocked": "目标占用",
 };
 

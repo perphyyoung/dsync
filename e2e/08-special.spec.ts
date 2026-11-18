@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { expect, test } from "./fixtures";
 import { log } from "./e2e-logger";
 
-test("被过滤的文件只在实际存在的一侧显示，并带修改日期", async ({ slot }) => {
+test("扫描过滤命中的文件不列行，特殊视图也不显示", async ({ slot }) => {
   const { app, page, base } = slot;
   const left = join(base, "left");
   const right = join(base, "right");
@@ -30,9 +30,13 @@ test("被过滤的文件只在实际存在的一侧显示，并带修改日期",
   await page.getByRole("button", { name: "开始扫描", exact: true }).click();
   await expect(page.getByRole("button", { name: "重新扫描", exact: true })).toBeVisible();
 
-  /* 被过滤行只出现在左列（右侧没有该文件），日期照样显示 */
-  await expect(page.getByTitle("old.txt", { exact: true })).toHaveCount(1);
-  await expect(page.getByText("2026-01-01", { exact: true })).toBeVisible();
-  await expect(page.getByText("已忽略 1")).toBeVisible();
-  log.info("[e2e] 被过滤文件只在实际存在的一侧显示，并带修改日期");
+  /* 过滤项不列行：全部视图没有它 */
+  await expect(page.getByTitle("old.txt", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("2026-01-01", { exact: true })).toHaveCount(0);
+
+  /* 特殊视图只放符号链接 / 特殊文件 / 读取失败，过滤项也不出现 */
+  await page.getByRole("button", { name: "特殊", exact: true }).click();
+  await expect(page.getByTitle("old.txt", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "特殊", exact: true })).toBeVisible();
+  log.info("[e2e] 过滤命中的文件不列行，特殊视图不含过滤项");
 });

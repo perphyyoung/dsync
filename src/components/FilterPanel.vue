@@ -25,6 +25,7 @@ const VIEW_OPTIONS: { value: ViewMode; label: string; title: string }[] = [
   { value: "right", label: "右侧", title: "只看右侧有文件的行" },
   { value: "duplicate", label: "重复", title: "只看重复：单侧有多个内容相同的文件" },
   { value: "blocked", label: "占用", title: "只看目标占用：两侧同路径但内容不同" },
+  { value: "special", label: "特殊", title: "只看特殊项：符号链接、特殊文件、读取失败" },
 ];
 
 const props = defineProps<{

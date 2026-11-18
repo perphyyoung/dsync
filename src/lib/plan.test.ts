@@ -97,10 +97,10 @@ describe("差异行生成", () => {
     expect(outcome.stats.rightOnly).toBe(1);
   });
 
-  it("忽略项带头原因，且只在该侧显示", () => {
+  it("忽略了特殊项时带上原因，且只在该侧显示", () => {
     const outcome = planSync(
       makeInput({
-        leftIgnored: [{ path: "a.log", reason: "ext", size: 10, mtimeMs: 1000 }],
+        leftIgnored: [{ path: "a.log", reason: "symlink", size: 10, mtimeMs: 1000 }],
       }),
     );
     expect(outcome.rows[0]).toMatchObject({
@@ -109,16 +109,16 @@ describe("差异行生成", () => {
       right: null,
       leftDate: 1000,
       rightDate: null,
-      note: "后缀被过滤",
+      note: "符号链接",
     });
     expect(outcome.stats.ignored).toBe(1);
   });
 
-  it("两侧同路径都被忽略时合并为一行，日期各自显示", () => {
+  it("两侧同路径都被忽略时合并为一行，日期与原因各自显示", () => {
     const outcome = planSync(
       makeInput({
-        leftIgnored: [{ path: "a.log", reason: "time", size: 10, mtimeMs: 1000 }],
-        rightIgnored: [{ path: "a.log", reason: "size", size: 20, mtimeMs: 2000 }],
+        leftIgnored: [{ path: "a.log", reason: "symlink", size: 10, mtimeMs: 1000 }],
+        rightIgnored: [{ path: "a.log", reason: "unreadable", size: 20, mtimeMs: 2000 }],
       }),
     );
     expect(outcome.rows[0]).toMatchObject({
@@ -129,7 +129,7 @@ describe("差异行生成", () => {
       rightSize: 20,
       leftDate: 1000,
       rightDate: 2000,
-      note: "左：修改日期被过滤；右：大小被过滤",
+      note: "左：符号链接；右：读取失败",
     });
   });
 });

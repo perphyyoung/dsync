@@ -226,8 +226,10 @@ const softDeleteMessage = computed(() => {
   return `${path}\n移入回收站后可以还原；dsync 不会真正删除文件。`;
 });
 
-/* 显示视角：只看左侧 / 只看右侧 / 只看重复 / 只看目标占用 */
+/* 显示视角：全部 / 左侧 / 右侧 / 重复 / 占用 / 特殊（符号链接、特殊文件、读取失败） */
 function matchesView(row: DiffRow): boolean {
+  if (viewMode.value === "special") return row.status === "ignored";
+  if (row.status === "ignored") return false;
   if (viewMode.value === "left") return row.left !== null;
   if (viewMode.value === "right") return row.right !== null;
   if (viewMode.value === "duplicate") return row.status === "duplicate";
@@ -419,7 +421,7 @@ const STAT_META: { key: keyof ScanStats; label: string; dot: string }[] = [
   { key: "duplicateLeft", label: "重复(左)", dot: "bg-fuchsia-400" },
   { key: "duplicateRight", label: "重复(右)", dot: "bg-fuchsia-400" },
   { key: "targetBlocked", label: "目标占用", dot: "bg-rose-500" },
-  { key: "ignored", label: "已忽略", dot: "bg-slate-700" },
+  { key: "ignored", label: "特殊", dot: "bg-slate-700" },
 ];
 
 const PREVIEW_OPTIONS: { value: Side; label: string }[] = [

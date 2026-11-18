@@ -12,14 +12,7 @@ export const TMP_SUFFIX = ".dsynctmp";
 
 const ALWAYS_IGNORED = new Set([DSYNC_DIR, ".DS_Store", "Thumbs.db"]);
 
-export type IgnoreReason =
-  | "internal"
-  | "size"
-  | "time"
-  | "ext"
-  | "symlink"
-  | "special"
-  | "unreadable";
+export type IgnoreReason = "symlink" | "special" | "unreadable";
 
 export interface IgnoredFile {
   path: RelPath;
@@ -36,20 +29,16 @@ export interface ScanOutcome {
   nestedIndexDirs: RelPath[];
 }
 
-function filterReason(
-  name: string,
-  size: number,
-  mtimeMs: number,
-  options: FilterOptions,
-): IgnoreReason | null {
-  if (ALWAYS_IGNORED.has(name) || name.toLowerCase().endsWith(TMP_SUFFIX)) return "internal";
-  if (size < options.minSize) return "size";
-  if (options.maxSize > 0 && size > options.maxSize) return "size";
-  if (options.modifiedAfter > 0 && mtimeMs < options.modifiedAfter) return "time";
-  if (options.modifiedBefore > 0 && mtimeMs > options.modifiedBefore) return "time";
-  if (options.includeExts.length > 0 && !extMatch(name, options.includeExts)) return "ext";
-  if (extMatch(name, options.excludeExts)) return "ext";
-  return null;
+/** 文件级过滤：命中即跳过且不列行（内部文件、大小、日期、后缀） */
+function filteredOut(name: string, size: number, mtimeMs: number, options: FilterOptions): boolean {
+  if (ALWAYS_IGNORED.has(name) || name.toLowerCase().endsWith(TMP_SUFFIX)) return true;
+  if (size < options.minSize) return true;
+  if (options.maxSize > 0 && size > options.maxSize) return true;
+  if (options.modifiedAfter > 0 && mtimeMs < options.modifiedAfter) return true;
+  if (options.modifiedBefore > 0 && mtimeMs > options.modifiedBefore) return true;
+  if (options.includeExts.length > 0 && !extMatch(name, options.includeExts)) return true;
+  if (extMatch(name, options.excludeExts)) return true;
+  return false;
 }
 
 /** 目录层级：文件层级 = 目录深度 + 1；超过上限的目录整棵跳过（不计入 ignored） */
@@ -171,11 +160,7 @@ export async function collectFiles(
         continue;
       }
 
-      const reason = filterReason(entry.name, info.size, info.mtimeMs, options);
-      if (reason) {
-        ignored.push({ path: rel, reason, size: info.size, mtimeMs: Math.floor(info.mtimeMs) });
-        continue;
-      }
+      if (filteredOut(entry.name, info.size, info.mtimeMs, options)) continue;
       // mtimeMs 带亚毫秒小数，序列化后会与恢复值对不上，统一取整到毫秒
       files.set(rel, { path: rel, size: info.size, mtimeMs: Math.floor(info.mtimeMs) });
     }
