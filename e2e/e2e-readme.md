@@ -2,16 +2,17 @@
 
 每个文件对应一类场景。两位数字前缀只表示阅读顺序，与执行顺序无关——Playwright 并行跑。
 
-| 文件                        | 覆盖范围                             |
-| --------------------------- | ------------------------------------ |
-| `01-app-shell.spec.ts`      | 窗口骨架与菜单                       |
-| `02-scan-and-align.spec.ts` | 扫描与结构对齐执行                   |
-| `03-recent-pairs.spec.ts`   | 最近目录对落盘与重启回填             |
-| `04-soft-delete.spec.ts`    | 右键软删除、回收站可见、重扫后消失   |
-| `05-scan-settings.spec.ts`  | 扫描设置页开关、条件摘要、缺目录告警 |
-| `06-preview-stats.spec.ts`  | 预览统计的批量开关                   |
-| `07-display-filter.spec.ts` | 显示过滤缩小刷新与扩大提醒           |
-| `08-special.spec.ts`        | 过滤命中不列行与特殊视图             |
+| 文件                          | 覆盖范围                             |
+| ----------------------------- | ------------------------------------ |
+| `01-app-shell.spec.ts`        | 窗口骨架与菜单                       |
+| `02-scan-and-align.spec.ts`   | 扫描与结构对齐执行                   |
+| `03-recent-pairs.spec.ts`     | 最近目录对落盘与重启回填             |
+| `04-soft-delete.spec.ts`      | 右键软删除、回收站可见、重扫后消失   |
+| `05-scan-settings.spec.ts`    | 扫描设置页开关、条件摘要、缺目录告警 |
+| `06-preview-stats.spec.ts`    | 预览统计的批量开关                   |
+| `07-display-filter.spec.ts`   | 显示过滤缩小刷新与扩大提醒           |
+| `08-special.spec.ts`          | 过滤命中不列行与特殊视图             |
+| `09-execute-progress.spec.ts` | 大文件复制进度窗、最小化与恢复       |
 
 ## 01-app-shell.spec.ts
 
@@ -119,6 +120,14 @@
 - 左侧旧日期 `old.txt`（2026-01-01）与 `a.md`，右侧 `b.md`；设置页选「最近」 7 天
 - 扫描后 `old.txt` 不出现（全部视图 count 0），日期也不出现
 - 切到「特殊」视图仍不出现（过滤项不是特殊项）
+
+## 09-execute-progress.spec.ts
+
+验证执行进度窗：
+
+- 左侧 512MB 稀疏文件 `big.bin`，右侧空；扫描后点行内 `>` 触发复制
+- 进度窗出现「同步中」；点「最小化」收成胶囊，点胶囊恢复
+- 完成后目标文件大小为 512MB，进度窗自动消失
 
 ## 约定
 

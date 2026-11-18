@@ -1,6 +1,7 @@
 import type { DirPairEntry } from "../lib/dir-pairs";
 import type {
   DeletedRecord,
+  ExecuteProgress,
   ExecuteRequest,
   ExecuteResult,
   FilterPrefs,
@@ -25,6 +26,9 @@ export interface Api {
   resumeScan(): Promise<void>;
   cancelScan(): Promise<void>;
   execute(request: ExecuteRequest): Promise<ExecuteResult>;
+  pauseExecute(): Promise<void>;
+  resumeExecute(): Promise<void>;
+  cancelExecute(): Promise<void>;
   rehash(request: RehashRequest): Promise<RehashResult>;
   refresh(request: RefreshRequest): Promise<RefreshedRow[]>;
   listRecent(): Promise<RecentPair[]>;
@@ -34,6 +38,7 @@ export interface Api {
   listRecycle(request: RecycleListRequest): Promise<DeletedRecord[]>;
   restoreRecycle(request: RecycleRestoreRequest): Promise<string>;
   onProgress(callback: (progress: ScanProgress) => void): () => void;
+  onExecuteProgress(callback: (progress: ExecuteProgress) => void): () => void;
   log(level: string, message: string): Promise<void>;
 }
 

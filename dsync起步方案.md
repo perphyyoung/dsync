@@ -399,12 +399,15 @@ dsync/
 | `dir:pick` | — | `string \| null` |
 | `recent:list` | — | `RecentPair[]` |
 | `pairs:list` | — | `DirPairEntry[]`（全部档案，渲染层筛最近 10 / 搜索） |
-| `pairs:save` | `{ left, right, filters }` | `void`（条件变化防抖写入当前目录对） |
+| `pairs:save` | `{ left, right, filters }` | `void`（开始扫描时写入当前目录对） |
 | `sync:scan` | `ScanRequest` | `ScanOutcome`（取消时只有 `cancelled: true`） |
 | `sync:pause` | — | `void` |
 | `sync:resume` | — | `void` |
 | `sync:cancel` | — | `void` |
-| `sync:execute` | `ExecuteRequest` | `ExecuteResult` |
+| `sync:execute` | `ExecuteRequest` | `ExecuteResult`（取消时 `cancelled: true`） |
+| `sync:execute-pause` | — | `void` |
+| `sync:execute-resume` | — | `void` |
+| `sync:execute-cancel` | — | `void` |
 | `sync:rehash` | `RehashRequest` | `RehashResult` |
 | `log:renderer` | level, message | `void` |
 
@@ -413,6 +416,7 @@ dsync/
 | 事件 | 载荷 | 用途 |
 | --- | --- | --- |
 | `sync:progress` | `{ phase, done, total, current }` | 扫描与哈希进度 |
+| `sync:execute-progress` | `ExecuteProgress` | 执行进度（动作级 + 当前大文件字节级） |
 
 `ScanRequest` 含左右根目录与全部过滤字段（`minSize` / `maxSize` / `maxDepth` / `includeKeyword` / `excludeKeyword` / `modifiedAfter` / `modifiedBefore` / `skipHidden` / `includeExts` / `excludeExts` / `forceRehash`），**不含方向与结构基准**。
 
@@ -427,6 +431,7 @@ pick dirs → sync:scan(扫描 + 哈希 + 配对 + 索引落盘) → 渲染差�
 ```
 
 - 扫描进度用 `webContents.send` 推送，`invoke` 只返回最终结果。
+- 执行进度同样用事件推送，前端右下角小窗展示；小窗支持暂停 / 继续 / 取消 / 最小化，取消需气泡确认。
 - 10 万级条目序列化会有几十 MB，MVP 先接受；超过 20000 行时界面降级为「只渲染筛选后的子集」。
 - 索引在扫描结束时落盘到两侧 `.dsync/dsync.db`。
 
@@ -558,6 +563,7 @@ pick dirs → sync:scan(扫描 + 哈希 + 配对 + 索引落盘) → 渲染差�
 | D43 | 被忽略行区分左右侧并显示日期 | `IgnoredFile` 增加 `mtimeMs`；pipeline 分左右保留 ignored，plan 按 path 合并：单侧只在该侧显示路径/大小/日期，另一侧 `—`；两侧同路径合并一行，原因不同显示「左：…；右：…」 | 2026-11-18 |
 | D44 | 文件级过滤命中不列行 | 内部文件 / 大小 / 修改日期 / 后缀命中直接跳过，不生成行、不计数；`IgnoreReason` 只保留 symlink / special / unreadable；`IGNORE_NOTE` 同步精简 | 2026-11-18 |
 | D45 | 显示模式新增「特殊」 | 显示模式：全部 / 左侧 / 右侧 / 重复 / 占用 / 特殊；特殊行（符号链接 / 特殊文件 / 读取失败）只在「特殊」视图显示，其他视图不含；底部统计 label 改「特殊」；特殊项不读哈希、不参与配对与执行 | 2026-11-18 |
+| D46 | 执行进度小窗（复制进度 / 暂停 / 取消 / 最小化） | 单行与批量统一走右下角小窗（延迟 300ms，完成 1.5s 关闭）；动作级 + 大文件字节级进度（100ms 节流，带速度/ETA）；< 4MB 用 `copyFile`，≥ 4MB 用 1MB 分块复制（tmp + rename）；暂停在块边界等待并断点续写；取消需确认、删当前 tmp、已完成保留；最小化胶囊 | 2026-11-18 |
 
 无待确认项。
 

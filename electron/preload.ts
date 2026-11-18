@@ -3,6 +3,7 @@ import type { DirPairEntry } from "../src/lib/dir-pairs";
 import type { ScanProgress } from "../src/lib/types";
 import type {
   DeletedRecord,
+  ExecuteProgress,
   ExecuteRequest,
   FilterPrefs,
   RecentPair,
@@ -26,6 +27,9 @@ contextBridge.exposeInMainWorld("api", {
   resumeScan: (): Promise<void> => ipcRenderer.invoke("sync:resume"),
   cancelScan: (): Promise<void> => ipcRenderer.invoke("sync:cancel"),
   execute: (request: ExecuteRequest) => ipcRenderer.invoke("sync:execute", request),
+  pauseExecute: (): Promise<void> => ipcRenderer.invoke("sync:execute-pause"),
+  resumeExecute: (): Promise<void> => ipcRenderer.invoke("sync:execute-resume"),
+  cancelExecute: (): Promise<void> => ipcRenderer.invoke("sync:execute-cancel"),
   rehash: (request: RehashRequest): Promise<RehashResult> =>
     ipcRenderer.invoke("sync:rehash", request),
   refresh: (request: RefreshRequest): Promise<RefreshedRow[]> =>
@@ -45,6 +49,13 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.on("sync:progress", handler);
     return () => {
       ipcRenderer.off("sync:progress", handler);
+    };
+  },
+  onExecuteProgress: (callback: (progress: ExecuteProgress) => void): (() => void) => {
+    const handler = (_event: unknown, progress: ExecuteProgress): void => callback(progress);
+    ipcRenderer.on("sync:execute-progress", handler);
+    return () => {
+      ipcRenderer.off("sync:execute-progress", handler);
     };
   },
   log: (level: string, message: string): Promise<void> =>

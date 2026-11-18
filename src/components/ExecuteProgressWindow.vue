@@ -1,0 +1,214 @@
+<script setup lang="ts">
+import { computed, ref, watch } from "vue";
+import { formatEta } from "../lib/format";
+import type { ExecuteProgress } from "../lib/types";
+import ConfirmBubble from "./ConfirmBubble.vue";
+
+type ExecState = "running" | "paused" | "cancelled" | "done";
+
+const props = defineProps<{
+  visible: boolean;
+  minimized: boolean;
+  state: ExecState;
+  progress: ExecuteProgress | null;
+  summary: string;
+}>();
+
+const emit = defineEmits<{
+  pause: [];
+  resume: [];
+  cancel: [];
+  close: [];
+  minimize: [];
+  restore: [];
+}>();
+
+/* 取消确认就地展示，避免再开一层弹窗 */
+const cancelPending = ref(false);
+watch(
+  () => props.state,
+  () => {
+    cancelPending.value = false;
+  },
+);
+
+const title = computed(() => {
+  if (props.state === "paused") return "已暂停";
+  if (props.state === "cancelled") return "已取消";
+  if (props.state === "done") return "已完成";
+  return "同步中";
+});
+
+const percent = computed(() => {
+  const p = props.progress;
+  if (!p || p.total <= 0) return 0;
+  return Math.min(100, Math.round((p.done / p.total) * 100));
+});
+
+const filePercent = computed(() => {
+  const p = props.progress;
+  if (!p || p.fileBytesTotal <= 0) return 0;
+  return Math.min(100, Math.round((p.fileBytesDone / p.fileBytesTotal) * 100));
+});
+
+/* 速度：最近几次进度采样的字节差 / 时间差 */
+const samples = ref<{ at: number; bytes: number }[]>([]);
+watch(
+  () => props.progress,
+  (next) => {
+    if (!next || next.fileBytesTotal === 0) {
+      samples.value = [];
+      return;
+    }
+    samples.value.push({ at: Date.now(), bytes: next.fileBytesDone });
+    if (samples.value.length > 6) samples.value.shift();
+  },
+);
+
+const speed = computed(() => {
+  const list = samples.value;
+  if (list.length < 2) return null;
+  const first = list[0];
+  const last = list[list.length - 1];
+  const seconds = (last.at - first.at) / 1000;
+  if (seconds <= 0) return null;
+  return Math.max(0, (last.bytes - first.bytes) / seconds);
+});
+
+const speedText = computed(() => (speed.value === null ? "" : `${formatBytes(speed.value)}/s`));
+
+const etaText = computed(() => {
+  const p = props.progress;
+  if (!p || p.fileBytesTotal <= 0 || speed.value === null || speed.value <= 0) return "";
+  return formatEta((p.fileBytesTotal - p.fileBytesDone) / speed.value) ?? "";
+});
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${Math.round(bytes)} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+</script>
+
+<template>
+  <template v-if="visible">
+    <!-- 最小化：右下角胶囊 -->
+    <button
+      v-if="minimized"
+      type="button"
+      class="fixed right-6 bottom-6 z-50 rounded-full border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 shadow-xl hover:bg-slate-800"
+      title="展开同步进度"
+      @click="emit('restore')"
+    >
+      {{ title }} {{ percent }}%
+    </button>
+
+    <div
+      v-else
+      class="fixed right-6 bottom-6 z-50 w-80 rounded-lg border border-slate-600 bg-slate-900/95 p-3 text-xs shadow-2xl backdrop-blur"
+    >
+      <div class="flex items-center justify-between">
+        <span class="font-medium text-slate-100">{{ title }}</span>
+        <button
+          v-if="state === 'running' || state === 'paused'"
+          type="button"
+          class="rounded border border-slate-600 px-2 py-0.5 text-slate-300 hover:bg-slate-800"
+          title="最小化"
+          @click="emit('minimize')"
+        >
+          最小化
+        </button>
+      </div>
+
+      <div class="mt-2 flex items-center justify-between text-slate-400">
+        <span>第 {{ progress?.done ?? 0 }}/{{ progress?.total ?? 0 }} 个</span>
+        <span>{{ percent }}%</span>
+      </div>
+      <div class="mt-1 h-1.5 overflow-hidden rounded bg-slate-800">
+        <div class="h-full bg-sky-500 transition-[width]" :style="{ width: `${percent}%` }" />
+      </div>
+
+      <p
+        v-if="progress?.currentPath && (state === 'running' || state === 'paused')"
+        class="mt-2 truncate text-slate-300"
+        :title="progress.currentPath"
+      >
+        {{ progress.currentPath }}
+      </p>
+
+      <template
+        v-if="
+          progress && progress.fileBytesTotal > 0 && (state === 'running' || state === 'paused')
+        "
+      >
+        <div class="mt-1.5 flex items-center justify-between text-slate-500">
+          <span
+            >{{ formatBytes(progress.fileBytesDone) }} /
+            {{ formatBytes(progress.fileBytesTotal) }}</span
+          >
+          <span>{{ filePercent }}%</span>
+        </div>
+        <div class="mt-1 h-1 overflow-hidden rounded bg-slate-800">
+          <div class="h-full bg-sky-400 transition-[width]" :style="{ width: `${filePercent}%` }" />
+        </div>
+        <p v-if="speedText" class="mt-1 text-slate-500">
+          {{ speedText }}
+          <span v-if="etaText"> · {{ etaText }}</span>
+        </p>
+      </template>
+
+      <p v-if="state === 'done' || state === 'cancelled'" class="mt-2 text-slate-400">
+        {{ summary }}
+      </p>
+
+      <div class="mt-3 flex items-center justify-end gap-2">
+        <button
+          v-if="state === 'running'"
+          type="button"
+          class="rounded border border-slate-600 px-2 py-0.5 text-slate-300 hover:bg-slate-800"
+          @click="emit('pause')"
+        >
+          暂停
+        </button>
+        <button
+          v-else-if="state === 'paused'"
+          type="button"
+          class="rounded border border-slate-600 px-2 py-0.5 text-slate-300 hover:bg-slate-800"
+          @click="emit('resume')"
+        >
+          继续
+        </button>
+        <button
+          v-if="state === 'running' || state === 'paused'"
+          type="button"
+          class="rounded border border-rose-700 px-2 py-0.5 text-rose-300 hover:bg-rose-950/60"
+          @click="cancelPending = true"
+        >
+          取消
+        </button>
+        <button
+          v-if="state === 'done' || state === 'cancelled'"
+          type="button"
+          class="rounded border border-slate-600 px-2 py-0.5 text-slate-300 hover:bg-slate-800"
+          @click="emit('close')"
+        >
+          关闭
+        </button>
+      </div>
+
+      <div v-if="cancelPending" class="mt-2">
+        <ConfirmBubble
+          floating
+          title="取消同步"
+          message="已完成的动作会保留，当前文件会被丢弃。"
+          confirm-text="取消同步"
+          cancel-text="继续执行"
+          danger
+          @confirm="emit('cancel')"
+          @cancel="cancelPending = false"
+        />
+      </div>
+    </div>
+  </template>
+</template>

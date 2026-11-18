@@ -1,7 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import { rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { executeActions } from "../src/lib/execute";
+import { COPY_CHUNK_SIZE, executeActions } from "../src/lib/execute";
+import { ExecutionController } from "../src/lib/execute-controller";
 import { ScanCancelledError, ScanController } from "../src/lib/controller";
 import { runScan } from "../src/lib/pipeline";
 import { migrateMoveCaches } from "../src/lib/index-migrate";
@@ -13,6 +14,7 @@ import type { DirPairEntry } from "../src/lib/dir-pairs";
 import { detectStale, refreshPaths } from "../src/lib/refresh";
 import { rehashPair } from "../src/lib/rehash";
 import type {
+  ExecuteProgress,
   ExecuteRequest,
   FilterPrefs,
   RecentPair,
@@ -29,6 +31,7 @@ const LOG_LEVELS = new Set(["error", "warn", "info", "debug"]);
 let mainWindow: BrowserWindow | null = null;
 let dirPairsDb: DirPairsStore | null = null;
 let currentController: ScanController | null = null;
+let execController: ExecutionController | null = null;
 
 /** dev 写项目根 ds-data；e2e 通过 DSYNC_DATA_DIR 隔离；release 用 userData */
 function dataRoot(): string {
@@ -323,7 +326,7 @@ ipcMain.handle("recycle:restore", async (_event, raw: unknown) => {
   });
 });
 
-ipcMain.handle("sync:execute", async (_event, raw: unknown) => {
+ipcMain.handle("sync:execute", async (event, raw: unknown) => {
   return handleIpc("sync:execute", async () => {
     const request = parseExecuteRequest(raw);
 
@@ -333,15 +336,52 @@ ipcMain.handle("sync:execute", async (_event, raw: unknown) => {
     const staleSet = new Set(stale.map((item) => item.path));
     const actions = request.actions.filter((action) => !staleSet.has(action.toPath));
 
-    const result = await executeActions({ ...request, actions }, { softDelete });
-    result.stale = stale;
-    await migrateMoveCaches(request.leftRoot, request.rightRoot, result.moves);
-    log.info(
-      `[execute] copied=${result.copied} moved=${result.moved} ` +
-        `deleted=${result.deleted} failed=${result.failed.length} stale=${stale.length}`,
-    );
-    return result;
+    const controller = new ExecutionController();
+    execController = controller;
+    const sender = event.sender;
+    let lastAt = 0;
+    let lastBytes = 0;
+    try {
+      const result = await executeActions(
+        { ...request, actions },
+        { softDelete },
+        {
+          controller,
+          onProgress: (progress: ExecuteProgress) => {
+            /* 节流：100ms 或字节跳变 1MB 才推送，避免 IPC 风暴 */
+            const now = Date.now();
+            const bigJump = Math.abs(progress.fileBytesDone - lastBytes) >= COPY_CHUNK_SIZE;
+            if (now - lastAt < 100 && !bigJump) return;
+            lastAt = now;
+            lastBytes = progress.fileBytesDone;
+            if (!sender.isDestroyed()) sender.send("sync:execute-progress", progress);
+          },
+        },
+      );
+      result.stale = stale;
+      await migrateMoveCaches(request.leftRoot, request.rightRoot, result.moves);
+      log.info(
+        `[execute] copied=${result.copied} moved=${result.moved} ` +
+          `deleted=${result.deleted} failed=${result.failed.length} ` +
+          `stale=${stale.length} cancelled=${result.cancelled}`,
+      );
+      return result;
+    } finally {
+      execController = null;
+    }
   });
+});
+
+ipcMain.handle("sync:execute-pause", (): void => {
+  execController?.pause();
+});
+
+ipcMain.handle("sync:execute-resume", (): void => {
+  execController?.resume();
+});
+
+ipcMain.handle("sync:execute-cancel", (): void => {
+  execController?.cancel();
 });
 
 ipcMain.handle("log:renderer", (_event, level: unknown, message: unknown): void => {

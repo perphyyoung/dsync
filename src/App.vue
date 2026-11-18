@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import ConfirmBubble from "./components/ConfirmBubble.vue";
+import ExecuteProgressWindow from "./components/ExecuteProgressWindow.vue";
 import FileList from "./components/FileList.vue";
 import FilterPanel from "./components/FilterPanel.vue";
 import ProgressPage from "./components/ProgressPage.vue";
@@ -23,6 +24,7 @@ import { verifyOutcome } from "./lib/verify";
 import type {
   DeletedRecord,
   DiffRow,
+  ExecuteProgress,
   FilterPrefs,
   MismatchEntry,
   RefreshTarget,
@@ -76,6 +78,16 @@ const displaySkipHidden = ref(true);
 const scanning = ref(false);
 const executing = ref(false);
 const progress = ref<ScanProgress | null>(null);
+
+/* 执行进度窗：动作级进度 + 当前大文件字节进度 */
+const execVisible = ref(false);
+const execMinimized = ref(false);
+const execState = ref<"running" | "paused" | "cancelled" | "done">("running");
+const execProgress = ref<ExecuteProgress | null>(null);
+const execSummary = ref("");
+let execShowTimer: ReturnType<typeof setTimeout> | null = null;
+let execHideTimer: ReturnType<typeof setTimeout> | null = null;
+let unsubscribeExecuteProgress: (() => void) | null = null;
 const forceRehashActive = ref(false);
 const progressView = ref<"hidden" | "running" | "paused" | "cancelled">("hidden");
 const settingsOpen = ref(false);
@@ -533,6 +545,9 @@ onMounted(() => {
   unsubscribeProgress = window.api.onProgress((next) => {
     progress.value = next;
   });
+  unsubscribeExecuteProgress = window.api.onExecuteProgress((next) => {
+    execProgress.value = next;
+  });
 
   /* 先载入目录对档案，再回填目录，条件随目录对应用 */
   void (async () => {
@@ -565,7 +580,10 @@ async function restoreLastPair(): Promise<void> {
 
 onUnmounted(() => {
   unsubscribeProgress?.();
+  unsubscribeExecuteProgress?.();
   if (toastTimer) clearTimeout(toastTimer);
+  if (execShowTimer) clearTimeout(execShowTimer);
+  if (execHideTimer) clearTimeout(execHideTimer);
 });
 
 async function pick(side: "left" | "right"): Promise<void> {
@@ -973,13 +991,52 @@ function formatMismatch(entries: MismatchEntry[]): string {
   return `${entries.length} 个文件执行结果与预期不符：${detail}`;
 }
 
+function resetExecWindow(total: number): void {
+  if (execShowTimer) clearTimeout(execShowTimer);
+  if (execHideTimer) clearTimeout(execHideTimer);
+  execShowTimer = null;
+  execHideTimer = null;
+  execVisible.value = false;
+  execMinimized.value = false;
+  execState.value = "running";
+  execSummary.value = "";
+  execProgress.value = { done: 0, total, currentPath: "", fileBytesDone: 0, fileBytesTotal: 0 };
+}
+
+/** 300ms 内完成的小任务不弹进度窗，避免闪烁 */
+function openExecWindowSoon(): void {
+  execShowTimer = setTimeout(() => {
+    execShowTimer = null;
+    if (executing.value) execVisible.value = true;
+  }, 300);
+}
+
+async function pauseExecute(): Promise<void> {
+  if (execState.value !== "running") return;
+  await window.api.pauseExecute();
+  execState.value = "paused";
+}
+
+async function resumeExecute(): Promise<void> {
+  if (execState.value !== "paused") return;
+  await window.api.resumeExecute();
+  execState.value = "running";
+}
+
+async function cancelExecute(): Promise<void> {
+  await window.api.cancelExecute();
+}
+
 async function runActions(actions: SyncAction[], label: string): Promise<void> {
   if (!leftRoot.value || !rightRoot.value) return;
   if (actions.length === 0) {
     showToast(`${label}：没有可执行的动作`);
     return;
   }
+  if (executing.value) return;
   executing.value = true;
+  resetExecWindow(actions.length);
+  openExecWindowSoon();
   try {
     const outcome = await window.api.execute({
       leftRoot: leftRoot.value,
@@ -997,11 +1054,42 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
       : [];
     applyRefresh(refreshed);
 
-    showToast(`${label}：复制 ${outcome.copied}，改名 ${outcome.moved}，删除 ${outcome.deleted}`);
+    execSummary.value = `复制 ${outcome.copied}，改名 ${outcome.moved}，删除 ${outcome.deleted}`;
+    execState.value = outcome.cancelled ? "cancelled" : "done";
+    execProgress.value = {
+      ...(execProgress.value ?? {
+        done: 0,
+        total: actions.length,
+        currentPath: "",
+        fileBytesDone: 0,
+        fileBytesTotal: 0,
+      }),
+      done: outcome.cancelled ? (execProgress.value?.done ?? 0) : actions.length,
+      fileBytesDone: 0,
+      fileBytesTotal: 0,
+    };
+    if (execShowTimer) {
+      clearTimeout(execShowTimer);
+      execShowTimer = null;
+    }
+    execVisible.value = true;
+    execMinimized.value = false;
+    if (execHideTimer) clearTimeout(execHideTimer);
+    execHideTimer = setTimeout(
+      () => {
+        execVisible.value = false;
+        execHideTimer = null;
+      },
+      outcome.cancelled ? 2500 : 1500,
+    );
+
+    showToast(
+      outcome.cancelled ? `${label}已取消：${execSummary.value}` : `${label}：${execSummary.value}`,
+    );
     void window.api.log(
       "info",
       `[${label}] copied=${outcome.copied} moved=${outcome.moved} deleted=${outcome.deleted} ` +
-        `failed=${outcome.failed.length} stale=${outcome.stale.length}`,
+        `failed=${outcome.failed.length} stale=${outcome.stale.length} cancelled=${outcome.cancelled}`,
     );
 
     if (outcome.stale.length > 0) {
@@ -1023,6 +1111,11 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
     }
   } catch (error) {
     pushAlert(error instanceof Error ? error.message : String(error));
+    if (execShowTimer) {
+      clearTimeout(execShowTimer);
+      execShowTimer = null;
+    }
+    execVisible.value = false;
   } finally {
     executing.value = false;
   }
@@ -1612,5 +1705,18 @@ async function executePreview(): Promise<void> {
     </div>
 
     <ToastBubble v-if="toast" :message="toast" />
+    <ExecuteProgressWindow
+      :visible="execVisible"
+      :minimized="execMinimized"
+      :state="execState"
+      :progress="execProgress"
+      :summary="execSummary"
+      @pause="void pauseExecute()"
+      @resume="void resumeExecute()"
+      @cancel="void cancelExecute()"
+      @close="execVisible = false"
+      @minimize="execMinimized = true"
+      @restore="execMinimized = false"
+    />
   </div>
 </template>

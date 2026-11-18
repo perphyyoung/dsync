@@ -182,6 +182,15 @@ export interface ExecuteRequest {
   actions: SyncAction[];
 }
 
+/** 执行进度：done 为已完成动作数；fileBytes* 仅当前大文件复制时有值 */
+export interface ExecuteProgress {
+  done: number;
+  total: number;
+  currentPath: string;
+  fileBytesDone: number;
+  fileBytesTotal: number;
+}
+
 /** 局部刷新：只检查给定行的两侧文件 */
 export interface RefreshTarget {
   rowIndex: number;
@@ -237,6 +246,8 @@ export interface ExecuteResult {
   moves: MoveRecord[];
   /** 扫描后被外部改动、已跳过的动作 */
   stale: StaleEntry[];
+  /** 用户取消：已完成动作保留，当前文件丢弃 */
+  cancelled: boolean;
 }
 
 export interface RecycleListRequest {
