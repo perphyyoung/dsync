@@ -182,6 +182,8 @@ export interface ExecuteRequest {
   leftRoot: string;
   rightRoot: string;
   actions: SyncAction[];
+  /** 复制限速（字节/秒），0 或不传表示不限；执行中可通过 IPC 调整 */
+  rateLimitBytesPerSec?: number;
 }
 
 /** 执行进度：done 为已完成动作数；fileBytes* 仅当前大文件复制时有值 */

@@ -83,11 +83,12 @@
 - 2026-11-18：实现完成。新增 `execute-controller.ts`（暂停/取消）、`execute.ts` 分块复制与进度、IPC 3 个控制接口 + 进度事件、`ExecuteProgressWindow.vue`（延迟 300ms、最小化胶囊、取消确认、速度/ETA）；单测 121 条（新增 8 条）、e2e 18 条（新增 09 大文件进度窗）全绿；文档 design / 起步方案 D46 / 通用语言 / e2e-readme 已同步。
 - 2026-11-18：P1 三项完成（校验 / 续传 / 7 天清理）。`execute.ts` 复制后 SHA-256 校验（`filesMatch`，不一致删 tmp 计入 failed）；取消保留 `.dsynctmp`，再次执行从已有字节续写；`scan.ts` 扫描时清理超 7 天 `.dsynctmp`（`cleanStaleTmp`，不受关键字影响）。单测 125 条（新增 4 条）、e2e 18 条全绿；文档 design / D47 / 通用语言已同步。限速与失败重试仍待做。
 - 2026-11-18：按方案 C 优化校验：`SyncAction.sourceHash` 携带源侧扫描哈希（`actionForRow` 填充），复制后只校验 tmp、不重读源；无哈希的旧调用回退 `filesMatch`。单测 127 条、e2e 18 条（09 降至 7.1s）全绿。
+- 2026-11-18：剩余 P1 完成。失败重试：`runActions` 记录失败动作，进度窗（`failedCount`）与失败告警条给出「重试失败项」；限速：进度窗 不限/10/50/100 MB/s（`sync:execute-rate`，仅分块复制，执行中可调），`ExecuteRequest.rateLimitBytesPerSec` 随请求带入。单测 128 条、e2e 18 条全绿；文档 design / D48 / 通用语言 / e2e-readme 已同步。
 
 ### 后续待办（P1）
 
-- [ ] 失败项重试：执行结束后在进度窗和告警条给「重试失败项」入口，只重跑 failed 动作，不重跑已成功的（TeraCopy 风格）
+- [x] 失败项重试：执行结束后在进度窗和告警条给「重试失败项」入口，只重跑 failed 动作，不重跑已成功的（TeraCopy 风格）
 - [x] 中断保留半成品 + 续传：取消或崩溃后保留 `.dsynctmp`，下次同路径复制时从断点续写（rsync `--partial` / WinSCP `.filepart`）
 - [x] 过期 `.dsynctmp` 清理：扫描时删除超过 7 天的半成品（不扫启动，扫描时兜底）
-- [ ] 限速：执行可配置速度上限（rclone `--bwlimit` / UltraCopier），大文件占满带宽时可降速
+- [x] 限速：执行进度窗内 不限 / 10 / 50 / 100 MB/s，执行中可调（rclone `--bwlimit` 思路，仅分块复制生效）
 - [x] 执行后自动校验：复制后对源与 `.dsynctmp` 做 SHA-256 比对，一致才 rename；不一致删除并计入 failed

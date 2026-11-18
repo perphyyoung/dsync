@@ -29,6 +29,7 @@ export interface Api {
   pauseExecute(): Promise<void>;
   resumeExecute(): Promise<void>;
   cancelExecute(): Promise<void>;
+  setExecuteRate(bytesPerSec: number): Promise<void>;
   rehash(request: RehashRequest): Promise<RehashResult>;
   refresh(request: RefreshRequest): Promise<RefreshedRow[]>;
   listRecent(): Promise<RecentPair[]>;

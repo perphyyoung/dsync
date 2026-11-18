@@ -33,6 +33,8 @@ test("大文件复制显示进度窗，可最小化与恢复", async ({ slot }) 
   /* 单行复制：非预览模式点 > 按钮 */
   await page.getByTitle("以左侧为准同步到右侧", { exact: true }).click();
   await expect(page.getByText("同步中", { exact: true })).toBeVisible({ timeout: 5_000 });
+  /* 限速入口在执行中可见（不改速率，避免拖慢用例） */
+  await expect(page.getByLabel("复制限速")).toBeVisible();
 
   /* 最小化 → 胶囊 → 恢复 */
   await page.getByTitle("最小化").click();

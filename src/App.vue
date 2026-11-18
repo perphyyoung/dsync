@@ -85,6 +85,9 @@ const execMinimized = ref(false);
 const execState = ref<"running" | "paused" | "cancelled" | "done">("running");
 const execProgress = ref<ExecuteProgress | null>(null);
 const execSummary = ref("");
+const execFailures = ref<SyncAction[]>([]);
+/** 复制限速（MB/s），0 表示不限；本会话有效 */
+const execRateLimit = ref(0);
 let execShowTimer: ReturnType<typeof setTimeout> | null = null;
 let execHideTimer: ReturnType<typeof setTimeout> | null = null;
 let unsubscribeExecuteProgress: (() => void) | null = null;
@@ -94,7 +97,12 @@ const settingsOpen = ref(false);
 const result = ref<ScanResult | null>(null);
 const selected = ref<Set<number>>(new Set());
 const toast = ref<string | null>(null);
-const alerts = ref<string[]>([]);
+interface AlertItem {
+  message: string;
+  /** 执行失败时可直接重试的动作 */
+  retry?: SyncAction[];
+}
+const alerts = ref<AlertItem[]>([]);
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 const previewSide = ref<Side | null>(null);
@@ -756,7 +764,7 @@ async function scan(forceRehash = false): Promise<void> {
     scannedFilters.value = attempted;
     upsertLocalPair(true);
     selected.value = new Set();
-    alerts.value = [...scanned.warnings];
+    alerts.value = scanned.warnings.map((message) => ({ message }));
     if (scanned.warnings.length > 0) {
       void window.api.log("warn", `[scan] ${scanned.warnings.join("；")}`);
     }
@@ -807,9 +815,26 @@ function showToast(message: string): void {
 }
 
 function pushAlert(message: string): void {
-  if (!message || alerts.value.includes(message)) return;
-  alerts.value = [...alerts.value, message];
+  if (!message || alerts.value.some((item) => item.message === message)) return;
+  alerts.value = [...alerts.value, { message }];
   void window.api.log("warn", `[ui] ${message}`);
+}
+
+/** 带「重试失败项」入口的告警（仅执行失败） */
+function pushRetryAlert(message: string, actions: SyncAction[]): void {
+  alerts.value = [
+    ...alerts.value.filter((item) => item.message !== message),
+    { message, retry: actions },
+  ];
+  void window.api.log("warn", `[ui] ${message}`);
+}
+
+function retryAlert(index: number): void {
+  const item = alerts.value[index];
+  if (!item?.retry?.length) return;
+  alerts.value = alerts.value.filter((_, i) => i !== index);
+  execVisible.value = false;
+  void runActions(item.retry, "重试失败项");
 }
 
 function dismissAlert(index: number): void {
@@ -1027,6 +1052,20 @@ async function cancelExecute(): Promise<void> {
   await window.api.cancelExecute();
 }
 
+/** 重试失败项：只重跑本次 failed 的动作 */
+function retryExecFailed(): void {
+  if (execFailures.value.length === 0) return;
+  const actions = execFailures.value;
+  execVisible.value = false;
+  void runActions(actions, "重试失败项");
+}
+
+/** 调整复制限速：执行中立即生效；下次执行随请求带走 */
+async function changeExecRate(megabytesPerSecond: number): Promise<void> {
+  execRateLimit.value = megabytesPerSecond;
+  await window.api.setExecuteRate(megabytesPerSecond * 1024 * 1024);
+}
+
 async function runActions(actions: SyncAction[], label: string): Promise<void> {
   if (!leftRoot.value || !rightRoot.value) return;
   if (actions.length === 0) {
@@ -1035,6 +1074,7 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
   }
   if (executing.value) return;
   executing.value = true;
+  execFailures.value = [];
   resetExecWindow(actions.length);
   openExecWindowSoon();
   try {
@@ -1042,6 +1082,7 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
       leftRoot: leftRoot.value,
       rightRoot: rightRoot.value,
       actions,
+      rateLimitBytesPerSec: execRateLimit.value * 1024 * 1024,
     });
 
     const targets = buildTargets(actions);
@@ -1053,6 +1094,9 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
         })
       : [];
     applyRefresh(refreshed);
+
+    const failedPaths = new Set(outcome.failed.map((item) => item.path));
+    execFailures.value = actions.filter((action) => failedPaths.has(action.toPath));
 
     execSummary.value = `复制 ${outcome.copied}，改名 ${outcome.moved}，删除 ${outcome.deleted}`;
     execState.value = outcome.cancelled ? "cancelled" : "done";
@@ -1102,12 +1146,11 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
       pushAlert(formatMismatch(mismatched));
     }
     if (outcome.failed.length > 0) {
-      pushAlert(
-        outcome.failed
-          .slice(0, 5)
-          .map((item) => `${item.path}：${item.message}`)
-          .join("；"),
-      );
+      const message = outcome.failed
+        .slice(0, 5)
+        .map((item) => `${item.path}：${item.message}`)
+        .join("；");
+      pushRetryAlert(message, execFailures.value);
     }
   } catch (error) {
     pushAlert(error instanceof Error ? error.message : String(error));
@@ -1632,7 +1675,15 @@ async function executePreview(): Promise<void> {
             :key="index"
             class="flex items-start gap-3 px-4 py-1.5 text-xs text-amber-200"
           >
-            <span class="flex-1">{{ alert }}</span>
+            <span class="flex-1">{{ alert.message }}</span>
+            <button
+              v-if="alert.retry"
+              type="button"
+              class="text-amber-300 underline hover:text-amber-100"
+              @click="retryAlert(index)"
+            >
+              重试失败项
+            </button>
             <button
               type="button"
               class="text-amber-400 hover:text-amber-200"
@@ -1711,12 +1762,16 @@ async function executePreview(): Promise<void> {
       :state="execState"
       :progress="execProgress"
       :summary="execSummary"
+      :failed-count="execFailures.length"
+      :rate-limit="execRateLimit"
       @pause="void pauseExecute()"
       @resume="void resumeExecute()"
       @cancel="void cancelExecute()"
       @close="execVisible = false"
       @minimize="execMinimized = true"
       @restore="execMinimized = false"
+      @retry="retryExecFailed"
+      @rate-change="void changeExecRate($event)"
     />
   </div>
 </template>

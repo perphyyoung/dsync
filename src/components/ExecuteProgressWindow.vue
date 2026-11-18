@@ -12,6 +12,10 @@ const props = defineProps<{
   state: ExecState;
   progress: ExecuteProgress | null;
   summary: string;
+  /** 失败动作数：> 0 时完成态显示重试入口 */
+  failedCount: number;
+  /** 复制限速（MB/s），0 表示不限 */
+  rateLimit: number;
 }>();
 
 const emit = defineEmits<{
@@ -21,6 +25,8 @@ const emit = defineEmits<{
   close: [];
   minimize: [];
   restore: [];
+  retry: [];
+  rateChange: [number];
 }>();
 
 /* 取消确认就地展示，避免再开一层弹窗 */
@@ -162,6 +168,24 @@ function formatBytes(bytes: number): string {
         {{ summary }}
       </p>
 
+      <div
+        v-if="state === 'running' || state === 'paused'"
+        class="mt-2 flex items-center gap-2 text-slate-500"
+      >
+        <span>限速</span>
+        <select
+          :value="rateLimit"
+          aria-label="复制限速"
+          class="rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-slate-200"
+          @change="emit('rateChange', Number(($event.target as HTMLSelectElement).value))"
+        >
+          <option :value="0">不限</option>
+          <option :value="10">10 MB/s</option>
+          <option :value="50">50 MB/s</option>
+          <option :value="100">100 MB/s</option>
+        </select>
+      </div>
+
       <div class="mt-3 flex items-center justify-end gap-2">
         <button
           v-if="state === 'running'"
@@ -194,6 +218,14 @@ function formatBytes(bytes: number): string {
           @click="emit('close')"
         >
           关闭
+        </button>
+        <button
+          v-if="(state === 'done' || state === 'cancelled') && failedCount > 0"
+          type="button"
+          class="rounded bg-emerald-600 px-2 py-0.5 font-medium text-white hover:bg-emerald-500"
+          @click="emit('retry')"
+        >
+          重试失败项（{{ failedCount }}）
         </button>
       </div>
 

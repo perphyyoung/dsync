@@ -33,6 +33,14 @@ describe("执行控制器", () => {
     expect(() => controller.throwIfCancelled()).toThrow(ExecutionCancelledError);
   });
 
+  it("限速值取整，负数归零", () => {
+    const controller = new ExecutionController();
+    controller.setRateLimit(1048576.7);
+    expect(controller.rateLimitBytesPerSec).toBe(1048577);
+    controller.setRateLimit(-5);
+    expect(controller.rateLimitBytesPerSec).toBe(0);
+  });
+
   it("取消后再次暂停也直接抛错", async () => {
     const controller = new ExecutionController();
     controller.cancel();

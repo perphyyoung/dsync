@@ -47,6 +47,8 @@ async function copyInChunks(
   const dst = await open(target, startOffset > 0 ? "r+" : "w");
   const buffer = Buffer.alloc(COPY_CHUNK_SIZE);
   let offset = startOffset;
+  const rateStart = Date.now();
+  let rateBytes = 0;
   try {
     while (offset < size) {
       await ctx.controller?.waitIfPaused();
@@ -55,7 +57,18 @@ async function copyInChunks(
       if (bytesRead === 0) break;
       await dst.write(buffer, 0, bytesRead, offset);
       offset += bytesRead;
+      rateBytes += bytesRead;
       ctx.onBytes?.(offset, size);
+
+      /* 限速：按总字节与目标速率补齐等待，块粒度 1MB，取消响应 <= 1 块耗时 */
+      const rate = ctx.controller?.rateLimitBytesPerSec ?? 0;
+      if (rate > 0) {
+        const targetMs = (rateBytes / rate) * 1000;
+        const elapsed = Date.now() - rateStart;
+        if (targetMs > elapsed) {
+          await new Promise((resolve) => setTimeout(resolve, targetMs - elapsed));
+        }
+      }
     }
   } finally {
     await src.close();

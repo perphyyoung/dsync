@@ -30,6 +30,8 @@ contextBridge.exposeInMainWorld("api", {
   pauseExecute: (): Promise<void> => ipcRenderer.invoke("sync:execute-pause"),
   resumeExecute: (): Promise<void> => ipcRenderer.invoke("sync:execute-resume"),
   cancelExecute: (): Promise<void> => ipcRenderer.invoke("sync:execute-cancel"),
+  setExecuteRate: (bytesPerSec: number): Promise<void> =>
+    ipcRenderer.invoke("sync:execute-rate", bytesPerSec),
   rehash: (request: RehashRequest): Promise<RehashResult> =>
     ipcRenderer.invoke("sync:rehash", request),
   refresh: (request: RefreshRequest): Promise<RefreshedRow[]> =>

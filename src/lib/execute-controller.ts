@@ -12,8 +12,14 @@ export class ExecutionCancelledError extends Error {
 export class ExecutionController {
   paused = false;
   cancelled = false;
+  /** 复制限速（字节/秒），0 表示不限 */
+  rateLimitBytesPerSec = 0;
 
   private waiters: (() => void)[] = [];
+
+  setRateLimit(bytesPerSec: number): void {
+    this.rateLimitBytesPerSec = Math.max(0, Math.round(bytesPerSec));
+  }
 
   pause(): void {
     this.paused = true;

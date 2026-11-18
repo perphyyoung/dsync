@@ -136,7 +136,18 @@ function parseExecuteRequest(value: unknown): ExecuteRequest {
     );
   });
 
-  return { leftRoot, rightRoot, actions: valid };
+  const rawRate = input["rateLimitBytesPerSec"];
+  const rateLimitBytesPerSec =
+    typeof rawRate === "number" && Number.isFinite(rawRate) && rawRate > 0
+      ? Math.round(rawRate)
+      : undefined;
+
+  return {
+    leftRoot,
+    rightRoot,
+    actions: valid,
+    ...(rateLimitBytesPerSec ? { rateLimitBytesPerSec } : {}),
+  };
 }
 
 ipcMain.handle("dir:pick", async (_event, raw?: unknown): Promise<string | null> => {
@@ -337,6 +348,7 @@ ipcMain.handle("sync:execute", async (event, raw: unknown) => {
     const actions = request.actions.filter((action) => !staleSet.has(action.toPath));
 
     const controller = new ExecutionController();
+    controller.setRateLimit(request.rateLimitBytesPerSec ?? 0);
     execController = controller;
     const sender = event.sender;
     let lastAt = 0;
@@ -382,6 +394,11 @@ ipcMain.handle("sync:execute-resume", (): void => {
 
 ipcMain.handle("sync:execute-cancel", (): void => {
   execController?.cancel();
+});
+
+ipcMain.handle("sync:execute-rate", (_event, raw: unknown): void => {
+  if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0) return;
+  execController?.setRateLimit(raw);
 });
 
 ipcMain.handle("log:renderer", (_event, level: unknown, message: unknown): void => {
