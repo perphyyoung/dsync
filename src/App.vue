@@ -122,6 +122,9 @@ const DEFAULT_FILTERS: FilterPrefs = {
 
 const pairEntries = ref<DirPairEntry[]>([]);
 
+/* 扫描过滤行使用的条件快照：只在扫描成功后更新 */
+const scannedFilters = ref<FilterPrefs>({ ...DEFAULT_FILTERS });
+
 function currentFilters(): FilterPrefs {
   return {
     sizeEnabled: sizeEnabled.value,
@@ -158,6 +161,7 @@ function applyFilters(data: FilterPrefs): void {
   dateTo.value = data.dateTo;
   recentDays.value = data.recentDays;
   skipHidden.value = data.skipHidden;
+  scannedFilters.value = { ...data };
 }
 
 /** 目录对变化：有存档应用存档，没有回默认（不沿用上一个目录对的条件） */
@@ -167,8 +171,6 @@ function applyPairForRoots(): void {
   const entry = pairEntries.value.find((item) => pairKey(item.left, item.right) === key);
   applyFilters(entry?.filters ?? DEFAULT_FILTERS);
 }
-
-let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function savePairFiltersNow(): Promise<void> {
   if (!leftRoot.value || !rightRoot.value) return;
@@ -199,16 +201,7 @@ function upsertLocalPair(used: boolean): void {
   pairEntries.value = [entry, ...rest];
 }
 
-/** 条件变化防抖 500ms 保存；开始扫描前会强制落盘 */
-function scheduleSaveFilters(): void {
-  if (!leftRoot.value || !rightRoot.value) return;
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    saveTimer = null;
-    void savePairFiltersNow();
-  }, 500);
-}
-
+/** 条件变化不再作废结果、也不再自动保存；等点击「开始扫描」才落盘 */
 // 目录变化：结果作废并按目录对加载条件；互换时结果由 swapRoots 直接镜像
 let swappingRoots = false;
 watch([leftRoot, rightRoot], () => {
@@ -219,31 +212,6 @@ watch([leftRoot, rightRoot], () => {
   resetResult();
   applyPairForRoots();
 });
-
-// 条件变化：结果作废并延迟保存
-watch(
-  [
-    sizeEnabled,
-    sizeMin,
-    sizeMax,
-    sizeMinUnit,
-    sizeMaxUnit,
-    maxDepth,
-    includeInput,
-    excludeInput,
-    includeKeywordInput,
-    excludeKeywordInput,
-    timeMode,
-    dateFrom,
-    dateTo,
-    recentDays,
-    skipHidden,
-  ],
-  () => {
-    resetResult();
-    scheduleSaveFilters();
-  },
-);
 
 /* 切到「最近」时给个可用默认值 */
 watch(timeMode, (mode) => {
@@ -577,7 +545,6 @@ async function restoreLastPair(): Promise<void> {
 onUnmounted(() => {
   unsubscribeProgress?.();
   if (toastTimer) clearTimeout(toastTimer);
-  if (saveTimer) clearTimeout(saveTimer);
 });
 
 async function pick(side: "left" | "right"): Promise<void> {
@@ -635,7 +602,7 @@ async function openDir(side: "left" | "right"): Promise<void> {
   }
 }
 
-/** 结果只对应当前目录与过滤条件，一旦输入变化立即作废 */
+/** 目录变化或开始扫描时作废旧结果；改条件不清空 */
 function resetResult(): void {
   result.value = null;
   selected.value = new Set();
@@ -658,31 +625,38 @@ function timeWindow(): { modifiedAfter: number; modifiedBefore: number } {
   });
 }
 
-/* 扫描过滤行：只列相对默认值被改过的项，顺序与显示过滤行一致 */
+/* 扫描过滤行：只列相对默认值被改过的项，顺序与显示过滤行一致；只在扫描成功后更新 */
 const scanFilterTags = computed(() => {
+  const filters = scannedFilters.value;
   const tags: string[] = [];
-  if (maxDepth.value > 0) tags.push(`层级 ≤ ${maxDepth.value}`);
-  if (includeKeywordInput.value.trim()) tags.push(`只含关键字 ${includeKeywordInput.value.trim()}`);
-  if (excludeKeywordInput.value.trim()) tags.push(`排除关键字 ${excludeKeywordInput.value.trim()}`);
-  if (includeInput.value.trim()) tags.push(`只含后缀 ${includeInput.value.trim()}`);
-  if (excludeInput.value.trim()) tags.push(`排除后缀 ${excludeInput.value.trim()}`);
-  if (timeMode.value === "recent") {
-    tags.push(`最近 ${recentDays.value} 天`);
-  } else if (timeMode.value === "custom") {
-    if (dateFrom.value && dateTo.value) tags.push(`${dateFrom.value} 至 ${dateTo.value}`);
-    else if (dateFrom.value) tags.push(`起始 ${dateFrom.value}`);
-    else if (dateTo.value) tags.push(`截止 ${dateTo.value}`);
+  if (filters.maxDepth > 0) tags.push(`层级 ≤ ${filters.maxDepth}`);
+  if (filters.includeKeywordInput.trim()) {
+    tags.push(`只含关键字 ${filters.includeKeywordInput.trim()}`);
   }
-  if (sizeEnabled.value && (sizeMin.value > 0 || sizeMax.value > 0)) {
-    if (sizeMin.value > 0 && sizeMax.value > 0) {
-      tags.push(`大小 ${sizeMin.value} ${sizeMinUnit.value}–${sizeMax.value} ${sizeMaxUnit.value}`);
-    } else if (sizeMin.value > 0) {
-      tags.push(`大小 ≥ ${sizeMin.value} ${sizeMinUnit.value}`);
+  if (filters.excludeKeywordInput.trim()) {
+    tags.push(`排除关键字 ${filters.excludeKeywordInput.trim()}`);
+  }
+  if (filters.includeInput.trim()) tags.push(`只含后缀 ${filters.includeInput.trim()}`);
+  if (filters.excludeInput.trim()) tags.push(`排除后缀 ${filters.excludeInput.trim()}`);
+  if (filters.timeMode === "recent") {
+    tags.push(`最近 ${filters.recentDays} 天`);
+  } else if (filters.timeMode === "custom") {
+    if (filters.dateFrom && filters.dateTo) tags.push(`${filters.dateFrom} 至 ${filters.dateTo}`);
+    else if (filters.dateFrom) tags.push(`起始 ${filters.dateFrom}`);
+    else if (filters.dateTo) tags.push(`截止 ${filters.dateTo}`);
+  }
+  if (filters.sizeEnabled && (filters.sizeMin > 0 || filters.sizeMax > 0)) {
+    if (filters.sizeMin > 0 && filters.sizeMax > 0) {
+      tags.push(
+        `大小 ${filters.sizeMin} ${filters.sizeMinUnit}–${filters.sizeMax} ${filters.sizeMaxUnit}`,
+      );
+    } else if (filters.sizeMin > 0) {
+      tags.push(`大小 ≥ ${filters.sizeMin} ${filters.sizeMinUnit}`);
     } else {
-      tags.push(`大小 ≤ ${sizeMax.value} ${sizeMaxUnit.value}`);
+      tags.push(`大小 ≤ ${filters.sizeMax} ${filters.sizeMaxUnit}`);
     }
   }
-  if (!skipHidden.value) tags.push("不跳过隐藏文件");
+  if (!filters.skipHidden) tags.push("不跳过隐藏文件");
   return tags;
 });
 
@@ -706,7 +680,9 @@ async function scan(forceRehash = false): Promise<void> {
     pushAlert(error instanceof Error ? error.message : String(error));
     return;
   }
-  /* 先落盘条件，主进程扫描成功时只更新使用时间 */
+  /* 校验通过：作废旧结果并落盘条件；取消后为空结果，成功后才更新摘要 */
+  const attempted = currentFilters();
+  resetResult();
   await savePairFiltersNow();
   settingsOpen.value = false;
   previewSide.value = null;
@@ -738,6 +714,7 @@ async function scan(forceRehash = false): Promise<void> {
     }
     const scanned = outcome.result;
     result.value = scanned;
+    scannedFilters.value = attempted;
     upsertLocalPair(true);
     selected.value = new Set();
     alerts.value = [...scanned.warnings];

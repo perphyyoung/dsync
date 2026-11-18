@@ -48,5 +48,18 @@ test("显示过滤缩小直接刷新，扩大弹窗可还原", async ({ slot }) 
   await expect(skipHidden).toBeChecked();
   await expect(page.getByText("显示条件超出扫描范围")).toHaveCount(0);
   await expect(page.getByTitle("a.md", { exact: true })).toBeVisible();
+
+  /* 改扫描条件不扫描：旧结果与摘要都不变；点重新扫描后作废旧结果 */
+  await page.getByRole("button", { name: "重新扫描", exact: true }).click();
+  await page.getByLabel("排除关键字").fill("a");
+  await page.getByRole("button", { name: "返回", exact: true }).click();
+  await expect(page.getByTitle("a.md", { exact: true })).toBeVisible();
+  await expect(page.getByText("无过滤条件，全量显示")).toBeVisible();
+  await page.getByRole("button", { name: "重新扫描", exact: true }).click();
+  await page.getByRole("button", { name: "开始扫描", exact: true }).click();
+  await expect(page.getByRole("button", { name: "重新扫描", exact: true })).toBeVisible();
+  await expect(page.getByTitle("a.md", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("排除关键字 a")).toBeVisible();
+  log.info("[e2e] 改条件保留旧结果，扫描成功后才更新");
   log.info("[e2e] 显示过滤缩小即时生效，扩大弹窗可还原");
 });

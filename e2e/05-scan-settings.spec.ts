@@ -18,31 +18,29 @@ test("启动自动打开扫描设置页，返回后可从主界面重新打开",
   log.info("[e2e] 主界面重新扫描入口可打开设置页");
 });
 
-test("扫描条件变化同步到扫描过滤行摘要", async ({ slot }) => {
+test("改条件不更新扫描过滤行摘要，扫描成功后才更新", async ({ slot }) => {
   const { page } = slot;
 
   /* 无修改时摘要显示全量 */
   await expect(page.getByText("无过滤条件，全量显示")).toBeVisible();
 
-  /* 设置页改条件后返回，摘要只列修改项 */
+  /* 设置页改条件后返回：未扫描，摘要不变 */
   await page.getByRole("button", { name: "重新扫描", exact: true }).click();
   await page.getByLabel("启用").check();
   await page.getByTitle("最小值", { exact: true }).fill("128");
   await page.getByLabel("目录层级").fill("2");
   await page.getByLabel("排除关键字").fill("tmp");
   await page.getByRole("button", { name: "返回", exact: true }).click();
-  await expect(page.getByText("大小 ≥ 128 MB")).toBeVisible();
-  await expect(page.getByText("层级 ≤ 2")).toBeVisible();
-  await expect(page.getByText("排除关键字 tmp")).toBeVisible();
+  await expect(page.getByText("无过滤条件，全量显示")).toBeVisible();
 
-  /* 改回默认后摘要恢复无过滤条件 */
+  /* 改回默认 */
   await page.getByRole("button", { name: "重新扫描", exact: true }).click();
   await page.getByLabel("启用").uncheck();
   await page.getByLabel("目录层级").fill("0");
   await page.getByLabel("排除关键字").fill("");
   await page.getByRole("button", { name: "返回", exact: true }).click();
   await expect(page.getByText("无过滤条件，全量显示")).toBeVisible();
-  log.info("[e2e] 扫描条件摘要随设置页变化");
+  log.info("[e2e] 改条件不更新摘要，等扫描成功");
 });
 
 test("未选目录点开始扫描给出告警并停在设置页", async ({ slot }) => {
@@ -75,9 +73,13 @@ test("过滤条件随目录对保存，重启后恢复", async ({ slot }) => {
 
   await page.getByLabel("启用").check();
   await page.getByTitle("最小值", { exact: true }).fill("512");
+  await page.getByLabel("排除关键字").fill("tmp");
   /* 扫描成功才记录目录对；条件在开始扫描时强制落盘 */
   await page.getByRole("button", { name: "开始扫描", exact: true }).click();
   await expect(page.getByRole("button", { name: "重新扫描", exact: true })).toBeVisible();
+  /* 扫描成功后摘要才显示本次条件 */
+  await expect(page.getByText("大小 ≥ 512 MB")).toBeVisible();
+  await expect(page.getByText("排除关键字 tmp")).toBeVisible();
 
   await slot.relaunch();
 
@@ -95,6 +97,11 @@ test("过滤条件随目录对保存，重启后恢复", async ({ slot }) => {
   await searchBox.fill("left");
   await slot.page.getByTitle("清空搜索").click();
   await expect(searchBox).toHaveValue("");
+
+  /* 返回主界面：摘要仍显示上次扫描成功时的条件 */
+  await slot.page.getByRole("button", { name: "返回", exact: true }).click();
+  await expect(slot.page.getByText("大小 ≥ 512 MB")).toBeVisible();
+  await expect(slot.page.getByText("排除关键字 tmp")).toBeVisible();
   log.info("[e2e] 重启后目录对与扫描条件均已恢复");
 });
 
@@ -103,6 +110,10 @@ test("左右目录互换沿用同一套条件", async ({ slot }) => {
   const left = join(base, "left");
   const right = join(base, "right");
 
+  /* 上个用例结尾回到了主界面，先重新打开设置页 */
+  if (!(await page.getByText("扫描设置", { exact: true }).isVisible())) {
+    await page.getByRole("button", { name: "重新扫描", exact: true }).click();
+  }
   await expect(page.getByText("扫描设置", { exact: true })).toBeVisible();
   const pickInto = async (target: string): Promise<void> => {
     await app.evaluate(({ dialog }, picked) => {
