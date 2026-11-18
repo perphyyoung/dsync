@@ -22,7 +22,8 @@ function makeInput(overrides: Partial<PlanInput>): PlanInput {
     right: new Map(),
     leftOnly: [],
     rightOnly: [],
-    ignored: [],
+    leftIgnored: [],
+    rightIgnored: [],
     ...overrides,
   };
 }
@@ -96,14 +97,40 @@ describe("差异行生成", () => {
     expect(outcome.stats.rightOnly).toBe(1);
   });
 
-  it("忽略项带上原因", () => {
+  it("忽略项带头原因，且只在该侧显示", () => {
     const outcome = planSync(
       makeInput({
-        ignored: [{ path: "a.log", reason: "ext", size: 10 }],
+        leftIgnored: [{ path: "a.log", reason: "ext", size: 10, mtimeMs: 1000 }],
       }),
     );
-    expect(outcome.rows[0]).toMatchObject({ status: "ignored", note: "后缀被过滤" });
+    expect(outcome.rows[0]).toMatchObject({
+      status: "ignored",
+      left: "a.log",
+      right: null,
+      leftDate: 1000,
+      rightDate: null,
+      note: "后缀被过滤",
+    });
     expect(outcome.stats.ignored).toBe(1);
+  });
+
+  it("两侧同路径都被忽略时合并为一行，日期各自显示", () => {
+    const outcome = planSync(
+      makeInput({
+        leftIgnored: [{ path: "a.log", reason: "time", size: 10, mtimeMs: 1000 }],
+        rightIgnored: [{ path: "a.log", reason: "size", size: 20, mtimeMs: 2000 }],
+      }),
+    );
+    expect(outcome.rows[0]).toMatchObject({
+      status: "ignored",
+      left: "a.log",
+      right: "a.log",
+      leftSize: 10,
+      rightSize: 20,
+      leftDate: 1000,
+      rightDate: 2000,
+      note: "左：修改日期被过滤；右：大小被过滤",
+    });
   });
 });
 

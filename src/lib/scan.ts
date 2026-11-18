@@ -25,6 +25,8 @@ export interface IgnoredFile {
   path: RelPath;
   reason: IgnoreReason;
   size: number;
+  /** 修改日期（毫秒），无法读取时为 null */
+  mtimeMs: number | null;
 }
 
 export interface ScanOutcome {
@@ -132,7 +134,7 @@ export async function collectFiles(
       const rel = relativePosix(root, full);
 
       if (entry.isSymbolicLink()) {
-        ignored.push({ path: rel, reason: "symlink", size: 0 });
+        ignored.push({ path: rel, reason: "symlink", size: 0, mtimeMs: null });
         continue;
       }
       if (entry.isDirectory()) {
@@ -152,7 +154,7 @@ export async function collectFiles(
         continue;
       }
       if (!entry.isFile()) {
-        ignored.push({ path: rel, reason: "special", size: 0 });
+        ignored.push({ path: rel, reason: "special", size: 0, mtimeMs: null });
         continue;
       }
       if (options.skipHidden && entry.name.startsWith(".")) continue;
@@ -165,13 +167,13 @@ export async function collectFiles(
       try {
         info = await stat(full);
       } catch {
-        ignored.push({ path: rel, reason: "unreadable", size: 0 });
+        ignored.push({ path: rel, reason: "unreadable", size: 0, mtimeMs: null });
         continue;
       }
 
       const reason = filterReason(entry.name, info.size, info.mtimeMs, options);
       if (reason) {
-        ignored.push({ path: rel, reason, size: info.size });
+        ignored.push({ path: rel, reason, size: info.size, mtimeMs: Math.floor(info.mtimeMs) });
         continue;
       }
       // mtimeMs 带亚毫秒小数，序列化后会与恢复值对不上，统一取整到毫秒

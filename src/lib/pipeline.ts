@@ -107,7 +107,12 @@ async function hashPending(input: HashInput): Promise<HashSideOutcome> {
           onBytes(-attemptBytes);
           continue;
         }
-        failed.push({ path: file.path, reason: "unreadable", size: file.size });
+        failed.push({
+          path: file.path,
+          reason: "unreadable",
+          size: file.size,
+          mtimeMs: file.mtimeMs,
+        });
         return;
       }
     }
@@ -260,15 +265,8 @@ export async function runScan(request: ScanRequest, hooks: ScanHooks = {}): Prom
   emit({ phase: "pair", done: 0, total: 1, current: "" }, true);
   const pairing = pairFiles(leftHashed.entries, rightHashed.entries);
 
-  const ignoredByPath = new Map<RelPath, IgnoredFile>();
-  for (const item of [
-    ...leftScan.ignored,
-    ...rightScan.ignored,
-    ...leftHashed.failed,
-    ...rightHashed.failed,
-  ]) {
-    if (!ignoredByPath.has(item.path)) ignoredByPath.set(item.path, item);
-  }
+  const leftIgnored = [...leftScan.ignored, ...leftHashed.failed];
+  const rightIgnored = [...rightScan.ignored, ...rightHashed.failed];
 
   const plan = planSync({
     pairs: pairing.pairs,
@@ -276,7 +274,8 @@ export async function runScan(request: ScanRequest, hooks: ScanHooks = {}): Prom
     right: rightHashed.entries,
     leftOnly: pairing.leftOnly,
     rightOnly: pairing.rightOnly,
-    ignored: [...ignoredByPath.values()],
+    leftIgnored,
+    rightIgnored,
   });
 
   emit({ phase: "index", done: 0, total: 1, current: "" }, true);

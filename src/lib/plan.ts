@@ -16,7 +16,8 @@ export interface PlanInput {
   right: Map<RelPath, FileEntry>;
   leftOnly: RelPath[];
   rightOnly: RelPath[];
-  ignored: IgnoredFile[];
+  leftIgnored: IgnoredFile[];
+  rightIgnored: IgnoredFile[];
 }
 
 export interface PlanOutcome {
@@ -140,20 +141,30 @@ function buildRows(input: PlanInput): DiffRow[] {
     });
   }
 
-  for (const item of input.ignored) {
+  const leftIgnored = new Map(input.leftIgnored.map((item) => [item.path, item]));
+  const rightIgnored = new Map(input.rightIgnored.map((item) => [item.path, item]));
+  const ignoredPaths = new Set([...leftIgnored.keys(), ...rightIgnored.keys()]);
+  for (const path of ignoredPaths) {
+    const leftItem = leftIgnored.get(path);
+    const rightItem = rightIgnored.get(path);
+    const leftNote = leftItem ? IGNORE_NOTE[leftItem.reason] : null;
+    const rightNote = rightItem ? IGNORE_NOTE[rightItem.reason] : null;
     rows.push({
       status: "ignored",
-      left: item.path,
-      right: item.path,
-      leftSize: item.size,
-      rightSize: item.size,
-      leftDate: null,
-      rightDate: null,
+      left: leftItem ? path : null,
+      right: rightItem ? path : null,
+      leftSize: leftItem?.size ?? null,
+      rightSize: rightItem?.size ?? null,
+      leftDate: leftItem?.mtimeMs ?? null,
+      rightDate: rightItem?.mtimeMs ?? null,
       leftHash: null,
       rightHash: null,
       base: null,
       pairedBy: null,
-      note: IGNORE_NOTE[item.reason],
+      note:
+        leftNote && rightNote && leftNote !== rightNote
+          ? `左：${leftNote}；右：${rightNote}`
+          : (leftNote ?? rightNote),
     });
   }
 
