@@ -8,6 +8,18 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
   await expect(page.getByText("扫描设置", { exact: true })).toBeVisible();
   await expect(page.getByText("未选择左侧目录", { exact: true })).toBeVisible();
   await expect(page.getByText("未选择右侧目录", { exact: true })).toBeVisible();
+  /* 启动时还没有目录对档案：区块显示空态，列表满宽不出现滚动条 */
+  await expect(page.getByText("最近目录对", { exact: true })).toBeVisible();
+  await expect(page.getByText("还没有扫描成功过的目录对", { exact: true })).toBeVisible();
+  /* 路径框宽度约为页面宽度的 70%（w-[70vw]） */
+  const pathRatio = await page.evaluate(() => {
+    const spans = Array.from(document.querySelectorAll("span"));
+    const target = spans.find((el) => el.textContent?.trim() === "未选择左侧目录");
+    return target ? target.getBoundingClientRect().width / window.innerWidth : null;
+  });
+  expect(pathRatio).not.toBeNull();
+  expect(pathRatio ?? 0).toBeGreaterThan(0.65);
+  expect(pathRatio ?? 0).toBeLessThan(0.75);
   await expect(page.getByTitle("更改左侧目录")).toBeVisible();
   await expect(page.getByTitle("更改右侧目录")).toBeVisible();
   await expect(page.getByText("文件大小", { exact: true })).toBeVisible();
