@@ -254,7 +254,7 @@ const items = computed(() => {
   return state ? sortItems(filtered, state.key, state.dir) : filtered;
 });
 
-/* 点击列头排序：第一次升序，再点切换降序；空值排末尾 */
+/* 点击列头三态循环：默认 → 升序 → 降序 → 默认；空值排末尾 */
 interface SortState {
   key: SortKey;
   dir: SortDir;
@@ -267,7 +267,11 @@ function toggleSort(key: SortKey): void {
     sortState.value = { key, dir: "asc" };
     return;
   }
-  sortState.value = { key, dir: sortState.value.dir === "asc" ? "desc" : "asc" };
+  if (sortState.value.dir === "asc") {
+    sortState.value = { key, dir: "desc" };
+    return;
+  }
+  sortState.value = null;
 }
 
 function sortArrow(key: SortKey): string {
@@ -1131,7 +1135,7 @@ async function executePreview(): Promise<void> {
               <button
                 type="button"
                 class="flex min-w-0 flex-1 items-center gap-1 pl-3.5 text-left hover:text-slate-300"
-                title="点击按路径排序"
+                title="点击排序：升序 / 降序 / 默认"
                 @click="toggleSort('path')"
               >
                 <span class="min-w-0 flex-1 truncate">路径</span>
@@ -1140,7 +1144,7 @@ async function executePreview(): Promise<void> {
               <button
                 type="button"
                 class="w-20 shrink-0 text-right hover:text-slate-300"
-                title="点击按修改日期排序"
+                title="点击排序：升序 / 降序 / 默认"
                 @click="toggleSort('date')"
               >
                 修改日期
@@ -1151,7 +1155,7 @@ async function executePreview(): Promise<void> {
               <button
                 type="button"
                 class="w-16 shrink-0 text-right hover:text-slate-300"
-                title="点击按大小排序"
+                title="点击排序：升序 / 降序 / 默认"
                 @click="toggleSort('size')"
               >
                 大小
@@ -1165,7 +1169,7 @@ async function executePreview(): Promise<void> {
               <button
                 type="button"
                 class="flex min-w-0 flex-1 items-center gap-1 pl-3.5 text-left hover:text-slate-300"
-                title="点击按路径排序"
+                title="点击排序：升序 / 降序 / 默认"
                 @click="toggleSort('path')"
               >
                 <span class="min-w-0 flex-1 truncate">路径</span>
@@ -1174,7 +1178,7 @@ async function executePreview(): Promise<void> {
               <button
                 type="button"
                 class="w-20 shrink-0 text-right hover:text-slate-300"
-                title="点击按修改日期排序"
+                title="点击排序：升序 / 降序 / 默认"
                 @click="toggleSort('date')"
               >
                 修改日期
@@ -1185,7 +1189,7 @@ async function executePreview(): Promise<void> {
               <button
                 type="button"
                 class="w-16 shrink-0 text-right hover:text-slate-300"
-                title="点击按大小排序"
+                title="点击排序：升序 / 降序 / 默认"
                 @click="toggleSort('size')"
               >
                 大小
