@@ -1,6 +1,6 @@
 {
   "name": "dsync",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "跨目录层级的文件夹同步工具",
   "author": "perphyyoung",
