@@ -365,6 +365,7 @@ function createWindow(): BrowserWindow {
     height: 880,
     minWidth: 1080,
     minHeight: 680,
+    show: false,
     title: "dsync",
     backgroundColor: "#0b0d12",
     icon: iconPath,
@@ -375,6 +376,10 @@ function createWindow(): BrowserWindow {
       sandbox: false,
     },
   });
+
+  /* 启动即最大化；1360×880 作为还原尺寸，不记忆上次窗口状态 */
+  win.maximize();
+  win.once("ready-to-show", () => win.show());
 
   if (devUrl) {
     void win.loadURL(devUrl);
