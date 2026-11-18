@@ -613,7 +613,7 @@ function resetResult(): void {
 
 const emptyText = computed(() => {
   if (!leftRoot.value || !rightRoot.value) return "先选择左右两个目录";
-  if (!result.value) return "点「扫描」设置条件并开始比较";
+  if (!result.value) return "点击右上角的「重新扫描」设置条件并开始比较";
   return "两侧内容一致";
 });
 
