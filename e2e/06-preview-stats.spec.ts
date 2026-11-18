@@ -28,6 +28,19 @@ test("预览统计的复选框批量控制行勾选", async ({ slot }) => {
   /* 行内显示修改日期，只到天 */
   await expect(page.getByText(/^\d{4}-\d{2}-\d{2}$/).first()).toBeVisible();
 
+  /* 点击表头排序：路径降序把 c.md 排到最前 */
+  const yOf = async (path: string): Promise<number> => {
+    const box = await page.getByTitle(path, { exact: true }).first().boundingBox();
+    return box?.y ?? 0;
+  };
+  expect(await yOf("a.md")).toBeLessThan(await yOf("c.md"));
+  const pathHeader = page.getByRole("button", { name: /^路径/ }).first();
+  await pathHeader.click();
+  await pathHeader.click();
+  expect(await yOf("c.md")).toBeLessThan(await yOf("a.md"));
+  await pathHeader.click();
+  expect(await yOf("a.md")).toBeLessThan(await yOf("c.md"));
+
   /* 向右同步：左侧两个文件复制到右侧，右侧独有文件软删除 */
   await page.getByRole("button", { name: "向右同步预览" }).click();
   const copy = page.getByLabel(/^复制/);

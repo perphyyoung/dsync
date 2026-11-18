@@ -12,6 +12,7 @@ import { pairKey, type DirPairEntry } from "./lib/dir-pairs";
 import { parseExtInput } from "./lib/exts";
 import { buildPreview, previewKindRows, type PreviewKind } from "./lib/preview";
 import { rowDirections } from "./lib/row-actions";
+import { sortItems, type SortDir, type SortKey } from "./lib/sort";
 import { resolveTimeWindow } from "./lib/time-window";
 import { verifyOutcome } from "./lib/verify";
 import type {
@@ -245,11 +246,34 @@ function matchesView(row: DiffRow): boolean {
 
 const items = computed(() => {
   const rows = result.value?.rows ?? [];
-  return rows
+  const filtered = rows
     .map((row, index) => ({ row, index }))
     .filter((item) => !hideSame.value || item.row.status !== "same")
     .filter((item) => matchesView(item.row));
+  const state = sortState.value;
+  return state ? sortItems(filtered, state.key, state.dir) : filtered;
 });
+
+/* 点击列头排序：第一次升序，再点切换降序；空值排末尾 */
+interface SortState {
+  key: SortKey;
+  dir: SortDir;
+}
+
+const sortState = ref<SortState | null>(null);
+
+function toggleSort(key: SortKey): void {
+  if (!sortState.value || sortState.value.key !== key) {
+    sortState.value = { key, dir: "asc" };
+    return;
+  }
+  sortState.value = { key, dir: sortState.value.dir === "asc" ? "desc" : "asc" };
+}
+
+function sortArrow(key: SortKey): string {
+  if (sortState.value?.key !== key) return "";
+  return sortState.value.dir === "asc" ? "↑" : "↓";
+}
 
 const STAT_META: { key: keyof ScanStats; label: string; dot: string }[] = [
   { key: "same", label: "一致", dot: "bg-slate-600" },
@@ -1104,15 +1128,71 @@ async function executePreview(): Promise<void> {
 
           <div class="flex border-b border-slate-800 bg-slate-900/40 text-xs text-slate-500">
             <div class="flex min-w-0 flex-1 items-center gap-2 px-3 py-1">
-              <span class="min-w-0 flex-1 pl-3.5">路径</span>
-              <span class="w-20 shrink-0 text-right">修改日期</span>
-              <span class="w-16 shrink-0 text-right">大小</span>
+              <button
+                type="button"
+                class="flex min-w-0 flex-1 items-center gap-1 pl-3.5 text-left hover:text-slate-300"
+                title="点击按路径排序"
+                @click="toggleSort('path')"
+              >
+                <span class="min-w-0 flex-1 truncate">路径</span>
+                <span class="w-3 shrink-0 text-center text-sky-400">{{ sortArrow("path") }}</span>
+              </button>
+              <button
+                type="button"
+                class="w-20 shrink-0 text-right hover:text-slate-300"
+                title="点击按修改日期排序"
+                @click="toggleSort('date')"
+              >
+                修改日期
+                <span class="inline-block w-3 text-center text-sky-400">{{
+                  sortArrow("date")
+                }}</span>
+              </button>
+              <button
+                type="button"
+                class="w-16 shrink-0 text-right hover:text-slate-300"
+                title="点击按大小排序"
+                @click="toggleSort('size')"
+              >
+                大小
+                <span class="inline-block w-3 text-center text-sky-400">{{
+                  sortArrow("size")
+                }}</span>
+              </button>
             </div>
             <div class="w-24 shrink-0 border-x border-slate-800"></div>
             <div class="flex min-w-0 flex-1 items-center gap-2 px-3 py-1">
-              <span class="min-w-0 flex-1 pl-3.5">路径</span>
-              <span class="w-20 shrink-0 text-right">修改日期</span>
-              <span class="w-16 shrink-0 text-right">大小</span>
+              <button
+                type="button"
+                class="flex min-w-0 flex-1 items-center gap-1 pl-3.5 text-left hover:text-slate-300"
+                title="点击按路径排序"
+                @click="toggleSort('path')"
+              >
+                <span class="min-w-0 flex-1 truncate">路径</span>
+                <span class="w-3 shrink-0 text-center text-sky-400">{{ sortArrow("path") }}</span>
+              </button>
+              <button
+                type="button"
+                class="w-20 shrink-0 text-right hover:text-slate-300"
+                title="点击按修改日期排序"
+                @click="toggleSort('date')"
+              >
+                修改日期
+                <span class="inline-block w-3 text-center text-sky-400">{{
+                  sortArrow("date")
+                }}</span>
+              </button>
+              <button
+                type="button"
+                class="w-16 shrink-0 text-right hover:text-slate-300"
+                title="点击按大小排序"
+                @click="toggleSort('size')"
+              >
+                大小
+                <span class="inline-block w-3 text-center text-sky-400">{{
+                  sortArrow("size")
+                }}</span>
+              </button>
             </div>
           </div>
 
