@@ -275,6 +275,20 @@ export interface MoveRecord {
   to: RelPath;
 }
 
+/** 一次成功复制，供索引缓存定点写入 */
+export interface CopyRecord {
+  side: Side;
+  from: RelPath;
+  to: RelPath;
+  /** 校验通过的内容哈希 */
+  hash: string;
+  size: number;
+  /** 目标 rename 后的修改时间 */
+  mtimeMs: number;
+  /** 源文件 stat 修改时间 */
+  sourceMtimeMs: number;
+}
+
 export interface ExecuteResult {
   copied: number;
   moved: number;
@@ -282,6 +296,8 @@ export interface ExecuteResult {
   failed: { path: string; message: string }[];
   /** 成功的移动；rename 不改内容，调用方据此迁移索引缓存 */
   moves: MoveRecord[];
+  /** 成功的复制；调用方据此定点写入哈希缓存 */
+  copies: CopyRecord[];
   /** 扫描后被外部改动、已跳过的动作 */
   stale: StaleEntry[];
   /** 用户取消：已完成动作保留，当前文件丢弃 */

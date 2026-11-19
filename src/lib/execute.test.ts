@@ -52,6 +52,14 @@ describe("执行复制", () => {
 
     expect(result.copied).toBe(1);
     expect(result.cancelled).toBe(false);
+    expect(result.copies).toHaveLength(1);
+    expect(result.copies[0]).toMatchObject({
+      side: "right",
+      from: "a.md",
+      to: "a.md",
+      hash: hashText("hello"),
+      size: 5,
+    });
     expect(await readFile(join(right, "a.md"), "utf8")).toBe("hello");
     expect(progress.at(-1)).toBe(1);
   });

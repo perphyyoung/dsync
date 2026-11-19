@@ -11,7 +11,8 @@ import { HashWorkerPool } from "../src/lib/hash-pool";
 import { detectDiskType } from "../src/lib/disk-type";
 import { runScan } from "../src/lib/pipeline";
 import { migrateMoveCaches } from "../src/lib/index-migrate";
-import { loadIndexPair } from "../src/lib/index-file";
+import { loadIndexPair, patchIndex } from "../src/lib/index-file";
+import { copyCachePairs } from "../src/lib/copy-cache";
 import { listDeleted, restoreDeleted, softDelete } from "../src/lib/recycle";
 import { readRecentPairs } from "../src/lib/recent";
 import { openMainDb, type MainStore } from "../src/lib/main-db";
@@ -20,6 +21,7 @@ import { detectStale, refreshPaths } from "../src/lib/refresh";
 import { rehashPair } from "../src/lib/rehash";
 import type {
   AppSettings,
+  CopyRecord,
   DiskMode,
   ExecuteProgress,
   ExecuteRequest,
@@ -480,6 +482,25 @@ ipcMain.handle("recycle:restore", async (_event, raw: unknown) => {
   });
 });
 
+/** 成功复制的哈希已知，定点写回两侧索引；写失败只影响下次缓存命中，不影响复制结果 */
+async function cacheCopyIndexes(
+  leftRoot: string,
+  rightRoot: string,
+  copies: CopyRecord[],
+): Promise<void> {
+  if (copies.length === 0) return;
+  const upserts = copyCachePairs(copies);
+  const outcomes = await Promise.allSettled([
+    patchIndex(leftRoot, { upserts }),
+    patchIndex(rightRoot, { upserts }),
+  ]);
+  for (const outcome of outcomes) {
+    if (outcome.status === "rejected") {
+      log.warn(`[execute] 复制缓存写入失败：${String(outcome.reason)}`);
+    }
+  }
+}
+
 ipcMain.handle("sync:execute", async (event, raw: unknown) => {
   return handleIpc("sync:execute", async () => {
     const request = parseExecuteRequest(raw);
@@ -523,6 +544,7 @@ ipcMain.handle("sync:execute", async (event, raw: unknown) => {
       );
       result.stale = stale;
       await migrateMoveCaches(request.leftRoot, request.rightRoot, result.moves);
+      await cacheCopyIndexes(request.leftRoot, request.rightRoot, result.copies);
       log.info(
         `[execute] copied=${result.copied} moved=${result.moved} ` +
           `deleted=${result.deleted} failed=${result.failed.length} ` +

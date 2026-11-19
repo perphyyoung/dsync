@@ -129,7 +129,15 @@ async function copyInChunks(
   }
 }
 
-async function copyAtomic(source: string, target: string, ctx: CopyContext): Promise<void> {
+async function copyAtomic(
+  source: string,
+  target: string,
+  ctx: CopyContext,
+): Promise<{
+  hash: string;
+  size: number;
+  mtimeMs: number;
+}> {
   await mkdir(dirname(target), { recursive: true });
   const tmp = `${target}${TMP_SUFFIX}`;
   const info = ctx.expectedSize !== undefined ? { size: ctx.expectedSize } : await stat(source);
@@ -168,16 +176,27 @@ async function copyAtomic(source: string, target: string, ctx: CopyContext): Pro
       await copyInChunks(source, tmp, info.size, startOffset, ctx);
     }
     /* 校验：优先用扫描哈希比对 tmp（不重读源），无哈希时回退源/目标全量比对 */
-    const expected = ctx.sourceHash;
     const hash = ctx.hash ?? hashFile;
-    if (expected) {
-      if ((await hash(tmp)) !== expected) {
+    let verified: string;
+    if (ctx.sourceHash) {
+      verified = await hash(tmp);
+      if (verified !== ctx.sourceHash) {
         throw new Error("校验失败：复制内容与扫描记录不一致");
       }
-    } else if (!(await filesMatch(source, tmp, hash))) {
-      throw new Error("校验失败：复制内容与源不一致");
+    } else {
+      const sourceHash = await hash(source);
+      verified = await hash(tmp);
+      if (sourceHash !== verified) {
+        throw new Error("校验失败：复制内容与源不一致");
+      }
     }
     await rename(tmp, target);
+    const targetInfo = await stat(target).catch(() => null);
+    return {
+      hash: verified,
+      size: targetInfo?.size ?? info.size,
+      mtimeMs: targetInfo ? Math.floor(targetInfo.mtimeMs) : 0,
+    };
   } catch (error) {
     /* 取消：顺序模式保留半成品续传；并行模式乱序，删除半成品 */
     if (!(error instanceof ExecutionCancelledError) || parallel) {
@@ -199,6 +218,7 @@ export async function executeActions(
     deleted: 0,
     failed: [],
     moves: [],
+    copies: [],
     stale: [],
     cancelled: false,
   };
@@ -295,8 +315,11 @@ export async function executeActions(
     const sourceFull = resolveInsideRoot(sourceRoot, action.fromPath ?? action.toPath);
 
     let sourceSize: number;
+    let sourceMtimeMs: number;
     try {
-      sourceSize = (await stat(sourceFull)).size;
+      const info = await stat(sourceFull);
+      sourceSize = info.size;
+      sourceMtimeMs = Math.floor(info.mtimeMs);
     } catch (error) {
       result.failed.push({ path: action.toPath, message: (error as Error).message });
       completed += 1;
@@ -318,7 +341,7 @@ export async function executeActions(
     }
 
     try {
-      await copyAtomic(sourceFull, targetFull, {
+      const copy = await copyAtomic(sourceFull, targetFull, {
         controller,
         hash: deps.hash,
         expectedSize: sourceSize,
@@ -338,6 +361,15 @@ export async function executeActions(
       });
       completedBytes += sourceSize;
       result.copied += 1;
+      result.copies.push({
+        side: action.side,
+        from: action.fromPath ?? action.toPath,
+        to: action.toPath,
+        hash: copy.hash,
+        size: copy.size,
+        mtimeMs: copy.mtimeMs,
+        sourceMtimeMs,
+      });
     } catch (error) {
       if (error instanceof ExecutionCancelledError) {
         cancelled = true;

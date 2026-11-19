@@ -156,12 +156,13 @@
 ## 执行完成后的行更新（已完成）
 
 - [x] 成功 copy 用 `sourceHash` / `sizeBytes` / 当天日期直接更新行；move 改路径，soft-delete 置空
+- [x] 成功 copy 的已知哈希用 `patchIndex` 定点写回两侧索引；写失败只记日志
 - [x] 成功动作不再调用 refresh；窗口直接关闭，不再显示「正在刷新列表…」
 - [x] 只有 failed / cancelled / 缺可信哈希的行调用目标级 refresh：只 stat / hash 该行文件，不读索引、不遍历其他文件、不 patchIndex
 - [x] `applyRefresh` 同步更新 size / date；执行开始时捕获左右目录，避免异步互换
-- [x] 新增 `directResults` / target-only refresh 单测；e2e 09 收紧为完成后关闭；文档同步 D54 / D56
+- [x] 新增 `directResults` / target-only refresh / copyCachePairs 单测；e2e 09 收紧为完成后关闭；文档同步 D54 / D56
 
-进度记录：2026-11-20 完成。`pnpm check` 154 单测 / 27 文件、`pnpm e2e` 21 条全绿。
+进度记录：2026-11-20 完成。`pnpm check` 157 单测 / 28 文件、`pnpm e2e` 21 条全绿。
 
 ## 扫描进度状态行与收尾阶段（已完成）
 
@@ -169,4 +170,4 @@
 - [x] 配对 / 写索引显示阶段文案，进度保持 100%，不显示「0 / 1 个文件」
 - [x] 抽出 `scanStatusText` 并补单测；文档同步 D55
 
-进度记录：2026-11-20 完成。`pnpm check` 154 单测 / 27 文件、`pnpm e2e` 21 条全绿。
+进度记录：2026-11-20 完成。`pnpm check` 157 单测 / 28 文件、`pnpm e2e` 21 条全绿。
