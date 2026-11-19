@@ -10,6 +10,8 @@ const props = defineProps<{
   visible: boolean;
   minimized: boolean;
   state: ExecState;
+  /** 执行已结束，正在刷新列表；此时不提供关闭 / 重试 */
+  refreshing: boolean;
   progress: ExecuteProgress | null;
   summary: string;
   /** 失败动作数：> 0 时完成态显示重试入口 */
@@ -160,6 +162,7 @@ function formatBytes(bytes: number): string {
       <p v-if="state === 'done' || state === 'cancelled'" class="mt-2 text-slate-400">
         {{ summary }}
       </p>
+      <p v-if="refreshing" class="mt-1 text-slate-500">正在刷新列表…</p>
 
       <div
         v-if="state === 'running' || state === 'paused'"
@@ -205,7 +208,7 @@ function formatBytes(bytes: number): string {
           取消
         </button>
         <button
-          v-if="state === 'done' || state === 'cancelled'"
+          v-if="(state === 'done' || state === 'cancelled') && !refreshing"
           type="button"
           class="rounded border border-slate-600 px-2 py-0.5 text-slate-300 hover:bg-slate-800"
           @click="emit('close')"
@@ -213,7 +216,7 @@ function formatBytes(bytes: number): string {
           关闭
         </button>
         <button
-          v-if="(state === 'done' || state === 'cancelled') && failedCount > 0"
+          v-if="(state === 'done' || state === 'cancelled') && failedCount > 0 && !refreshing"
           type="button"
           class="rounded bg-emerald-600 px-2 py-0.5 font-medium text-white hover:bg-emerald-500"
           @click="emit('retry')"

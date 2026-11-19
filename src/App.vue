@@ -86,6 +86,7 @@ const progress = ref<ScanProgress | null>(null);
 const execVisible = ref(false);
 const execMinimized = ref(false);
 const execState = ref<"running" | "paused" | "cancelled" | "done">("running");
+const execRefreshing = ref(false);
 const execProgress = ref<ExecuteProgress | null>(null);
 const execSummary = ref("");
 const execFailures = ref<SyncAction[]>([]);
@@ -697,7 +698,7 @@ async function pick(side: "left" | "right"): Promise<void> {
 
 /** 互换左右目录；已扫描时直接镜像结果，不重新扫描 */
 function swapRoots(): void {
-  if (!leftRoot.value || !rightRoot.value) return;
+  if (busy.value || !leftRoot.value || !rightRoot.value) return;
   swappingRoots = true;
   const left = leftRoot.value;
   leftRoot.value = rightRoot.value;
@@ -801,6 +802,7 @@ const scanFilterTags = computed(() => {
 });
 
 async function scan(forceRehash = false): Promise<void> {
+  if (scanning.value || executing.value) return;
   if (!leftRoot.value || !rightRoot.value) {
     pushAlert("请先选择左右两个目录");
     return;
@@ -1117,6 +1119,7 @@ function resetExecWindow(total: number): void {
   execVisible.value = false;
   execMinimized.value = false;
   execState.value = "running";
+  execRefreshing.value = false;
   execSummary.value = "";
   execProgress.value = {
     done: 0,
@@ -1176,20 +1179,22 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
     showToast(`${label}：没有可执行的动作`);
     return;
   }
-  if (executing.value) return;
+  if (busy.value) return;
+  const activeLeft = leftRoot.value;
+  const activeRight = rightRoot.value;
   executing.value = true;
   execFailures.value = [];
   resetExecWindow(actions.length);
   openExecWindowSoon();
   try {
     const outcome = await window.api.execute({
-      leftRoot: leftRoot.value,
-      rightRoot: rightRoot.value,
+      leftRoot: activeLeft,
+      rightRoot: activeRight,
       actions,
       rateLimitBytesPerSec: execRateLimit.value * 1024 * 1024,
     });
 
-    /* 文件操作已结束：先收尾进度窗，再刷新列表；刷新慢不应让窗口停在 100% */
+    /* 文件操作已结束：先标记完成态，再刷新列表；刷新期间窗口保留 */
     const failedPaths = new Set(outcome.failed.map((item) => item.path));
     execFailures.value = actions.filter((action) => failedPaths.has(action.toPath));
     execSummary.value = `复制 ${outcome.copied}，改名 ${outcome.moved}，删除 ${outcome.deleted}`;
@@ -1227,15 +1232,10 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
       clearTimeout(execHideTimer);
       execHideTimer = null;
     }
-    const keepWindow = outcome.cancelled || execFailures.value.length > 0;
-    execVisible.value = keepWindow;
-    execMinimized.value = keepWindow ? false : execMinimized.value;
-    if (keepWindow && outcome.cancelled && execFailures.value.length === 0) {
-      execHideTimer = setTimeout(() => {
-        execVisible.value = false;
-        execHideTimer = null;
-      }, 2500);
-    }
+    /* 刷新期间保持窗口：显示「已完成 / 正在刷新列表」，避免旧列表被二次操作 */
+    execRefreshing.value = true;
+    execVisible.value = true;
+    execMinimized.value = false;
 
     showToast(
       outcome.cancelled ? `${label}已取消：${execSummary.value}` : `${label}：${execSummary.value}`,
@@ -1255,14 +1255,16 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
       const targets = buildTargets(actions);
       refreshed = targets.length
         ? await window.api.refresh({
-            leftRoot: leftRoot.value,
-            rightRoot: rightRoot.value,
+            leftRoot: activeLeft,
+            rightRoot: activeRight,
             targets,
           })
         : [];
       applyRefresh(refreshed);
     } catch (error) {
       pushAlert(`刷新结果失败：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      execRefreshing.value = false;
     }
 
     if (refreshed) {
@@ -1279,6 +1281,16 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
         .map((item) => `${item.path}：${item.message}`)
         .join("；");
       pushRetryAlert(message, execFailures.value);
+    }
+
+    /* 列表已刷新：成功且无失败才关闭；失败保留重试，取消短暂保留 */
+    if (!outcome.cancelled && execFailures.value.length === 0) {
+      execVisible.value = false;
+    } else if (outcome.cancelled && execFailures.value.length === 0) {
+      execHideTimer = setTimeout(() => {
+        execVisible.value = false;
+        execHideTimer = null;
+      }, 2500);
     }
   } catch (error) {
     pushAlert(error instanceof Error ? error.message : String(error));
@@ -1304,6 +1316,7 @@ function runRow(index: number, side: Side): void {
 
 /** 忽略缓存重算这一行两侧的哈希，并刷新该行状态 */
 async function rehashRow(index: number): Promise<void> {
+  if (busy.value) return;
   const row = result.value?.rows[index];
   if (!row || (!row.left && !row.right)) return;
   try {
@@ -1343,6 +1356,7 @@ async function loadRecycle(): Promise<void> {
 }
 
 async function openRecycle(): Promise<void> {
+  if (busy.value) return;
   if (!leftRoot.value || !rightRoot.value) {
     pushAlert("请先选择左右两个目录");
     return;
@@ -1373,6 +1387,7 @@ async function restoreItem(item: DeletedRecord): Promise<void> {
 
 /** 文件右键：挂在文件列表上，不是操作列 */
 function onRowMenu(side: Side, index: number, event: MouseEvent): void {
+  if (busy.value) return;
   const row = result.value?.rows[index];
   if (!row || !row[side]) return;
   event.preventDefault();
@@ -1392,6 +1407,7 @@ function requestSoftDelete(): void {
 }
 
 async function confirmSoftDelete(): Promise<void> {
+  if (busy.value) return;
   const target = softDeleteConfirm.value;
   softDeleteConfirm.value = null;
   if (!target) return;
@@ -1516,7 +1532,7 @@ async function executePreview(): Promise<void> {
 
       <template v-else>
         <div class="relative">
-          <ScanFilterLine :tags="scanFilterTags" @rescan="settingsOpen = true" />
+          <ScanFilterLine :tags="scanFilterTags" :busy="busy" @rescan="settingsOpen = true" />
           <FilterPanel
             v-model:keywordMode="displayKeywordMode"
             v-model:keywordInput="displayKeywordInput"
@@ -1620,7 +1636,7 @@ async function executePreview(): Promise<void> {
                   <button
                     type="button"
                     class="rounded border border-slate-600 px-2 py-0.5 text-xs text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                    :disabled="!leftRoot || !rightRoot"
+                    :disabled="busy || !leftRoot || !rightRoot"
                     title="左右目录互换"
                     @click="swapRoots"
                   >
@@ -1791,7 +1807,8 @@ async function executePreview(): Promise<void> {
 
               <button
                 type="button"
-                class="rounded border border-slate-600 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+                class="rounded border border-slate-600 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                :disabled="busy"
                 @click="openRecycle"
               >
                 回收站
@@ -1801,7 +1818,8 @@ async function executePreview(): Promise<void> {
                 type="button"
                 title="设置"
                 aria-label="设置"
-                class="rounded border border-slate-600 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+                class="rounded border border-slate-600 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                :disabled="busy"
                 @click="openSettingsDialog"
               >
                 设置
@@ -1922,6 +1940,7 @@ async function executePreview(): Promise<void> {
       :visible="execVisible"
       :minimized="execMinimized"
       :state="execState"
+      :refreshing="execRefreshing"
       :progress="execProgress"
       :summary="execSummary"
       :failed-count="execFailures.length"

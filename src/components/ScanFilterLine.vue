@@ -1,6 +1,8 @@
 <script setup lang="ts">
 const props = defineProps<{
   tags: string[];
+  /** 扫描 / 执行期间禁止重新扫描 */
+  busy?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -22,7 +24,8 @@ const emit = defineEmits<{
     </div>
     <button
       type="button"
-      class="shrink-0 rounded border border-slate-600 px-3 py-1 text-xs text-slate-300 hover:bg-slate-800"
+      class="shrink-0 rounded border border-slate-600 px-3 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+      :disabled="props.busy"
       title="打开扫描设置页重新扫描"
       @click="emit('rescan')"
     >

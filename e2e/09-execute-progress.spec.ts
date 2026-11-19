@@ -63,5 +63,6 @@ test("大文件复制显示进度窗，可最小化与恢复", async ({ slot }) 
     )
     .toBe(512 * 1024 * 1024);
   await expect(page.getByText("同步中", { exact: true })).toHaveCount(0, { timeout: 2_000 });
-  log.info("[e2e] 大文件复制进度窗出现，最小化/恢复后完成并立即关闭");
+  await expect(page.getByText("正在刷新列表…")).toHaveCount(0, { timeout: 5_000 });
+  log.info("[e2e] 大文件复制进度窗出现，最小化/恢复后完成，刷新完成后关闭");
 });
