@@ -30,6 +30,12 @@ test("大文件复制显示进度窗，可最小化与恢复", async ({ slot }) 
     timeout: 20_000,
   });
 
+  /* 强制走单文件并行路径：设置 2 个分块线程、磁盘按固态处理 */
+  await page.evaluate(async () => {
+    await window.api.setCopyThreads(2);
+    await window.api.setDiskMode("ssd");
+  });
+
   /* 单行复制：非预览模式点 > 按钮 */
   await page.getByTitle("以左侧为准同步到右侧", { exact: true }).click();
   await expect(page.getByText("同步中", { exact: true })).toBeVisible({ timeout: 5_000 });

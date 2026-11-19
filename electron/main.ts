@@ -8,6 +8,7 @@ import { executeActions } from "../src/lib/execute";
 import { ExecutionController } from "../src/lib/execute-controller";
 import { ScanCancelledError, ScanController } from "../src/lib/controller";
 import { HashWorkerPool } from "../src/lib/hash-pool";
+import { detectDiskType } from "../src/lib/disk-type";
 import { runScan } from "../src/lib/pipeline";
 import { migrateMoveCaches } from "../src/lib/index-migrate";
 import { loadIndexPair } from "../src/lib/index-file";
@@ -19,6 +20,7 @@ import { detectStale, refreshPaths } from "../src/lib/refresh";
 import { rehashPair } from "../src/lib/rehash";
 import type {
   AppSettings,
+  DiskMode,
   ExecuteProgress,
   ExecuteRequest,
   FilterPrefs,
@@ -80,13 +82,40 @@ function readScanThreads(): number {
     : defaultScanThreads();
 }
 
-function appSettings(): AppSettings {
-  const raw = mainDb?.getSetting("scanThreads") ?? null;
+function defaultCopyThreads(): number {
+  return Math.min(scanThreadsLimit(), Math.max(2, Math.floor(availableParallelism() / 2)));
+}
+
+function clampCopyThreads(value: number): number {
+  return Math.min(scanThreadsLimit(), Math.max(1, Math.floor(value)));
+}
+
+function readCopyThreads(): number {
+  const raw = mainDb?.getSetting("copyThreads") ?? null;
   const parsed = raw === null ? null : Number.parseInt(raw, 10);
-  const explicit = parsed !== null && Number.isFinite(parsed);
+  return parsed !== null && Number.isFinite(parsed)
+    ? clampCopyThreads(parsed)
+    : defaultCopyThreads();
+}
+
+function readDiskMode(): DiskMode {
+  const raw = mainDb?.getSetting("diskMode");
+  return raw === "ssd" || raw === "hdd" ? raw : "auto";
+}
+
+function appSettings(): AppSettings {
+  const rawScan = mainDb?.getSetting("scanThreads") ?? null;
+  const parsedScan = rawScan === null ? null : Number.parseInt(rawScan, 10);
+  const scanExplicit = parsedScan !== null && Number.isFinite(parsedScan);
+  const rawCopy = mainDb?.getSetting("copyThreads") ?? null;
+  const parsedCopy = rawCopy === null ? null : Number.parseInt(rawCopy, 10);
+  const copyExplicit = parsedCopy !== null && Number.isFinite(parsedCopy);
   return {
     scanThreads: readScanThreads(),
-    scanThreadsAuto: !explicit,
+    scanThreadsAuto: !scanExplicit,
+    copyThreads: readCopyThreads(),
+    copyThreadsAuto: !copyExplicit,
+    diskMode: readDiskMode(),
     logicalProcessors: scanThreadsLimit(),
   };
 }
@@ -266,6 +295,23 @@ ipcMain.handle("settings:reset-scan-threads", (): AppSettings => {
   return appSettings();
 });
 
+ipcMain.handle("settings:set-copy-threads", (_event, raw: unknown): AppSettings => {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) throw new Error("无效线程数");
+  mainDb?.setSetting("copyThreads", String(clampCopyThreads(raw)));
+  return appSettings();
+});
+
+ipcMain.handle("settings:reset-copy-threads", (): AppSettings => {
+  mainDb?.deleteSetting("copyThreads");
+  return appSettings();
+});
+
+ipcMain.handle("settings:set-disk-mode", (_event, raw: unknown): AppSettings => {
+  if (raw !== "auto" && raw !== "ssd" && raw !== "hdd") throw new Error("无效磁盘类型");
+  mainDb?.setSetting("diskMode", raw);
+  return appSettings();
+});
+
 ipcMain.handle("sync:scan", async (event, raw: unknown) => {
   return handleIpc("sync:scan", async () => {
     const request = parseScanRequest(raw);
@@ -415,12 +461,19 @@ ipcMain.handle("sync:execute", async (event, raw: unknown) => {
     execController = controller;
     const pool = getHashPool();
     pool.setConcurrency(readScanThreads());
+    const copyThreads = readCopyThreads();
+    const diskMode = readDiskMode();
     const sender = event.sender;
     let lastAt = 0;
     try {
       const result = await executeActions(
         { ...request, actions },
-        { softDelete, hash: (path) => pool.hashFile(path) },
+        {
+          softDelete,
+          hash: (path) => pool.hashFile(path),
+          copyThreads,
+          diskKind: (root) => detectDiskType(root, diskMode),
+        },
         {
           controller,
           onProgress: (progress: ExecuteProgress) => {

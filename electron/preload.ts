@@ -4,6 +4,7 @@ import type { ScanProgress } from "../src/lib/types";
 import type {
   AppSettings,
   DeletedRecord,
+  DiskMode,
   ExecuteProgress,
   ExecuteRequest,
   FilterPrefs,
@@ -47,6 +48,11 @@ contextBridge.exposeInMainWorld("api", {
   setScanThreads: (value: number): Promise<AppSettings> =>
     ipcRenderer.invoke("settings:set-scan-threads", value),
   resetScanThreads: (): Promise<AppSettings> => ipcRenderer.invoke("settings:reset-scan-threads"),
+  setCopyThreads: (value: number): Promise<AppSettings> =>
+    ipcRenderer.invoke("settings:set-copy-threads", value),
+  resetCopyThreads: (): Promise<AppSettings> => ipcRenderer.invoke("settings:reset-copy-threads"),
+  setDiskMode: (mode: DiskMode): Promise<AppSettings> =>
+    ipcRenderer.invoke("settings:set-disk-mode", mode),
   listRecycle: (request: RecycleListRequest): Promise<DeletedRecord[]> =>
     ipcRenderer.invoke("recycle:list", request),
   restoreRecycle: (request: RecycleRestoreRequest): Promise<string> =>

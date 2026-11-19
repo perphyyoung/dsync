@@ -186,12 +186,20 @@ export interface ExecuteRequest {
   rateLimitBytesPerSec?: number;
 }
 
+/** 磁盘类型：auto 自动检测，ssd / hdd 手动覆盖 */
+export type DiskMode = "auto" | "ssd" | "hdd";
+
 /** 应用级设置：存 dsync-main.db 的 app_settings 表 */
 export interface AppSettings {
   /** 实际生效的扫描线程数 */
   scanThreads: number;
   /** true 表示用默认值（逻辑处理器一半），false 表示用户显式设置 */
   scanThreadsAuto: boolean;
+  /** 实际生效的复制线程数（单文件分块并发） */
+  copyThreads: number;
+  /** true 表示用默认值（SSD 下 max(2, 一半)），false 表示用户显式设置 */
+  copyThreadsAuto: boolean;
+  diskMode: DiskMode;
   /** 当前机器可见的逻辑处理器数 */
   logicalProcessors: number;
 }

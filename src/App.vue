@@ -26,6 +26,7 @@ import type {
   AppSettings,
   DeletedRecord,
   DiffRow,
+  DiskMode,
   ExecuteProgress,
   FilterPrefs,
   MismatchEntry,
@@ -99,6 +100,9 @@ const settingsOpen = ref(false);
 const settingsDialogOpen = ref(false);
 const scanThreads = ref(1);
 const scanThreadsAuto = ref(true);
+const copyThreads = ref(2);
+const copyThreadsAuto = ref(true);
+const diskMode = ref<DiskMode>("auto");
 const logicalProcessors = ref(1);
 const result = ref<ScanResult | null>(null);
 const selected = ref<Set<number>>(new Set());
@@ -575,6 +579,9 @@ onMounted(() => {
 function applyAppSettings(next: AppSettings): void {
   scanThreads.value = next.scanThreads;
   scanThreadsAuto.value = next.scanThreadsAuto;
+  copyThreads.value = next.copyThreads;
+  copyThreadsAuto.value = next.copyThreadsAuto;
+  diskMode.value = next.diskMode;
   logicalProcessors.value = next.logicalProcessors;
 }
 
@@ -597,6 +604,30 @@ async function saveScanThreads(value: number): Promise<void> {
 async function resetScanThreads(): Promise<void> {
   try {
     applyAppSettings(await window.api.resetScanThreads());
+  } catch (error) {
+    pushAlert(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function saveCopyThreads(value: number): Promise<void> {
+  try {
+    applyAppSettings(await window.api.setCopyThreads(value));
+  } catch (error) {
+    pushAlert(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function resetCopyThreads(): Promise<void> {
+  try {
+    applyAppSettings(await window.api.resetCopyThreads());
+  } catch (error) {
+    pushAlert(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function changeDiskMode(mode: DiskMode): Promise<void> {
+  try {
+    applyAppSettings(await window.api.setDiskMode(mode));
   } catch (error) {
     pushAlert(error instanceof Error ? error.message : String(error));
   }
@@ -1829,10 +1860,16 @@ async function executePreview(): Promise<void> {
       v-if="settingsDialogOpen"
       :scan-threads="scanThreads"
       :scan-threads-auto="scanThreadsAuto"
+      :copy-threads="copyThreads"
+      :copy-threads-auto="copyThreadsAuto"
+      :disk-mode="diskMode"
       :logical-processors="logicalProcessors"
       @close="settingsDialogOpen = false"
       @change-scan-threads="saveScanThreads"
       @reset-scan-threads="resetScanThreads"
+      @change-copy-threads="saveCopyThreads"
+      @reset-copy-threads="resetCopyThreads"
+      @change-disk-mode="changeDiskMode"
     />
     <ExecuteProgressWindow
       :visible="execVisible"

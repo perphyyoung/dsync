@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
+import type { DiskMode } from "../lib/types";
 
 const props = defineProps<{
   scanThreads: number;
   scanThreadsAuto: boolean;
+  copyThreads: number;
+  copyThreadsAuto: boolean;
+  diskMode: DiskMode;
   logicalProcessors: number;
 }>();
 
@@ -11,19 +15,38 @@ const emit = defineEmits<{
   close: [];
   changeScanThreads: [value: number];
   resetScanThreads: [];
+  changeCopyThreads: [value: number];
+  resetCopyThreads: [];
+  changeDiskMode: [value: DiskMode];
 }>();
 
-const value = ref(props.scanThreads);
+const scanValue = ref(props.scanThreads);
+const copyValue = ref(props.copyThreads);
 watch(
   () => props.scanThreads,
   (next) => {
-    value.value = next;
+    scanValue.value = next;
+  },
+);
+watch(
+  () => props.copyThreads,
+  (next) => {
+    copyValue.value = next;
   },
 );
 
-function commit(): void {
-  const next = Math.round(Number(value.value));
+function commitScan(): void {
+  const next = Math.round(Number(scanValue.value));
   if (Number.isFinite(next)) emit("changeScanThreads", next);
+}
+
+function commitCopy(): void {
+  const next = Math.round(Number(copyValue.value));
+  if (Number.isFinite(next)) emit("changeCopyThreads", next);
+}
+
+function changeDiskMode(event: Event): void {
+  emit("changeDiskMode", (event.target as HTMLSelectElement).value as DiskMode);
 }
 </script>
 
@@ -48,19 +71,18 @@ function commit(): void {
         <span class="text-slate-400">扫描线程数</span>
         <div class="flex items-center gap-2">
           <input
-            v-model.number="value"
+            v-model.number="scanValue"
             type="number"
             min="1"
             :max="logicalProcessors"
             aria-label="扫描线程数"
             class="w-24 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200"
-            @change="commit"
+            @change="commitScan"
           />
           <span class="text-xs text-slate-500">/ {{ logicalProcessors }}</span>
         </div>
       </div>
-
-      <div class="mt-2 flex items-center justify-between text-xs text-slate-500">
+      <div class="mt-1 flex items-center justify-between text-xs text-slate-500">
         <span>{{ scanThreadsAuto ? "默认：逻辑处理器的一半" : "已手动设置" }}</span>
         <button
           v-if="!scanThreadsAuto"
@@ -72,7 +94,51 @@ function commit(): void {
         </button>
       </div>
 
-      <p class="mt-3 text-xs text-slate-500">修改后下次扫描生效；机械硬盘建议调低。</p>
+      <div class="mt-4 flex items-center justify-between gap-3">
+        <span class="text-slate-400">复制线程数</span>
+        <div class="flex items-center gap-2">
+          <input
+            v-model.number="copyValue"
+            type="number"
+            min="1"
+            :max="logicalProcessors"
+            aria-label="复制线程数"
+            class="w-24 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200"
+            @change="commitCopy"
+          />
+          <span class="text-xs text-slate-500">/ {{ logicalProcessors }}</span>
+        </div>
+      </div>
+      <div class="mt-1 flex items-center justify-between text-xs text-slate-500">
+        <span>{{ copyThreadsAuto ? "默认：逻辑处理器一半（至少 2）" : "已手动设置" }}</span>
+        <button
+          v-if="!copyThreadsAuto"
+          type="button"
+          class="text-sky-400 hover:text-sky-300"
+          @click="emit('resetCopyThreads')"
+        >
+          恢复默认
+        </button>
+      </div>
+
+      <div class="mt-4 flex items-center justify-between gap-3">
+        <span class="text-slate-400">磁盘类型</span>
+        <select
+          :value="diskMode"
+          aria-label="磁盘类型"
+          class="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200"
+          @change="changeDiskMode"
+        >
+          <option value="auto">自动</option>
+          <option value="ssd">固态</option>
+          <option value="hdd">机械</option>
+        </select>
+      </div>
+      <p class="mt-1 text-xs text-slate-500">
+        机械盘单文件不并行；自动检测失败按机械盘处理。修改后下次执行生效。
+      </p>
+
+      <p class="mt-4 text-xs text-slate-500">扫描线程数修改后下次扫描生效；机械硬盘建议调低。</p>
     </div>
   </div>
 </template>

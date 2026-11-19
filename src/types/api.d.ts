@@ -2,6 +2,7 @@ import type { DirPairEntry } from "../lib/dir-pairs";
 import type {
   AppSettings,
   DeletedRecord,
+  DiskMode,
   ExecuteProgress,
   ExecuteRequest,
   ExecuteResult,
@@ -40,6 +41,9 @@ export interface Api {
   getAppSettings(): Promise<AppSettings>;
   setScanThreads(value: number): Promise<AppSettings>;
   resetScanThreads(): Promise<AppSettings>;
+  setCopyThreads(value: number): Promise<AppSettings>;
+  resetCopyThreads(): Promise<AppSettings>;
+  setDiskMode(mode: DiskMode): Promise<AppSettings>;
   listRecycle(request: RecycleListRequest): Promise<DeletedRecord[]>;
   restoreRecycle(request: RecycleRestoreRequest): Promise<string>;
   onProgress(callback: (progress: ScanProgress) => void): () => void;

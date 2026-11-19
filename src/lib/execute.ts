@@ -2,6 +2,8 @@ import { copyFile, mkdir, open, rename, rm, stat } from "node:fs/promises";
 import { dirname } from "node:path";
 import { ExecutionCancelledError, type ExecutionController } from "./execute-controller";
 import { RateTracker } from "./controller";
+import { PARALLEL_COPY_THRESHOLD, copyParallel } from "./copy-parallel";
+import type { DiskKind } from "./disk-type";
 import { hashFile } from "./hash";
 import { resolveInsideRoot } from "./path-guard";
 import { TMP_SUFFIX } from "./scan";
@@ -12,6 +14,10 @@ export interface ExecuteDeps {
   softDelete: (root: string, relPath: RelPath) => Promise<void>;
   /** 哈希实现：桌面端注入 worker 池，默认本地 hashFile */
   hash?: (fullPath: string) => Promise<string>;
+  /** 单文件并行分块数；默认 1（顺序） */
+  copyThreads?: number;
+  /** 磁盘类型探测：默认 unknown（按机械盘处理） */
+  diskKind?: (root: string) => Promise<DiskKind>;
 }
 
 export interface ExecuteHooks {
@@ -39,6 +45,10 @@ interface CopyContext {
   controller?: ExecutionController;
   /** 哈希实现：默认本地 hashFile */
   hash?: (path: string) => Promise<string>;
+  /** 动作源文件大小；由 executeActions 提前 stat，避免重复 */
+  expectedSize?: number;
+  /** 单文件并行分块数；1 表示顺序 */
+  parallelConcurrency?: number;
   /** done / total 为字节；bytesPerSecond 为字节/秒，etaSeconds 为剩余秒数 */
   onBytes?: (
     done: number,
@@ -113,12 +123,15 @@ async function copyInChunks(
 async function copyAtomic(source: string, target: string, ctx: CopyContext): Promise<void> {
   await mkdir(dirname(target), { recursive: true });
   const tmp = `${target}${TMP_SUFFIX}`;
-  const info = await stat(source);
+  const info = ctx.expectedSize !== undefined ? { size: ctx.expectedSize } : await stat(source);
+  const parallel =
+    info.size >= PARALLEL_COPY_THRESHOLD && Math.max(1, ctx.parallelConcurrency ?? 1) > 1;
 
-  /* 大文件优先续传：上次取消留下的半成品已写入的部分直接跳过 */
+  /* 顺序模式大文件优先续传；并行模式写是乱序的，不复用半成品 */
   let startOffset = 0;
   const partial = await stat(tmp).catch(() => null);
   if (
+    !parallel &&
     info.size >= STREAM_COPY_THRESHOLD &&
     partial &&
     partial.size > 0 &&
@@ -133,6 +146,15 @@ async function copyAtomic(source: string, target: string, ctx: CopyContext): Pro
     if (info.size < STREAM_COPY_THRESHOLD) {
       ctx.controller?.throwIfCancelled();
       await copyFile(source, tmp);
+    } else if (parallel) {
+      await copyParallel({
+        source,
+        target: tmp,
+        size: info.size,
+        concurrency: Math.max(1, ctx.parallelConcurrency ?? 1),
+        controller: ctx.controller,
+        onBytes: ctx.onBytes,
+      });
     } else {
       await copyInChunks(source, tmp, info.size, startOffset, ctx);
     }
@@ -148,9 +170,8 @@ async function copyAtomic(source: string, target: string, ctx: CopyContext): Pro
     }
     await rename(tmp, target);
   } catch (error) {
-    if (error instanceof ExecutionCancelledError) {
-      /* 取消保留半成品用于续传；过期半成品由扫描时清理 */
-    } else {
+    /* 取消：顺序模式保留半成品续传；并行模式乱序，删除半成品 */
+    if (!(error instanceof ExecutionCancelledError) || parallel) {
       await rm(tmp, { force: true }).catch(() => {});
     }
     throw error;
@@ -173,6 +194,16 @@ export async function executeActions(
     cancelled: false,
   };
   const total = request.actions.length;
+  const kindCache = new Map<string, Promise<DiskKind>>();
+  const kindOf = (root: string): Promise<DiskKind> => {
+    const cached = kindCache.get(root);
+    if (cached) return cached;
+    const pending = (deps.diskKind?.(root) ?? Promise.resolve<DiskKind>("unknown")).catch(
+      () => "unknown" as DiskKind,
+    );
+    kindCache.set(root, pending);
+    return pending;
+  };
 
   const emit = (
     done: number,
@@ -206,9 +237,25 @@ export async function executeActions(
         if (action.kind === "copy") {
           const sourceRoot = rootOf(action.side === "left" ? "right" : "left");
           const sourceFull = resolveInsideRoot(sourceRoot, action.fromPath ?? action.toPath);
+          const sourceSize = (await stat(sourceFull)).size;
+
+          /* 单文件并行：只在两侧都确认 SSD 且文件够大时启用；未知/机械盘一律顺序 */
+          let parallelConcurrency = 1;
+          if (sourceSize >= PARALLEL_COPY_THRESHOLD && (deps.copyThreads ?? 1) > 1) {
+            const [sourceKind, targetKind] = await Promise.all([
+              kindOf(sourceRoot),
+              kindOf(targetRoot),
+            ]);
+            if (sourceKind === "ssd" && targetKind === "ssd") {
+              parallelConcurrency = Math.max(1, Math.floor(deps.copyThreads ?? 1));
+            }
+          }
+
           await copyAtomic(sourceFull, targetFull, {
             controller: hooks.controller,
             hash: deps.hash,
+            expectedSize: sourceSize,
+            parallelConcurrency,
             sourceHash: typeof action.sourceHash === "string" ? action.sourceHash : null,
             onBytes: (done, bytesTotal, bytesPerSecond, etaSeconds) =>
               emit(index, action.toPath, done, bytesTotal, bytesPerSecond, etaSeconds),
