@@ -1189,19 +1189,9 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
       rateLimitBytesPerSec: execRateLimit.value * 1024 * 1024,
     });
 
-    const targets = buildTargets(actions);
-    const refreshed = targets.length
-      ? await window.api.refresh({
-          leftRoot: leftRoot.value,
-          rightRoot: rightRoot.value,
-          targets,
-        })
-      : [];
-    applyRefresh(refreshed);
-
+    /* 文件操作已结束：先收尾进度窗，再刷新列表；刷新慢不应让窗口停在 100% */
     const failedPaths = new Set(outcome.failed.map((item) => item.path));
     execFailures.value = actions.filter((action) => failedPaths.has(action.toPath));
-
     execSummary.value = `复制 ${outcome.copied}，改名 ${outcome.moved}，删除 ${outcome.deleted}`;
     execState.value = outcome.cancelled ? "cancelled" : "done";
     execProgress.value = {
@@ -1222,24 +1212,30 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
       fileBytesTotal: 0,
       bytesPerSecond: 0,
       etaSeconds: null,
-      bytesDone: execProgress.value?.bytesDone ?? 0,
+      bytesDone: outcome.cancelled
+        ? (execProgress.value?.bytesDone ?? 0)
+        : (execProgress.value?.bytesTotal ?? 0),
       bytesTotal: execProgress.value?.bytesTotal ?? 0,
       activeFiles: 0,
     };
+
     if (execShowTimer) {
       clearTimeout(execShowTimer);
       execShowTimer = null;
     }
-    execVisible.value = true;
-    execMinimized.value = false;
-    if (execHideTimer) clearTimeout(execHideTimer);
-    execHideTimer = setTimeout(
-      () => {
+    if (execHideTimer) {
+      clearTimeout(execHideTimer);
+      execHideTimer = null;
+    }
+    const keepWindow = outcome.cancelled || execFailures.value.length > 0;
+    execVisible.value = keepWindow;
+    execMinimized.value = keepWindow ? false : execMinimized.value;
+    if (keepWindow && outcome.cancelled && execFailures.value.length === 0) {
+      execHideTimer = setTimeout(() => {
         execVisible.value = false;
         execHideTimer = null;
-      },
-      outcome.cancelled ? 2500 : 1500,
-    );
+      }, 2500);
+    }
 
     showToast(
       outcome.cancelled ? `${label}已取消：${execSummary.value}` : `${label}：${execSummary.value}`,
@@ -1253,11 +1249,29 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
     if (outcome.stale.length > 0) {
       pushAlert(formatStale(outcome.stale));
     }
-    const stalePaths = new Set(outcome.stale.map((item) => item.path));
-    const executed = actions.filter((action) => !stalePaths.has(action.toPath));
-    const mismatched = verifyOutcome(executed, refreshed);
-    if (mismatched.length > 0) {
-      pushAlert(formatMismatch(mismatched));
+
+    let refreshed: RefreshedRow[] | null = null;
+    try {
+      const targets = buildTargets(actions);
+      refreshed = targets.length
+        ? await window.api.refresh({
+            leftRoot: leftRoot.value,
+            rightRoot: rightRoot.value,
+            targets,
+          })
+        : [];
+      applyRefresh(refreshed);
+    } catch (error) {
+      pushAlert(`刷新结果失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    if (refreshed) {
+      const stalePaths = new Set(outcome.stale.map((item) => item.path));
+      const executed = actions.filter((action) => !stalePaths.has(action.toPath));
+      const mismatched = verifyOutcome(executed, refreshed);
+      if (mismatched.length > 0) {
+        pushAlert(formatMismatch(mismatched));
+      }
     }
     if (outcome.failed.length > 0) {
       const message = outcome.failed
