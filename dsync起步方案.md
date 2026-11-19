@@ -569,6 +569,7 @@ pick dirs → sync:scan(扫描 + 哈希 + 配对 + 索引落盘) → 渲染差�
 | D49 | 进度节奏与后台速度 / ETA | 扫描与执行进度统一 500ms 节流（删除执行侧 ≥1MB 字节跳变补推）；速度 / ETA 由主进程按 3 秒窗口计算（暂停恢复、限速变化重置窗口），前端只格式化显示；总进度包含当前文件字节占比；进度条 500ms 线性补间 | 2026-11-19 |
 | D50 | 哈希 worker 与扫描线程数 | 哈希（扫描 + 复制校验）移入 `worker_threads` 池，electron-vite `?modulePath` 构建 worker；扫描线程数存 `dsync-main.db` 的 `app_settings`，默认逻辑处理器一半、范围 1..n、恢复默认即删除记录；旧 `dir-pairs.db` 不迁移、不删除；worker 每 100ms 批量上报字节 | 2026-11-19 |
 | D51 | 单文件并行复制与磁盘类型 | ≥ 64MB 且源、目标都判定为 SSD 时按 8MB 分块并行，复制线程数默认 `max(2, 逻辑处理器一半)`、范围 1..n；机械盘 / 未知强制 1（顺序 1MB 流）；并行模式取消删除半成品，顺序模式保留续传；磁盘类型 Windows / Linux / macOS 自动检测，失败按机械，可手动覆盖；`copyThreads` / `diskMode` 存 `app_settings` | 2026-11-19 |
+| D52 | 多文件并行复制 | copy 动作滑动窗口并行；< 64MB 小文件走文件级并行，≥ 64MB 大文件单独走单文件分块并行，两者不叠加；并行文件数默认 `max(2, 逻辑处理器一半)`，SSD 用设置值、HDD / 未知最多 2、网络最多 4；move / soft-delete 串行屏障；进度聚合 `bytesDone` / `bytesTotal` / `activeFiles`；`SyncAction.sizeBytes` 由计划填充 | 2026-11-19 |
 
 无待确认项。
 

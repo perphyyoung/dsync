@@ -48,15 +48,13 @@ const title = computed(() => {
 const percent = computed(() => {
   const p = props.progress;
   if (!p || p.total <= 0) return 0;
-  /* 总进度包含当前文件：大文件复制时总条也能连续推进 */
-  const fileFraction = p.fileBytesTotal > 0 ? Math.min(1, p.fileBytesDone / p.fileBytesTotal) : 0;
-  return Math.min(100, Math.round(((p.done + fileFraction) / p.total) * 100));
+  return Math.min(100, Math.round((p.done / p.total) * 100));
 });
 
-const filePercent = computed(() => {
+const bytePercent = computed(() => {
   const p = props.progress;
-  if (!p || p.fileBytesTotal <= 0) return 0;
-  return Math.min(100, Math.round((p.fileBytesDone / p.fileBytesTotal) * 100));
+  if (!p || p.bytesTotal <= 0) return 0;
+  return Math.min(100, Math.round((p.bytesDone / p.bytesTotal) * 100));
 });
 
 /* 速度与 ETA 由主进程计算，这里只格式化显示 */
@@ -125,7 +123,13 @@ function formatBytes(bytes: number): string {
       </div>
 
       <p
-        v-if="progress?.currentPath && (state === 'running' || state === 'paused')"
+        v-if="progress && progress.activeFiles > 1 && (state === 'running' || state === 'paused')"
+        class="mt-2 text-slate-300"
+      >
+        {{ progress.activeFiles }} 个文件并行
+      </p>
+      <p
+        v-else-if="progress?.currentPath && (state === 'running' || state === 'paused')"
         class="mt-2 truncate text-slate-300"
         :title="progress.currentPath"
       >
@@ -133,21 +137,18 @@ function formatBytes(bytes: number): string {
       </p>
 
       <template
-        v-if="
-          progress && progress.fileBytesTotal > 0 && (state === 'running' || state === 'paused')
-        "
+        v-if="progress && progress.bytesTotal > 0 && (state === 'running' || state === 'paused')"
       >
         <div class="mt-1.5 flex items-center justify-between text-slate-500">
           <span
-            >{{ formatBytes(progress.fileBytesDone) }} /
-            {{ formatBytes(progress.fileBytesTotal) }}</span
+            >{{ formatBytes(progress.bytesDone) }} / {{ formatBytes(progress.bytesTotal) }}</span
           >
-          <span>{{ filePercent }}%</span>
+          <span>{{ bytePercent }}%</span>
         </div>
         <div class="mt-1 h-1 overflow-hidden rounded bg-slate-800">
           <div
             class="h-full bg-sky-400 transition-[width] duration-500 ease-linear"
-            :style="{ width: `${filePercent}%` }"
+            :style="{ width: `${bytePercent}%` }"
           />
         </div>
         <p v-if="speedText" class="mt-1 text-slate-500">

@@ -7,7 +7,14 @@ import type { DiskKind } from "./disk-type";
 import { hashFile } from "./hash";
 import { resolveInsideRoot } from "./path-guard";
 import { TMP_SUFFIX } from "./scan";
-import type { ExecuteProgress, ExecuteRequest, ExecuteResult, RelPath, Side } from "./types";
+import type {
+  ExecuteProgress,
+  ExecuteRequest,
+  ExecuteResult,
+  RelPath,
+  Side,
+  SyncAction,
+} from "./types";
 
 export interface ExecuteDeps {
   /** 软删除：桌面端移入内置回收站，测试注入假实现 */
@@ -16,6 +23,8 @@ export interface ExecuteDeps {
   hash?: (fullPath: string) => Promise<string>;
   /** 单文件并行分块数；默认 1（顺序） */
   copyThreads?: number;
+  /** 多文件并行数；默认 1（顺序） */
+  parallelFiles?: number;
   /** 磁盘类型探测：默认 unknown（按机械盘处理） */
   diskKind?: (root: string) => Promise<DiskKind>;
 }
@@ -193,7 +202,9 @@ export async function executeActions(
     stale: [],
     cancelled: false,
   };
-  const total = request.actions.length;
+  const actions = request.actions;
+  const total = actions.length;
+  const controller = hooks.controller;
   const kindCache = new Map<string, Promise<DiskKind>>();
   const kindOf = (root: string): Promise<DiskKind> => {
     const cached = kindCache.get(root);
@@ -205,86 +216,225 @@ export async function executeActions(
     return pending;
   };
 
-  const emit = (
-    done: number,
+  /* 扫描大小优先；缺失时补一次 stat，用于总字节与排序 */
+  const sizes = new Map<number, number>();
+  let totalBytes = 0;
+  for (const [index, action] of actions.entries()) {
+    if (action.kind !== "copy") continue;
+    const sourceRoot = rootOf(action.side === "left" ? "right" : "left");
+    const sourceFull = resolveInsideRoot(sourceRoot, action.fromPath ?? action.toPath);
+    const size =
+      typeof action.sizeBytes === "number"
+        ? action.sizeBytes
+        : await stat(sourceFull).then(
+            (info) => info.size,
+            () => 0,
+          );
+    sizes.set(index, size);
+    totalBytes += size;
+  }
+
+  /* 多文件并发：SSD 用设置值；机械/未知最多 2；网络最多 4 */
+  let fileConcurrency = Math.max(1, Math.floor(deps.parallelFiles ?? 1));
+  if (fileConcurrency > 1 && actions.some((action) => action.kind === "copy")) {
+    const [leftKind, rightKind] = await Promise.all([
+      kindOf(request.leftRoot),
+      kindOf(request.rightRoot),
+    ]);
+    if (
+      leftKind === "hdd" ||
+      rightKind === "hdd" ||
+      leftKind === "unknown" ||
+      rightKind === "unknown"
+    ) {
+      fileConcurrency = Math.min(fileConcurrency, 2);
+    } else if (leftKind === "network" || rightKind === "network") {
+      fileConcurrency = Math.min(fileConcurrency, 4);
+    }
+  }
+
+  const tracker = new RateTracker();
+  tracker.record(0);
+  const activeBytes = new Map<number, number>();
+  let completedBytes = 0;
+  let completed = 0;
+  let activeFiles = 0;
+  let cancelled = false;
+
+  const aggregateDone = (): number => {
+    let sum = completedBytes;
+    for (const bytes of activeBytes.values()) sum += bytes;
+    return sum;
+  };
+
+  const emitProgress = (
     currentPath: string,
-    bytes = 0,
-    bytesTotal = 0,
+    fileDone = 0,
+    fileTotal = 0,
     bytesPerSecond = 0,
     etaSeconds: number | null = null,
   ): void => {
     hooks.onProgress?.({
-      done,
+      done: completed,
       total,
       currentPath,
-      fileBytesDone: bytes,
-      fileBytesTotal: bytesTotal,
+      fileBytesDone: fileDone,
+      fileBytesTotal: fileTotal,
       bytesPerSecond,
       etaSeconds,
+      bytesDone: aggregateDone(),
+      bytesTotal: totalBytes,
+      activeFiles,
     });
   };
 
-  try {
-    for (const [index, action] of request.actions.entries()) {
-      await hooks.controller?.waitIfPaused();
-      hooks.controller?.throwIfCancelled();
-      emit(index, action.toPath);
+  const runCopy = async (index: number, action: SyncAction): Promise<void> => {
+    const targetRoot = rootOf(action.side);
+    const targetFull = resolveInsideRoot(targetRoot, action.toPath);
+    const sourceRoot = rootOf(action.side === "left" ? "right" : "left");
+    const sourceFull = resolveInsideRoot(sourceRoot, action.fromPath ?? action.toPath);
 
-      try {
-        const targetRoot = rootOf(action.side);
-        const targetFull = resolveInsideRoot(targetRoot, action.toPath);
+    let sourceSize: number;
+    try {
+      sourceSize = (await stat(sourceFull)).size;
+    } catch (error) {
+      result.failed.push({ path: action.toPath, message: (error as Error).message });
+      completed += 1;
+      emitProgress(action.toPath);
+      return;
+    }
 
-        if (action.kind === "copy") {
-          const sourceRoot = rootOf(action.side === "left" ? "right" : "left");
-          const sourceFull = resolveInsideRoot(sourceRoot, action.fromPath ?? action.toPath);
-          const sourceSize = (await stat(sourceFull)).size;
+    activeBytes.set(index, 0);
+    activeFiles = activeBytes.size;
+    emitProgress(action.toPath, 0, sourceSize);
 
-          /* 单文件并行：只在两侧都确认 SSD 且文件够大时启用；未知/机械盘一律顺序 */
-          let parallelConcurrency = 1;
-          if (sourceSize >= PARALLEL_COPY_THRESHOLD && (deps.copyThreads ?? 1) > 1) {
-            const [sourceKind, targetKind] = await Promise.all([
-              kindOf(sourceRoot),
-              kindOf(targetRoot),
-            ]);
-            if (sourceKind === "ssd" && targetKind === "ssd") {
-              parallelConcurrency = Math.max(1, Math.floor(deps.copyThreads ?? 1));
-            }
-          }
+    /* 单文件并行：只在两侧都确认 SSD 且文件够大时启用；未知/机械/网络一律顺序 */
+    let parallelConcurrency = 1;
+    if (sourceSize >= PARALLEL_COPY_THRESHOLD && (deps.copyThreads ?? 1) > 1) {
+      const [sourceKind, targetKind] = await Promise.all([kindOf(sourceRoot), kindOf(targetRoot)]);
+      if (sourceKind === "ssd" && targetKind === "ssd") {
+        parallelConcurrency = Math.max(1, Math.floor(deps.copyThreads ?? 1));
+      }
+    }
 
-          await copyAtomic(sourceFull, targetFull, {
-            controller: hooks.controller,
-            hash: deps.hash,
-            expectedSize: sourceSize,
-            parallelConcurrency,
-            sourceHash: typeof action.sourceHash === "string" ? action.sourceHash : null,
-            onBytes: (done, bytesTotal, bytesPerSecond, etaSeconds) =>
-              emit(index, action.toPath, done, bytesTotal, bytesPerSecond, etaSeconds),
-          });
-          result.copied += 1;
-        } else if (action.kind === "move") {
-          const from = action.fromPath ?? action.toPath;
-          const sourceFull = resolveInsideRoot(targetRoot, from);
-          await mkdir(dirname(targetFull), { recursive: true });
-          await rename(sourceFull, targetFull);
-          result.moved += 1;
-          result.moves.push({ side: action.side, from, to: action.toPath });
-        } else if (action.kind === "soft-delete") {
-          await deps.softDelete(targetRoot, action.toPath);
-          result.deleted += 1;
-        }
-      } catch (error) {
-        if (error instanceof ExecutionCancelledError) throw error;
+    try {
+      await copyAtomic(sourceFull, targetFull, {
+        controller,
+        hash: deps.hash,
+        expectedSize: sourceSize,
+        parallelConcurrency,
+        sourceHash: typeof action.sourceHash === "string" ? action.sourceHash : null,
+        onBytes: (done, bytesTotal) => {
+          activeBytes.set(index, done);
+          tracker.record(aggregateDone());
+          emitProgress(
+            action.toPath,
+            done,
+            bytesTotal,
+            tracker.rate() ?? 0,
+            totalBytes > 0 ? tracker.eta(totalBytes) : null,
+          );
+        },
+      });
+      completedBytes += sourceSize;
+      result.copied += 1;
+    } catch (error) {
+      if (error instanceof ExecutionCancelledError) {
+        cancelled = true;
+      } else {
         result.failed.push({ path: action.toPath, message: (error as Error).message });
       }
-      emit(index + 1, action.toPath);
+    } finally {
+      activeBytes.delete(index);
+      activeFiles = activeBytes.size;
+    }
+
+    if (!cancelled) {
+      completed += 1;
+      tracker.record(aggregateDone());
+      emitProgress(action.toPath);
+    }
+  };
+
+  const runSerial = async (action: SyncAction): Promise<void> => {
+    const targetRoot = rootOf(action.side);
+    const targetFull = resolveInsideRoot(targetRoot, action.toPath);
+    emitProgress(action.toPath);
+
+    try {
+      if (action.kind === "move") {
+        const from = action.fromPath ?? action.toPath;
+        const sourceFull = resolveInsideRoot(targetRoot, from);
+        await mkdir(dirname(targetFull), { recursive: true });
+        await rename(sourceFull, targetFull);
+        result.moved += 1;
+        result.moves.push({ side: action.side, from, to: action.toPath });
+      } else {
+        await deps.softDelete(targetRoot, action.toPath);
+        result.deleted += 1;
+      }
+    } catch (error) {
+      if (error instanceof ExecutionCancelledError) {
+        cancelled = true;
+        return;
+      }
+      result.failed.push({ path: action.toPath, message: (error as Error).message });
+    }
+
+    completed += 1;
+    tracker.record(aggregateDone());
+    emitProgress(action.toPath);
+  };
+
+  const active = new Set<Promise<void>>();
+  const startCopy = (index: number, action: SyncAction): void => {
+    let task: Promise<void>;
+    task = runCopy(index, action).finally(() => {
+      active.delete(task);
+    });
+    active.add(task);
+  };
+
+  let fatal: unknown = null;
+  try {
+    let index = 0;
+    while (index < actions.length) {
+      if (cancelled || controller?.cancelled) break;
+      await controller?.waitIfPaused();
+      controller?.throwIfCancelled();
+
+      const action = actions[index];
+      if (action.kind !== "copy") {
+        await Promise.all(active);
+        if (cancelled || controller?.cancelled) break;
+        await runSerial(action);
+        index += 1;
+        continue;
+      }
+
+      /* 大文件单独跑 P3 分块，避免与多文件并行叠加；小文件进并发窗口 */
+      if ((sizes.get(index) ?? 0) >= PARALLEL_COPY_THRESHOLD) {
+        await Promise.all(active);
+        if (cancelled || controller?.cancelled) break;
+        await runCopy(index, action);
+        index += 1;
+        continue;
+      }
+
+      if (active.size >= fileConcurrency) {
+        await Promise.race(active);
+        continue;
+      }
+      startCopy(index, action);
+      index += 1;
     }
   } catch (error) {
-    if (error instanceof ExecutionCancelledError) {
-      result.cancelled = true;
-      return result;
-    }
-    throw error;
+    if (error instanceof ExecutionCancelledError) cancelled = true;
+    else fatal = error;
   }
 
+  await Promise.all(active);
+  result.cancelled = cancelled || controller?.cancelled === true;
+  if (fatal) throw fatal;
   return result;
 }

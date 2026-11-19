@@ -6,7 +6,7 @@ import { COPY_CHUNK_SIZE, STREAM_COPY_THRESHOLD, executeActions, filesMatch } fr
 import { ExecutionController } from "./execute-controller";
 import { hashText } from "./hash";
 import { TMP_SUFFIX } from "./scan";
-import type { ExecuteRequest, SyncAction } from "./types";
+import type { ExecuteProgress, ExecuteRequest, SyncAction } from "./types";
 
 const created: string[] = [];
 
@@ -173,5 +173,42 @@ describe("执行复制", () => {
     const result = await running;
     expect(result.copied).toBe(1);
     expect((await stat(join(right, "big.bin"))).size).toBe(size);
+  });
+
+  it("多文件并行复制：并发受控、进度聚合", async () => {
+    const { left, right } = await setup();
+    for (let i = 0; i < 4; i += 1) {
+      await writeFile(join(left, `f${i}.txt`), `data-${i}`, "utf8");
+    }
+    const actions = Array.from({ length: 4 }, (_, index) => ({
+      ...copyAction(`f${index}.txt`, `f${index}.txt`),
+      sourceHash: "h",
+      sizeBytes: 6,
+      rowIndex: index,
+    }));
+
+    let activeHash = 0;
+    let maxHash = 0;
+    const progress: ExecuteProgress[] = [];
+    const hash = async (): Promise<string> => {
+      activeHash += 1;
+      maxHash = Math.max(maxHash, activeHash);
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      activeHash -= 1;
+      return "h";
+    };
+
+    const result = await executeActions(
+      request(left, right, actions),
+      { softDelete, hash, parallelFiles: 2, diskKind: async () => "ssd" },
+      { onProgress: (next) => progress.push(next) },
+    );
+
+    expect(result.copied).toBe(4);
+    expect(maxHash).toBeGreaterThanOrEqual(2);
+    expect(progress.at(-1)).toMatchObject({ bytesTotal: 24, bytesDone: 24, activeFiles: 0 });
+    for (let i = 0; i < 4; i += 1) {
+      expect(await readFile(join(right, `f${i}.txt`), "utf8")).toBe(`data-${i}`);
+    }
   });
 });

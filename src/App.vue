@@ -102,6 +102,8 @@ const scanThreads = ref(1);
 const scanThreadsAuto = ref(true);
 const copyThreads = ref(2);
 const copyThreadsAuto = ref(true);
+const parallelFiles = ref(2);
+const parallelFilesAuto = ref(true);
 const diskMode = ref<DiskMode>("auto");
 const logicalProcessors = ref(1);
 const result = ref<ScanResult | null>(null);
@@ -581,6 +583,8 @@ function applyAppSettings(next: AppSettings): void {
   scanThreadsAuto.value = next.scanThreadsAuto;
   copyThreads.value = next.copyThreads;
   copyThreadsAuto.value = next.copyThreadsAuto;
+  parallelFiles.value = next.parallelFiles;
+  parallelFilesAuto.value = next.parallelFilesAuto;
   diskMode.value = next.diskMode;
   logicalProcessors.value = next.logicalProcessors;
 }
@@ -628,6 +632,22 @@ async function resetCopyThreads(): Promise<void> {
 async function changeDiskMode(mode: DiskMode): Promise<void> {
   try {
     applyAppSettings(await window.api.setDiskMode(mode));
+  } catch (error) {
+    pushAlert(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function saveParallelFiles(value: number): Promise<void> {
+  try {
+    applyAppSettings(await window.api.setParallelFiles(value));
+  } catch (error) {
+    pushAlert(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function resetParallelFiles(): Promise<void> {
+  try {
+    applyAppSettings(await window.api.resetParallelFiles());
   } catch (error) {
     pushAlert(error instanceof Error ? error.message : String(error));
   }
@@ -1106,6 +1126,9 @@ function resetExecWindow(total: number): void {
     fileBytesTotal: 0,
     bytesPerSecond: 0,
     etaSeconds: null,
+    bytesDone: 0,
+    bytesTotal: 0,
+    activeFiles: 0,
   };
 }
 
@@ -1190,12 +1213,18 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
         fileBytesTotal: 0,
         bytesPerSecond: 0,
         etaSeconds: null,
+        bytesDone: 0,
+        bytesTotal: 0,
+        activeFiles: 0,
       }),
       done: outcome.cancelled ? (execProgress.value?.done ?? 0) : actions.length,
       fileBytesDone: 0,
       fileBytesTotal: 0,
       bytesPerSecond: 0,
       etaSeconds: null,
+      bytesDone: execProgress.value?.bytesDone ?? 0,
+      bytesTotal: execProgress.value?.bytesTotal ?? 0,
+      activeFiles: 0,
     };
     if (execShowTimer) {
       clearTimeout(execShowTimer);
@@ -1862,6 +1891,8 @@ async function executePreview(): Promise<void> {
       :scan-threads-auto="scanThreadsAuto"
       :copy-threads="copyThreads"
       :copy-threads-auto="copyThreadsAuto"
+      :parallel-files="parallelFiles"
+      :parallel-files-auto="parallelFilesAuto"
       :disk-mode="diskMode"
       :logical-processors="logicalProcessors"
       @close="settingsDialogOpen = false"
@@ -1869,6 +1900,8 @@ async function executePreview(): Promise<void> {
       @reset-scan-threads="resetScanThreads"
       @change-copy-threads="saveCopyThreads"
       @reset-copy-threads="resetCopyThreads"
+      @change-parallel-files="saveParallelFiles"
+      @reset-parallel-files="resetParallelFiles"
       @change-disk-mode="changeDiskMode"
     />
     <ExecuteProgressWindow

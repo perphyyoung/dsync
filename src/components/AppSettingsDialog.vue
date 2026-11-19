@@ -7,6 +7,8 @@ const props = defineProps<{
   scanThreadsAuto: boolean;
   copyThreads: number;
   copyThreadsAuto: boolean;
+  parallelFiles: number;
+  parallelFilesAuto: boolean;
   diskMode: DiskMode;
   logicalProcessors: number;
 }>();
@@ -17,11 +19,14 @@ const emit = defineEmits<{
   resetScanThreads: [];
   changeCopyThreads: [value: number];
   resetCopyThreads: [];
+  changeParallelFiles: [value: number];
+  resetParallelFiles: [];
   changeDiskMode: [value: DiskMode];
 }>();
 
 const scanValue = ref(props.scanThreads);
 const copyValue = ref(props.copyThreads);
+const filesValue = ref(props.parallelFiles);
 watch(
   () => props.scanThreads,
   (next) => {
@@ -34,6 +39,12 @@ watch(
     copyValue.value = next;
   },
 );
+watch(
+  () => props.parallelFiles,
+  (next) => {
+    filesValue.value = next;
+  },
+);
 
 function commitScan(): void {
   const next = Math.round(Number(scanValue.value));
@@ -43,6 +54,11 @@ function commitScan(): void {
 function commitCopy(): void {
   const next = Math.round(Number(copyValue.value));
   if (Number.isFinite(next)) emit("changeCopyThreads", next);
+}
+
+function commitFiles(): void {
+  const next = Math.round(Number(filesValue.value));
+  if (Number.isFinite(next)) emit("changeParallelFiles", next);
 }
 
 function changeDiskMode(event: Event): void {
@@ -122,6 +138,33 @@ function changeDiskMode(event: Event): void {
       </div>
 
       <div class="mt-4 flex items-center justify-between gap-3">
+        <span class="text-slate-400">并行文件数</span>
+        <div class="flex items-center gap-2">
+          <input
+            v-model.number="filesValue"
+            type="number"
+            min="1"
+            :max="logicalProcessors"
+            aria-label="并行文件数"
+            class="w-24 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200"
+            @change="commitFiles"
+          />
+          <span class="text-xs text-slate-500">/ {{ logicalProcessors }}</span>
+        </div>
+      </div>
+      <div class="mt-1 flex items-center justify-between text-xs text-slate-500">
+        <span>{{ parallelFilesAuto ? "默认：逻辑处理器一半（至少 2）" : "已手动设置" }}</span>
+        <button
+          v-if="!parallelFilesAuto"
+          type="button"
+          class="text-sky-400 hover:text-sky-300"
+          @click="emit('resetParallelFiles')"
+        >
+          恢复默认
+        </button>
+      </div>
+
+      <div class="mt-4 flex items-center justify-between gap-3">
         <span class="text-slate-400">磁盘类型</span>
         <select
           :value="diskMode"
@@ -132,10 +175,11 @@ function changeDiskMode(event: Event): void {
           <option value="auto">自动</option>
           <option value="ssd">固态</option>
           <option value="hdd">机械</option>
+          <option value="network">网络</option>
         </select>
       </div>
       <p class="mt-1 text-xs text-slate-500">
-        机械盘单文件不并行；自动检测失败按机械盘处理。修改后下次执行生效。
+        机械盘单文件不并行；网络盘最多 4 个文件并行；自动检测失败按机械盘处理。修改后下次执行生效。
       </p>
 
       <p class="mt-4 text-xs text-slate-500">扫描线程数修改后下次扫描生效；机械硬盘建议调低。</p>

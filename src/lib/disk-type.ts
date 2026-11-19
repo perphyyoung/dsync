@@ -3,7 +3,7 @@ import { readFile, realpath } from "node:fs/promises";
 import { basename, parse } from "node:path";
 import type { DiskMode } from "./types";
 
-export type DiskKind = "ssd" | "hdd" | "unknown";
+export type DiskKind = "ssd" | "hdd" | "network" | "unknown";
 
 /** 命令行探测超时：探测失败按机械盘（顺序）处理，不能拖住复制 */
 const DETECT_TIMEOUT_MS = 3000;
@@ -80,10 +80,10 @@ async function detectMac(root: string): Promise<DiskKind> {
 
 /**
  * 探测根目录所在物理盘类型；auto 失败返回 unknown（调用方按机械盘处理）。
- * 手动 ssd / hdd 直接返回，不执行命令。
+ * 手动 ssd / hdd / network 直接返回，不执行命令。
  */
 export async function detectDiskType(root: string, mode: DiskMode = "auto"): Promise<DiskKind> {
-  if (mode === "ssd" || mode === "hdd") return mode;
+  if (mode === "ssd" || mode === "hdd" || mode === "network") return mode;
   try {
     if (process.platform === "win32") return await detectWindows(root);
     if (process.platform === "darwin") return await detectMac(root);

@@ -176,6 +176,8 @@ export interface SyncAction {
   rowIndex: number;
   /** copy 时源侧扫描哈希：执行时用它校验目标，不重读源 */
   sourceHash?: string | null;
+  /** copy 时源文件扫描大小；用于多文件聚合进度 */
+  sizeBytes?: number;
 }
 
 export interface ExecuteRequest {
@@ -186,8 +188,8 @@ export interface ExecuteRequest {
   rateLimitBytesPerSec?: number;
 }
 
-/** 磁盘类型：auto 自动检测，ssd / hdd 手动覆盖 */
-export type DiskMode = "auto" | "ssd" | "hdd";
+/** 磁盘类型：auto 自动检测，ssd / hdd / network 手动覆盖 */
+export type DiskMode = "auto" | "ssd" | "hdd" | "network";
 
 /** 应用级设置：存 dsync-main.db 的 app_settings 表 */
 export interface AppSettings {
@@ -199,6 +201,10 @@ export interface AppSettings {
   copyThreads: number;
   /** true 表示用默认值（SSD 下 max(2, 一半)），false 表示用户显式设置 */
   copyThreadsAuto: boolean;
+  /** 实际生效的并行文件数（多文件复制） */
+  parallelFiles: number;
+  /** true 表示用默认值（max(2, 一半)），false 表示用户显式设置 */
+  parallelFilesAuto: boolean;
   diskMode: DiskMode;
   /** 当前机器可见的逻辑处理器数 */
   logicalProcessors: number;
@@ -215,6 +221,12 @@ export interface ExecuteProgress {
   bytesPerSecond: number;
   /** 当前文件预计剩余秒数；样本不足为 null */
   etaSeconds: number | null;
+  /** 所有 copy 动作的聚合已复制字节 */
+  bytesDone: number;
+  /** 所有 copy 动作的聚合总字节 */
+  bytesTotal: number;
+  /** 当前同时复制的文件数 */
+  activeFiles: number;
 }
 
 /** 局部刷新：只检查给定行的两侧文件 */

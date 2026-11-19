@@ -13,7 +13,8 @@
 | `07-display-filter.spec.ts`   | 显示过滤缩小刷新与扩大提醒           |
 | `08-special.spec.ts`          | 过滤命中不列行与特殊视图             |
 | `09-execute-progress.spec.ts` | 大文件复制进度窗、最小化与恢复       |
-| `10-app-settings.spec.ts`     | 扫描线程数修改、持久化与恢复默认     |
+| `10-app-settings.spec.ts`     | 线程数与磁盘类型设置                 |
+| `11-multi-file.spec.ts`       | 并行文件数设置与多文件复制           |
 
 ## 01-app-shell.spec.ts
 
@@ -141,6 +142,13 @@
 - 返回主界面 → 状态栏「设置」打开弹窗：扫描线程数 1、复制线程数改为 2、磁盘类型选「机械」
 - 重启后扫描设置页仍为 1；恢复扫描默认后打开设置，复制线程数 2 / 机械保留
 - 恢复复制默认、磁盘类型改回自动，API 返回 `copyThreadsAuto=true`、`diskMode=auto`
+
+## 11-multi-file.spec.ts
+
+验证并行文件数与多文件复制：
+
+- 设置「并行文件数」为 3、磁盘类型固态，重启后值保留
+- 通过 `sync:execute` 对 4 个小文件并发复制，返回 `copied=4`，右侧文件内容正确
 
 ## 约定
 

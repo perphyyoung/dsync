@@ -51,6 +51,10 @@ contextBridge.exposeInMainWorld("api", {
   setCopyThreads: (value: number): Promise<AppSettings> =>
     ipcRenderer.invoke("settings:set-copy-threads", value),
   resetCopyThreads: (): Promise<AppSettings> => ipcRenderer.invoke("settings:reset-copy-threads"),
+  setParallelFiles: (value: number): Promise<AppSettings> =>
+    ipcRenderer.invoke("settings:set-parallel-files", value),
+  resetParallelFiles: (): Promise<AppSettings> =>
+    ipcRenderer.invoke("settings:reset-parallel-files"),
   setDiskMode: (mode: DiskMode): Promise<AppSettings> =>
     ipcRenderer.invoke("settings:set-disk-mode", mode),
   listRecycle: (request: RecycleListRequest): Promise<DeletedRecord[]> =>

@@ -100,7 +100,23 @@ function readCopyThreads(): number {
 
 function readDiskMode(): DiskMode {
   const raw = mainDb?.getSetting("diskMode");
-  return raw === "ssd" || raw === "hdd" ? raw : "auto";
+  return raw === "ssd" || raw === "hdd" || raw === "network" ? raw : "auto";
+}
+
+function defaultParallelFiles(): number {
+  return Math.min(scanThreadsLimit(), Math.max(2, Math.floor(availableParallelism() / 2)));
+}
+
+function clampParallelFiles(value: number): number {
+  return Math.min(scanThreadsLimit(), Math.max(1, Math.floor(value)));
+}
+
+function readParallelFiles(): number {
+  const raw = mainDb?.getSetting("parallelFiles") ?? null;
+  const parsed = raw === null ? null : Number.parseInt(raw, 10);
+  return parsed !== null && Number.isFinite(parsed)
+    ? clampParallelFiles(parsed)
+    : defaultParallelFiles();
 }
 
 function appSettings(): AppSettings {
@@ -110,11 +126,16 @@ function appSettings(): AppSettings {
   const rawCopy = mainDb?.getSetting("copyThreads") ?? null;
   const parsedCopy = rawCopy === null ? null : Number.parseInt(rawCopy, 10);
   const copyExplicit = parsedCopy !== null && Number.isFinite(parsedCopy);
+  const rawFiles = mainDb?.getSetting("parallelFiles") ?? null;
+  const parsedFiles = rawFiles === null ? null : Number.parseInt(rawFiles, 10);
+  const filesExplicit = parsedFiles !== null && Number.isFinite(parsedFiles);
   return {
     scanThreads: readScanThreads(),
     scanThreadsAuto: !scanExplicit,
     copyThreads: readCopyThreads(),
     copyThreadsAuto: !copyExplicit,
+    parallelFiles: readParallelFiles(),
+    parallelFilesAuto: !filesExplicit,
     diskMode: readDiskMode(),
     logicalProcessors: scanThreadsLimit(),
   };
@@ -307,8 +328,21 @@ ipcMain.handle("settings:reset-copy-threads", (): AppSettings => {
 });
 
 ipcMain.handle("settings:set-disk-mode", (_event, raw: unknown): AppSettings => {
-  if (raw !== "auto" && raw !== "ssd" && raw !== "hdd") throw new Error("无效磁盘类型");
+  if (raw !== "auto" && raw !== "ssd" && raw !== "hdd" && raw !== "network") {
+    throw new Error("无效磁盘类型");
+  }
   mainDb?.setSetting("diskMode", raw);
+  return appSettings();
+});
+
+ipcMain.handle("settings:set-parallel-files", (_event, raw: unknown): AppSettings => {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) throw new Error("无效并行文件数");
+  mainDb?.setSetting("parallelFiles", String(clampParallelFiles(raw)));
+  return appSettings();
+});
+
+ipcMain.handle("settings:reset-parallel-files", (): AppSettings => {
+  mainDb?.deleteSetting("parallelFiles");
   return appSettings();
 });
 
@@ -462,6 +496,7 @@ ipcMain.handle("sync:execute", async (event, raw: unknown) => {
     const pool = getHashPool();
     pool.setConcurrency(readScanThreads());
     const copyThreads = readCopyThreads();
+    const parallelFiles = readParallelFiles();
     const diskMode = readDiskMode();
     const sender = event.sender;
     let lastAt = 0;
@@ -472,6 +507,7 @@ ipcMain.handle("sync:execute", async (event, raw: unknown) => {
           softDelete,
           hash: (path) => pool.hashFile(path),
           copyThreads,
+          parallelFiles,
           diskKind: (root) => detectDiskType(root, diskMode),
         },
         {
