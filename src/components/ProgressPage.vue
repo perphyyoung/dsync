@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { etaHint, formatEta, formatSize } from "../lib/format";
+import { etaHint, formatSize } from "../lib/format";
+import { scanStatusText } from "../lib/scan-status";
 import type { ScanProgress } from "../lib/types";
 import ConfirmBubble from "./ConfirmBubble.vue";
 
@@ -38,6 +39,8 @@ const title = computed(() => {
 const percent = computed(() => {
   const current = props.progress;
   if (!current) return 0;
+  /* 配对 / 写索引是收尾阶段，保持 100%，不回到 0% */
+  if (current.phase === "pair" || current.phase === "index") return 100;
   if (current.phase === "hash" && current.total === 0) return 100;
   if (current.total <= 0) return 0;
   return Math.min(100, Math.round((current.done / current.total) * 100));
@@ -46,6 +49,8 @@ const percent = computed(() => {
 const countLabel = computed(() => {
   const current = props.progress;
   if (!current) return "";
+  /* 收尾阶段没有文件分母，状态行会说明当前在做什么 */
+  if (current.phase === "pair" || current.phase === "index") return "";
   if (current.total > 0) {
     if (current.phase === "hash") {
       return `${formatSize(current.done)} / ${formatSize(current.total)}`;
@@ -57,12 +62,7 @@ const countLabel = computed(() => {
   return "";
 });
 
-const etaLabel = computed(() => {
-  if (props.status !== "running") return null;
-  const current = props.progress;
-  if (!current || current.phase !== "hash") return null;
-  return formatEta(current.etaSeconds);
-});
+const statusText = computed(() => scanStatusText(props.progress, props.status));
 
 /** 耗时较长时给一条可执行建议；很短时不显示，避免噪声 */
 const hint = computed(() => {
@@ -121,7 +121,7 @@ function confirmCancel(): void {
           <span>{{ countLabel }}</span>
           <span v-if="!indeterminate">{{ percent }}%</span>
         </div>
-        <p v-if="etaLabel" class="mt-1 text-center text-xs text-slate-500">{{ etaLabel }}</p>
+        <p v-if="statusText" class="mt-1 text-center text-xs text-slate-500">{{ statusText }}</p>
         <p
           v-if="hint"
           class="mt-1 text-center text-xs"
