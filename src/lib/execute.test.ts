@@ -214,7 +214,13 @@ describe("执行复制", () => {
 
     expect(result.copied).toBe(4);
     expect(maxHash).toBeGreaterThanOrEqual(2);
-    expect(progress.at(-1)).toMatchObject({ bytesTotal: 24, bytesDone: 24, activeFiles: 0 });
+    expect(progress.some((next) => next.verifyingFiles > 0)).toBe(true);
+    expect(progress.at(-1)).toMatchObject({
+      bytesTotal: 24,
+      bytesDone: 24,
+      activeFiles: 0,
+      verifyingFiles: 0,
+    });
     for (let i = 0; i < 4; i += 1) {
       expect(await readFile(join(right, `f${i}.txt`), "utf8")).toBe(`data-${i}`);
     }

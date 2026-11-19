@@ -67,6 +67,9 @@ interface CopyContext {
   ) => void;
   /** 扫描时的源哈希：有值则只校验 tmp，不重读源 */
   sourceHash?: string | null;
+  /** 开始校验 tmp；此时复制字节已全部写入 */
+  onVerifyStart?: () => void;
+  onVerifyEnd?: () => void;
 }
 
 /** 分块复制：块边界检查暂停/取消；暂停保留句柄与偏移，继续即续写 */
@@ -176,27 +179,32 @@ async function copyAtomic(
       await copyInChunks(source, tmp, info.size, startOffset, ctx);
     }
     /* 校验：优先用扫描哈希比对 tmp（不重读源），无哈希时回退源/目标全量比对 */
-    const hash = ctx.hash ?? hashFile;
-    let verified: string;
-    if (ctx.sourceHash) {
-      verified = await hash(tmp);
-      if (verified !== ctx.sourceHash) {
-        throw new Error("校验失败：复制内容与扫描记录不一致");
+    ctx.onVerifyStart?.();
+    try {
+      const hash = ctx.hash ?? hashFile;
+      let verified: string;
+      if (ctx.sourceHash) {
+        verified = await hash(tmp);
+        if (verified !== ctx.sourceHash) {
+          throw new Error("校验失败：复制内容与扫描记录不一致");
+        }
+      } else {
+        const sourceHash = await hash(source);
+        verified = await hash(tmp);
+        if (sourceHash !== verified) {
+          throw new Error("校验失败：复制内容与源不一致");
+        }
       }
-    } else {
-      const sourceHash = await hash(source);
-      verified = await hash(tmp);
-      if (sourceHash !== verified) {
-        throw new Error("校验失败：复制内容与源不一致");
-      }
+      await rename(tmp, target);
+      const targetInfo = await stat(target).catch(() => null);
+      return {
+        hash: verified,
+        size: targetInfo?.size ?? info.size,
+        mtimeMs: targetInfo ? Math.floor(targetInfo.mtimeMs) : 0,
+      };
+    } finally {
+      ctx.onVerifyEnd?.();
     }
-    await rename(tmp, target);
-    const targetInfo = await stat(target).catch(() => null);
-    return {
-      hash: verified,
-      size: targetInfo?.size ?? info.size,
-      mtimeMs: targetInfo ? Math.floor(targetInfo.mtimeMs) : 0,
-    };
   } catch (error) {
     /* 取消：顺序模式保留半成品续传；并行模式乱序，删除半成品 */
     if (!(error instanceof ExecutionCancelledError) || parallel) {
@@ -276,6 +284,7 @@ export async function executeActions(
   const tracker = new RateTracker();
   tracker.record(0);
   const activeBytes = new Map<number, number>();
+  const verifying = new Set<number>();
   let completedBytes = 0;
   let completed = 0;
   let activeFiles = 0;
@@ -305,6 +314,7 @@ export async function executeActions(
       bytesDone: aggregateDone(),
       bytesTotal: totalBytes,
       activeFiles,
+      verifyingFiles: verifying.size,
     });
   };
 
@@ -347,6 +357,16 @@ export async function executeActions(
         expectedSize: sourceSize,
         parallelConcurrency,
         sourceHash: typeof action.sourceHash === "string" ? action.sourceHash : null,
+        onVerifyStart: () => {
+          verifying.add(index);
+          /* 小文件没有分块回调；进入校验前把字节进度补满 */
+          activeBytes.set(index, sourceSize);
+          tracker.record(aggregateDone());
+          emitProgress(action.toPath, sourceSize, sourceSize);
+        },
+        onVerifyEnd: () => {
+          verifying.delete(index);
+        },
         onBytes: (done, bytesTotal) => {
           activeBytes.set(index, done);
           tracker.record(aggregateDone());

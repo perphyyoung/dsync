@@ -568,7 +568,10 @@ onMounted(() => {
     progress.value = next;
   });
   unsubscribeExecuteProgress = window.api.onExecuteProgress((next) => {
-    execProgress.value = next;
+    /* 执行结束后的最后一条补发进度不能覆盖本地完成态 */
+    if (execState.value === "running" || execState.value === "paused") {
+      execProgress.value = next;
+    }
   });
 
   /* 先载入目录对档案，再回填目录，条件随目录对应用 */
@@ -1137,6 +1140,7 @@ function resetExecWindow(total: number): void {
     bytesDone: 0,
     bytesTotal: 0,
     activeFiles: 0,
+    verifyingFiles: 0,
   };
 }
 
@@ -1217,6 +1221,7 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
         bytesDone: 0,
         bytesTotal: 0,
         activeFiles: 0,
+        verifyingFiles: 0,
       }),
       done: outcome.cancelled ? (execProgress.value?.done ?? 0) : actions.length,
       fileBytesDone: 0,
@@ -1228,6 +1233,7 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
         : (execProgress.value?.bytesTotal ?? 0),
       bytesTotal: execProgress.value?.bytesTotal ?? 0,
       activeFiles: 0,
+      verifyingFiles: 0,
     };
 
     const successActions = outcome.cancelled

@@ -227,6 +227,8 @@ export interface ExecuteProgress {
   bytesTotal: number;
   /** 当前同时复制的文件数 */
   activeFiles: number;
+  /** 当前正在校验哈希的文件数 */
+  verifyingFiles: number;
 }
 
 /** 局部刷新：只检查给定行的两侧文件 */

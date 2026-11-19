@@ -137,6 +137,14 @@ function formatBytes(bytes: number): string {
       >
         {{ progress.currentPath }}
       </p>
+      <p
+        v-if="
+          progress && progress.verifyingFiles > 0 && (state === 'running' || state === 'paused')
+        "
+        class="mt-1 text-amber-300"
+      >
+        校验中{{ progress.verifyingFiles > 1 ? `（${progress.verifyingFiles} 个文件）` : "" }}
+      </p>
 
       <template
         v-if="progress && progress.bytesTotal > 0 && (state === 'running' || state === 'paused')"

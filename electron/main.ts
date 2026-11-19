@@ -521,6 +521,38 @@ ipcMain.handle("sync:execute", async (event, raw: unknown) => {
     const diskMode = readDiskMode();
     const sender = event.sender;
     let lastAt = 0;
+    let pendingProgress: ExecuteProgress | null = null;
+    let progressTimer: ReturnType<typeof setTimeout> | null = null;
+    const sendProgress = (progress: ExecuteProgress): void => {
+      if (!sender.isDestroyed()) sender.send("sync:execute-progress", progress);
+    };
+    const flushProgress = (): void => {
+      if (progressTimer) {
+        clearTimeout(progressTimer);
+        progressTimer = null;
+      }
+      if (!pendingProgress) return;
+      const progress = pendingProgress;
+      pendingProgress = null;
+      lastAt = Date.now();
+      sendProgress(progress);
+    };
+    const scheduleProgress = (progress: ExecuteProgress): void => {
+      pendingProgress = progress;
+      const now = Date.now();
+      if (now - lastAt >= 500) {
+        flushProgress();
+        return;
+      }
+      if (progressTimer) return;
+      progressTimer = setTimeout(
+        () => {
+          progressTimer = null;
+          flushProgress();
+        },
+        500 - (now - lastAt),
+      );
+    };
     try {
       const result = await executeActions(
         { ...request, actions },
@@ -534,14 +566,12 @@ ipcMain.handle("sync:execute", async (event, raw: unknown) => {
         {
           controller,
           onProgress: (progress: ExecuteProgress) => {
-            /* 与扫描一致：500ms 节流，进度对象只带数字与路径 */
-            const now = Date.now();
-            if (now - lastAt < 500) return;
-            lastAt = now;
-            if (!sender.isDestroyed()) sender.send("sync:execute-progress", progress);
+            /* 500ms 节流；最后一次进度不丢，校验开始时能看到 full bytes */
+            scheduleProgress(progress);
           },
         },
       );
+      flushProgress();
       result.stale = stale;
       await migrateMoveCaches(request.leftRoot, request.rightRoot, result.moves);
       await cacheCopyIndexes(request.leftRoot, request.rightRoot, result.copies);
@@ -552,6 +582,7 @@ ipcMain.handle("sync:execute", async (event, raw: unknown) => {
       );
       return result;
     } finally {
+      flushProgress();
       execController = null;
     }
   });
