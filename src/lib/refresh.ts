@@ -1,6 +1,5 @@
 import { stat } from "node:fs/promises";
 import { hashFile } from "./hash";
-import { loadIndexPair, patchIndex } from "./index-file";
 import { resolveInsideRoot } from "./path-guard";
 import type {
   ExecuteRequest,
@@ -42,11 +41,7 @@ function changed(cache: HashCache, state: { size: number; mtimeMs: number }): bo
   return cache.size !== state.size || cache.mtimeMs !== state.mtimeMs;
 }
 
-async function inspect(
-  root: string,
-  path: RelPath | null,
-  cache: HashCache | undefined,
-): Promise<RefreshedFile | null> {
+async function inspect(root: string, path: RelPath | null): Promise<RefreshedFile | null> {
   if (!path) return null;
   const full = resolveInsideRoot(root, path);
   let info;
@@ -55,73 +50,27 @@ async function inspect(
   } catch {
     return null;
   }
-  const mtimeMs = Math.floor(info.mtimeMs);
-  if (cache && cache.size === info.size && cache.mtimeMs === mtimeMs) {
-    return { path, hash: cache.hash, size: info.size, mtimeMs };
-  }
   const hash = await hashFile(full);
-  return { path, hash, size: info.size, mtimeMs };
+  return { path, hash, size: info.size, mtimeMs: Math.floor(info.mtimeMs) };
 }
 
 /**
- * 局部刷新：只 stat 受影响的文件，缓存命中就不读内容。
- * 结果回写索引 cache，让下次全量扫描继续命中。
+ * 只刷新给定行涉及的文件；不读索引、不遍历其他文件。
+ * 用于失败 / 取消兜底与回收站还原探测。
  */
 export async function refreshPaths(
   leftRoot: string,
   rightRoot: string,
   targets: RefreshTarget[],
 ): Promise<RefreshedRow[]> {
-  const loaded = await loadIndexPair(leftRoot, rightRoot);
-  const leftCaches = cacheMap(loaded.data.pairs, "left");
-  const rightCaches = cacheMap(loaded.data.pairs, "right");
-
   const results: RefreshedRow[] = [];
   for (const target of targets) {
-    results.push({
-      rowIndex: target.rowIndex,
-      left: await inspect(
-        leftRoot,
-        target.left,
-        target.left ? leftCaches.get(target.left) : undefined,
-      ),
-      right: await inspect(
-        rightRoot,
-        target.right,
-        target.right ? rightCaches.get(target.right) : undefined,
-      ),
-    });
+    const [left, right] = await Promise.all([
+      inspect(leftRoot, target.left),
+      inspect(rightRoot, target.right),
+    ]);
+    results.push({ rowIndex: target.rowIndex, left, right });
   }
-
-  const leftFiles = new Map<RelPath, RefreshedFile>();
-  const rightFiles = new Map<RelPath, RefreshedFile>();
-  for (const row of results) {
-    if (row.left) leftFiles.set(row.left.path, row.left);
-    if (row.right) rightFiles.set(row.right.path, row.right);
-  }
-
-  let changedAny = false;
-  const upserts: PairRecord[] = [];
-  for (const pair of loaded.data.pairs) {
-    const left = leftFiles.get(pair.left);
-    const right = rightFiles.get(pair.right);
-    if (!left && !right) continue;
-    changedAny = true;
-    upserts.push({
-      ...pair,
-      leftCache: left
-        ? { hash: left.hash, size: left.size, mtimeMs: left.mtimeMs }
-        : pair.leftCache,
-      rightCache: right
-        ? { hash: right.hash, size: right.size, mtimeMs: right.mtimeMs }
-        : pair.rightCache,
-    });
-  }
-
-  if (changedAny) {
-    await Promise.all([patchIndex(leftRoot, { upserts }), patchIndex(rightRoot, { upserts })]);
-  }
-
   return results;
 }
 

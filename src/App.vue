@@ -15,6 +15,7 @@ import ViewModeLine from "./components/ViewModeLine.vue";
 import { pairKey, type DirPairEntry } from "./lib/dir-pairs";
 import { matchesDisplayFilter, type DisplayFilter } from "./lib/display-filter";
 import { findWiderReasons, type ScanScope } from "./lib/display-scope";
+import { directResults } from "./lib/execute-result";
 import { parseExtInput } from "./lib/exts";
 import { mirrorScanResult } from "./lib/mirror";
 import { buildPreview, previewKindRows, type PreviewKind } from "./lib/preview";
@@ -1017,6 +1018,10 @@ function applyRefresh(rows: RefreshedRow[]): void {
       ...row,
       left: item.left?.path ?? null,
       right: item.right?.path ?? null,
+      leftSize: item.left?.size ?? null,
+      rightSize: item.right?.size ?? null,
+      leftDate: item.left?.mtimeMs ?? null,
+      rightDate: item.right?.mtimeMs ?? null,
       leftHash: item.left?.hash ?? null,
       rightHash: item.right?.hash ?? null,
       status: statusOf(item.left, item.right),
@@ -1194,8 +1199,9 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
       rateLimitBytesPerSec: execRateLimit.value * 1024 * 1024,
     });
 
-    /* 文件操作已结束：先标记完成态，再刷新列表；刷新期间窗口保留 */
+    /* 文件操作已结束：成功行直接用执行结果更新，失败 / 无法确定的行才做目标级刷新 */
     const failedPaths = new Set(outcome.failed.map((item) => item.path));
+    const stalePaths = new Set(outcome.stale.map((item) => item.path));
     execFailures.value = actions.filter((action) => failedPaths.has(action.toPath));
     execSummary.value = `复制 ${outcome.copied}，改名 ${outcome.moved}，删除 ${outcome.deleted}`;
     execState.value = outcome.cancelled ? "cancelled" : "done";
@@ -1224,6 +1230,21 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
       activeFiles: 0,
     };
 
+    const successActions = outcome.cancelled
+      ? []
+      : actions.filter(
+          (action) => !failedPaths.has(action.toPath) && !stalePaths.has(action.toPath),
+        );
+    const direct = directResults(result.value?.rows ?? [], successActions);
+    const refreshActions = outcome.cancelled
+      ? actions.filter((action) => !stalePaths.has(action.toPath))
+      : [...execFailures.value, ...direct.fallback];
+    /* 先基于原行号生成刷新目标，再应用任何行更新，避免删行后 rowIndex 错位 */
+    const refreshTargets = refreshActions.length > 0 ? buildTargets(refreshActions) : [];
+    const hasFailures = outcome.failed.length > 0;
+    const keepWindow = hasFailures || outcome.cancelled;
+    const needsRefresh = refreshTargets.length > 0;
+
     if (execShowTimer) {
       clearTimeout(execShowTimer);
       execShowTimer = null;
@@ -1232,10 +1253,9 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
       clearTimeout(execHideTimer);
       execHideTimer = null;
     }
-    /* 刷新期间保持窗口：显示「已完成 / 正在刷新列表」，避免旧列表被二次操作 */
-    execRefreshing.value = true;
-    execVisible.value = true;
-    execMinimized.value = false;
+    execRefreshing.value = needsRefresh;
+    execVisible.value = keepWindow || needsRefresh;
+    execMinimized.value = execVisible.value ? false : execMinimized.value;
 
     showToast(
       outcome.cancelled ? `${label}已取消：${execSummary.value}` : `${label}：${execSummary.value}`,
@@ -1251,26 +1271,25 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
     }
 
     let refreshed: RefreshedRow[] | null = null;
-    try {
-      const targets = buildTargets(actions);
-      refreshed = targets.length
-        ? await window.api.refresh({
-            leftRoot: activeLeft,
-            rightRoot: activeRight,
-            targets,
-          })
-        : [];
-      applyRefresh(refreshed);
-    } catch (error) {
-      pushAlert(`刷新结果失败：${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      execRefreshing.value = false;
+    if (needsRefresh) {
+      try {
+        refreshed = await window.api.refresh({
+          leftRoot: activeLeft,
+          rightRoot: activeRight,
+          targets: refreshTargets,
+        });
+      } catch (error) {
+        pushAlert(`刷新结果失败：${error instanceof Error ? error.message : String(error)}`);
+      } finally {
+        execRefreshing.value = false;
+      }
     }
 
+    /* 一次应用，避免先删行导致后续 rowIndex 错位 */
+    applyRefresh([...direct.rows, ...(refreshed ?? [])]);
+
     if (refreshed) {
-      const stalePaths = new Set(outcome.stale.map((item) => item.path));
-      const executed = actions.filter((action) => !stalePaths.has(action.toPath));
-      const mismatched = verifyOutcome(executed, refreshed);
+      const mismatched = verifyOutcome(refreshActions, refreshed);
       if (mismatched.length > 0) {
         pushAlert(formatMismatch(mismatched));
       }
@@ -1283,10 +1302,10 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
       pushRetryAlert(message, execFailures.value);
     }
 
-    /* 列表已刷新：成功且无失败才关闭；失败保留重试，取消短暂保留 */
-    if (!outcome.cancelled && execFailures.value.length === 0) {
+    /* 成功且无失败才关闭；失败保留重试，取消短暂保留 */
+    if (!outcome.cancelled && !hasFailures) {
       execVisible.value = false;
-    } else if (outcome.cancelled && execFailures.value.length === 0) {
+    } else if (outcome.cancelled && !hasFailures) {
       execHideTimer = setTimeout(() => {
         execVisible.value = false;
         execHideTimer = null;
