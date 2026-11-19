@@ -48,7 +48,9 @@ const title = computed(() => {
 const percent = computed(() => {
   const p = props.progress;
   if (!p || p.total <= 0) return 0;
-  return Math.min(100, Math.round((p.done / p.total) * 100));
+  /* 总进度包含当前文件：大文件复制时总条也能连续推进 */
+  const fileFraction = p.fileBytesTotal > 0 ? Math.min(1, p.fileBytesDone / p.fileBytesTotal) : 0;
+  return Math.min(100, Math.round(((p.done + fileFraction) / p.total) * 100));
 });
 
 const filePercent = computed(() => {
@@ -57,37 +59,21 @@ const filePercent = computed(() => {
   return Math.min(100, Math.round((p.fileBytesDone / p.fileBytesTotal) * 100));
 });
 
-/* 速度：最近几次进度采样的字节差 / 时间差 */
-const samples = ref<{ at: number; bytes: number }[]>([]);
-watch(
-  () => props.progress,
-  (next) => {
-    if (!next || next.fileBytesTotal === 0) {
-      samples.value = [];
-      return;
-    }
-    samples.value.push({ at: Date.now(), bytes: next.fileBytesDone });
-    if (samples.value.length > 6) samples.value.shift();
-  },
-);
-
-const speed = computed(() => {
-  const list = samples.value;
-  if (list.length < 2) return null;
-  const first = list[0];
-  const last = list[list.length - 1];
-  const seconds = (last.at - first.at) / 1000;
-  if (seconds <= 0) return null;
-  return Math.max(0, (last.bytes - first.bytes) / seconds);
+/* 速度与 ETA 由主进程计算，这里只格式化显示 */
+const speedText = computed(() => {
+  const rate = props.progress?.bytesPerSecond ?? 0;
+  return rate > 0 ? `${formatSpeed(rate)}/s` : "";
 });
 
-const speedText = computed(() => (speed.value === null ? "" : `${formatBytes(speed.value)}/s`));
+const etaText = computed(() => formatEta(props.progress?.etaSeconds ?? null) ?? "");
 
-const etaText = computed(() => {
-  const p = props.progress;
-  if (!p || p.fileBytesTotal <= 0 || speed.value === null || speed.value <= 0) return "";
-  return formatEta((p.fileBytesTotal - p.fileBytesDone) / speed.value) ?? "";
-});
+function formatSpeed(bytes: number): string {
+  const mb = bytes / 1024 / 1024;
+  if (mb >= 10) return `${Math.round(mb)} MB`;
+  if (mb >= 1) return `${mb.toFixed(1)} MB`;
+  const kb = bytes / 1024;
+  return kb >= 1 ? `${Math.round(kb)} KB` : `${Math.round(bytes)} B`;
+}
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${Math.round(bytes)} B`;
@@ -132,7 +118,10 @@ function formatBytes(bytes: number): string {
         <span>{{ percent }}%</span>
       </div>
       <div class="mt-1 h-1.5 overflow-hidden rounded bg-slate-800">
-        <div class="h-full bg-sky-500 transition-[width]" :style="{ width: `${percent}%` }" />
+        <div
+          class="h-full bg-sky-500 transition-[width] duration-500 ease-linear"
+          :style="{ width: `${percent}%` }"
+        />
       </div>
 
       <p
@@ -156,7 +145,10 @@ function formatBytes(bytes: number): string {
           <span>{{ filePercent }}%</span>
         </div>
         <div class="mt-1 h-1 overflow-hidden rounded bg-slate-800">
-          <div class="h-full bg-sky-400 transition-[width]" :style="{ width: `${filePercent}%` }" />
+          <div
+            class="h-full bg-sky-400 transition-[width] duration-500 ease-linear"
+            :style="{ width: `${filePercent}%` }"
+          />
         </div>
         <p v-if="speedText" class="mt-1 text-slate-500">
           {{ speedText }}

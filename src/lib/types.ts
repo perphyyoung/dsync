@@ -193,6 +193,10 @@ export interface ExecuteProgress {
   currentPath: string;
   fileBytesDone: number;
   fileBytesTotal: number;
+  /** 当前文件复制速度（字节/秒），未知为 0 */
+  bytesPerSecond: number;
+  /** 当前文件预计剩余秒数；样本不足为 null */
+  etaSeconds: number | null;
 }
 
 /** 局部刷新：只检查给定行的两侧文件 */

@@ -41,6 +41,20 @@ describe("执行控制器", () => {
     expect(controller.rateLimitBytesPerSec).toBe(0);
   });
 
+  it("只在从暂停恢复时累加 resumeCount", () => {
+    const controller = new ExecutionController();
+    controller.resume();
+    expect(controller.resumeCount).toBe(0);
+
+    controller.pause();
+    controller.resume();
+    expect(controller.resumeCount).toBe(1);
+
+    controller.pause();
+    controller.cancel();
+    expect(controller.resumeCount).toBe(1);
+  });
+
   it("取消后再次暂停也直接抛错", async () => {
     const controller = new ExecutionController();
     controller.cancel();

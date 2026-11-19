@@ -31,12 +31,12 @@ function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
 }
 
-/** 按 100ms 节流，避免十万级文件把 IPC 打满 */
+/** 按 500ms 节流，避免十万级文件把 IPC 打满；与执行进度保持一致 */
 function createEmitter(hooks: ScanHooks): (progress: ScanProgress, force?: boolean) => void {
   let lastAt = 0;
   return (progress, force = false) => {
     const now = Date.now();
-    if (!force && now - lastAt < 100) return;
+    if (!force && now - lastAt < 500) return;
     lastAt = now;
     hooks.onProgress?.(progress);
   };

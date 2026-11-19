@@ -1025,7 +1025,15 @@ function resetExecWindow(total: number): void {
   execMinimized.value = false;
   execState.value = "running";
   execSummary.value = "";
-  execProgress.value = { done: 0, total, currentPath: "", fileBytesDone: 0, fileBytesTotal: 0 };
+  execProgress.value = {
+    done: 0,
+    total,
+    currentPath: "",
+    fileBytesDone: 0,
+    fileBytesTotal: 0,
+    bytesPerSecond: 0,
+    etaSeconds: null,
+  };
 }
 
 /** 300ms 内完成的小任务不弹进度窗，避免闪烁 */
@@ -1107,10 +1115,14 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
         currentPath: "",
         fileBytesDone: 0,
         fileBytesTotal: 0,
+        bytesPerSecond: 0,
+        etaSeconds: null,
       }),
       done: outcome.cancelled ? (execProgress.value?.done ?? 0) : actions.length,
       fileBytesDone: 0,
       fileBytesTotal: 0,
+      bytesPerSecond: 0,
+      etaSeconds: null,
     };
     if (execShowTimer) {
       clearTimeout(execShowTimer);

@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import { rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { COPY_CHUNK_SIZE, executeActions } from "../src/lib/execute";
+import { executeActions } from "../src/lib/execute";
 import { ExecutionController } from "../src/lib/execute-controller";
 import { ScanCancelledError, ScanController } from "../src/lib/controller";
 import { runScan } from "../src/lib/pipeline";
@@ -352,7 +352,6 @@ ipcMain.handle("sync:execute", async (event, raw: unknown) => {
     execController = controller;
     const sender = event.sender;
     let lastAt = 0;
-    let lastBytes = 0;
     try {
       const result = await executeActions(
         { ...request, actions },
@@ -360,12 +359,10 @@ ipcMain.handle("sync:execute", async (event, raw: unknown) => {
         {
           controller,
           onProgress: (progress: ExecuteProgress) => {
-            /* 节流：100ms 或字节跳变 1MB 才推送，避免 IPC 风暴 */
+            /* 与扫描一致：500ms 节流，进度对象只带数字与路径 */
             const now = Date.now();
-            const bigJump = Math.abs(progress.fileBytesDone - lastBytes) >= COPY_CHUNK_SIZE;
-            if (now - lastAt < 100 && !bigJump) return;
+            if (now - lastAt < 500) return;
             lastAt = now;
-            lastBytes = progress.fileBytesDone;
             if (!sender.isDestroyed()) sender.send("sync:execute-progress", progress);
           },
         },

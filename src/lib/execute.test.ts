@@ -67,6 +67,7 @@ describe("执行复制", () => {
       { softDelete },
       {
         onProgress: (next) => {
+          expect(next.bytesPerSecond).toBeGreaterThanOrEqual(0);
           if (next.fileBytesTotal > 0) {
             bytes.push({ done: next.fileBytesDone, total: next.fileBytesTotal });
           }

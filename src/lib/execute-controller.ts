@@ -12,6 +12,8 @@ export class ExecutionCancelledError extends Error {
 export class ExecutionController {
   paused = false;
   cancelled = false;
+  /** 从暂停恢复的次数：调用方据此重置速度窗口，避免把暂停时长算进速度 */
+  resumeCount = 0;
   /** 复制限速（字节/秒），0 表示不限 */
   rateLimitBytesPerSec = 0;
 
@@ -26,7 +28,9 @@ export class ExecutionController {
   }
 
   resume(): void {
+    const wasPaused = this.paused;
     this.paused = false;
+    if (wasPaused) this.resumeCount += 1;
     for (const resolve of this.waiters.splice(0)) resolve();
   }
 

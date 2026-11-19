@@ -112,7 +112,7 @@ function confirmCancel(): void {
       <div class="w-80">
         <div class="h-1 w-full overflow-hidden rounded bg-slate-800">
           <div
-            class="h-full bg-sky-500 transition-all duration-200"
+            class="h-full bg-sky-500 transition-[width] duration-500 ease-linear"
             :class="indeterminate ? 'w-1/3 animate-pulse' : ''"
             :style="indeterminate ? undefined : { width: `${percent}%` }"
           ></div>

@@ -2,7 +2,7 @@
 
 本文件仅供临时性的进度追踪，其它文件不得引用。
 
-## P1 进度更新节奏与后台 ETA（已确定，待执行）
+## P1 进度更新节奏与后台 ETA（已完成）
 
 ### 方案
 
@@ -25,15 +25,17 @@
 
 ### 实施阶段
 
-- [ ] `types.ts`：`ExecuteProgress` 增加两个字段
-- [ ] `execute.ts`：每块 record，进度带 rate / eta
-- [ ] `execute-controller.ts`：`resumeCount`，限速变化重置
-- [ ] `pipeline.ts`、`main.ts`：节流 500ms，删除字节绕过
-- [ ] `ExecuteProgressWindow.vue`：删本地采样，显示后端字段，百分比含文件占比，条 500ms 补间
-- [ ] `ProgressPage.vue`：进度条补间 500ms
-- [ ] `App.vue`：`resetExecWindow` 默认字段补齐
-- [ ] 单测（进度字段、`resumeCount`）/ e2e 09 复跑
-- [ ] 文档：design、起步方案 D49、通用语言、AGENTS.md、e2e-readme
+- [x] `types.ts`：`ExecuteProgress` 增加两个字段
+- [x] `execute.ts`：每块 record，进度带 rate / eta
+- [x] `execute-controller.ts`：`resumeCount`，限速变化重置
+- [x] `pipeline.ts`、`main.ts`：节流 500ms，删除字节绕过
+- [x] `ExecuteProgressWindow.vue`：删本地采样，显示后端字段，百分比含文件占比，条 500ms 补间
+- [x] `ProgressPage.vue`：进度条补间 500ms
+- [x] `App.vue`：`resetExecWindow` 默认字段补齐
+- [x] 单测（进度字段、`resumeCount`）/ e2e 09 复跑
+- [x] 文档：design、起步方案 D49、通用语言、AGENTS.md、e2e-readme
+
+进度记录：2026-11-19 完成。`pnpm check` 129 单测、`pnpm e2e` 18 条全绿。
 
 ## P2 哈希 worker 与扫描线程数（已定，待执行）
 
@@ -75,7 +77,7 @@
 - Worker 崩溃：按读取失败计，重建 worker，记日志，不拖垮整次扫描。
 - 池按需创建、空闲回收：不是启动就创建 n 个；高核机器（如 32 线程）只在扫描期间占用，文档注明内存代价。
 
-## P3 单文件并行复制（方案待确认）
+## P3 单文件并行复制（已确认，待执行）
 
 ### 背景与取舍
 
@@ -85,26 +87,24 @@
 
 ### 方案
 
-- 触发条件：单文件 ≥ 阈值（建议 64MB）且源、目标都不是机械盘；否则回退现有顺序流。
-- 分块：8MB / 块；并发数 = 「复制线程数」，默认逻辑处理器一半，范围 1..n；并发 1 即顺序。
+- 触发条件：单文件 ≥ 64MB 且源、目标都不是机械盘；否则顺序流。
+- 分块 8MB；SSD 并发 = 「复制线程数」，默认 `max(2, floor(n/2))`，范围 1..n；HDD / 未知强制 1（顺序）。
 - 实现：`FileHandle.read/write` 按偏移并行读写 tmp；任务队列、块边界暂停/取消；完成后整体哈希校验（P2 池）再 rename。
 - 磁盘类型：
   - `disk-type.ts` 自动检测：Windows PowerShell `MSFT_PhysicalDisk.MediaType`、Linux sysfs `rotational`、macOS `diskutil info`；按根路径缓存。
   - 手动覆盖：设置「磁盘类型：自动 / 固态 / 机械」；未知按机械处理（安全回退）。
   - 源或目标任一侧是机械盘 → 单文件不并行。
 - 进度：聚合字节、总速度、总 ETA（沿用 P1 后台计算）；总字节 = 文件大小。
-- 续传：并行写是乱序的，现有“从偏移续写”不适用；需要决定是否做位图记录，或并行模式取消后下次重头复制。
-- 设置：主界面 gear 弹窗「复制线程数」+ 「磁盘类型」；存 `app_settings.copyThreads` / `diskMode`。
+- 取消：并行模式写是乱序的，不做位图续传，取消时删除 `.dsynctmp`；顺序模式仍保留半成品续传。
+- 设置：主界面 gear 弹窗「复制线程数」+「磁盘类型」；存 `app_settings.copyThreads` / `diskMode`。
 
-### 待确认
+### 已确认
 
-- 阈值 64MB、分块 8MB 是否合适？（rclone 是 256MB / 4 流）
-- 2 核机器默认一半 = 1，单文件并行等于关闭；SSD 是否改为 `max(2, 一半)`？
-- 并行模式取消后：保留 tmp 但下次重头复制，还是做位图续传？（推荐先不做位图，重头复制；顺序模式仍保留续传）
-- 磁盘类型自动检测失败/未知时按机械处理，是否接受？
-- 是否需要手动「磁盘类型」覆盖，还是只自动检测？
+- 阈值 64MB、分块 8MB；2 核 SSD 默认 `max(2, 一半)`，HDD 强制 1。
+- 并行模式取消删除 tmp，不做位图续传；顺序模式保留续传。
+- 磁盘类型检测失败/未知按机械处理，并提供手动覆盖。
 
-### 实施阶段（待确认后拆）
+### 实施阶段（待执行）
 
 - [ ] `disk-type.ts`（三平台检测 + 缓存 + 手动覆盖）
 - [ ] `copy-parallel.ts`（8MB 偏移读写、任务队列、暂停/取消）

@@ -1,6 +1,7 @@
 import { copyFile, mkdir, open, rename, rm, stat } from "node:fs/promises";
 import { dirname } from "node:path";
 import { ExecutionCancelledError, type ExecutionController } from "./execute-controller";
+import { RateTracker } from "./controller";
 import { hashFile } from "./hash";
 import { resolveInsideRoot } from "./path-guard";
 import { TMP_SUFFIX } from "./scan";
@@ -30,7 +31,13 @@ export const COPY_CHUNK_SIZE = 1024 * 1024;
 
 interface CopyContext {
   controller?: ExecutionController;
-  onBytes?: (done: number, total: number) => void;
+  /** done / total 为字节；bytesPerSecond 为字节/秒，etaSeconds 为剩余秒数 */
+  onBytes?: (
+    done: number,
+    total: number,
+    bytesPerSecond: number,
+    etaSeconds: number | null,
+  ) => void;
   /** 扫描时的源哈希：有值则只校验 tmp，不重读源 */
   sourceHash?: string | null;
 }
@@ -49,16 +56,35 @@ async function copyInChunks(
   let offset = startOffset;
   const rateStart = Date.now();
   let rateBytes = 0;
+  /* 速度 / ETA 用 3 秒窗口；暂停恢复或限速变化后清空，避免把停顿算进速度 */
+  const tracker = new RateTracker();
+  tracker.record(startOffset);
+  let lastResume = ctx.controller?.resumeCount ?? 0;
+  let lastRateLimit = ctx.controller?.rateLimitBytesPerSec ?? 0;
   try {
     while (offset < size) {
       await ctx.controller?.waitIfPaused();
       ctx.controller?.throwIfCancelled();
+
+      if (ctx.controller) {
+        if (
+          ctx.controller.resumeCount !== lastResume ||
+          ctx.controller.rateLimitBytesPerSec !== lastRateLimit
+        ) {
+          lastResume = ctx.controller.resumeCount;
+          lastRateLimit = ctx.controller.rateLimitBytesPerSec;
+          tracker.reset();
+          tracker.record(offset);
+        }
+      }
+
       const { bytesRead } = await src.read(buffer, 0, COPY_CHUNK_SIZE, offset);
       if (bytesRead === 0) break;
       await dst.write(buffer, 0, bytesRead, offset);
       offset += bytesRead;
       rateBytes += bytesRead;
-      ctx.onBytes?.(offset, size);
+      tracker.record(offset);
+      ctx.onBytes?.(offset, size, tracker.rate() ?? 0, tracker.eta(size));
 
       /* 限速：按总字节与目标速率补齐等待，块粒度 1MB，取消响应 <= 1 块耗时 */
       const rate = ctx.controller?.rateLimitBytesPerSec ?? 0;
@@ -139,13 +165,22 @@ export async function executeActions(
   };
   const total = request.actions.length;
 
-  const emit = (done: number, currentPath: string, bytes = 0, bytesTotal = 0): void => {
+  const emit = (
+    done: number,
+    currentPath: string,
+    bytes = 0,
+    bytesTotal = 0,
+    bytesPerSecond = 0,
+    etaSeconds: number | null = null,
+  ): void => {
     hooks.onProgress?.({
       done,
       total,
       currentPath,
       fileBytesDone: bytes,
       fileBytesTotal: bytesTotal,
+      bytesPerSecond,
+      etaSeconds,
     });
   };
 
@@ -165,7 +200,8 @@ export async function executeActions(
           await copyAtomic(sourceFull, targetFull, {
             controller: hooks.controller,
             sourceHash: typeof action.sourceHash === "string" ? action.sourceHash : null,
-            onBytes: (done, bytesTotal) => emit(index, action.toPath, done, bytesTotal),
+            onBytes: (done, bytesTotal, bytesPerSecond, etaSeconds) =>
+              emit(index, action.toPath, done, bytesTotal, bytesPerSecond, etaSeconds),
           });
           result.copied += 1;
         } else if (action.kind === "move") {
