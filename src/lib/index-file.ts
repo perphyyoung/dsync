@@ -229,6 +229,59 @@ function alignRoots(index: IndexData, leftRoot: string, rightRoot: string): Inde
   return null;
 }
 
+/** 把索引里的某一侧哈希缓存按根目录收集出来 */
+function sideCaches(index: IndexData, root: string): Map<RelPath, HashCache> {
+  const target = pathKey(normalizeRoot(root));
+  const leftMatch = pathKey(normalizeRoot(index.roots.left)) === target;
+  const rightMatch = pathKey(normalizeRoot(index.roots.right)) === target;
+  const caches = new Map<RelPath, HashCache>();
+  if (!leftMatch && !rightMatch) return caches;
+
+  for (const pair of index.pairs) {
+    if (leftMatch && pair.leftCache) caches.set(pair.left, pair.leftCache);
+    if (rightMatch && pair.rightCache) caches.set(pair.right, pair.rightCache);
+  }
+  return caches;
+}
+
+/** 根目录不匹配时不再丢弃全部缓存：按侧分别捞，配对新对时仍能复用哈希 */
+function salvageSideCaches(
+  candidates: IndexData[],
+  leftRoot: string,
+  rightRoot: string,
+): IndexData {
+  const left = new Map<RelPath, HashCache>();
+  const right = new Map<RelPath, HashCache>();
+  for (const index of candidates) {
+    for (const [path, cache] of sideCaches(index, leftRoot)) left.set(path, cache);
+    for (const [path, cache] of sideCaches(index, rightRoot)) right.set(path, cache);
+  }
+
+  const paths = new Set([...left.keys(), ...right.keys()]);
+  const pairs: PairRecord[] = [...paths]
+    .toSorted((a, b) => a.localeCompare(b))
+    .map((path) => ({
+      left: path,
+      right: path,
+      base: null,
+      leftCache: left.get(path) ?? null,
+      rightCache: right.get(path) ?? null,
+      pairedBy: "index" as const,
+      syncedAt: null,
+    }));
+
+  return {
+    version: INDEX_SCHEMA_VERSION,
+    updatedAt:
+      candidates
+        .map((index) => index.updatedAt)
+        .toSorted()
+        .at(-1) ?? "",
+    roots: { left: leftRoot, right: rightRoot },
+    pairs,
+  };
+}
+
 /** 两份索引取 updatedAt 较新者，不做字段级合并 */
 export async function loadIndexPair(
   leftRoot: string,
@@ -251,13 +304,11 @@ export async function loadIndexPair(
   }
   candidates.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
-  const chosen = candidates[0];
-  const aligned = alignRoots(chosen, leftRoot, rightRoot);
-  if (!aligned) {
-    warnings.push("索引记录的目录与当前选择不一致，已按空索引处理");
-    return { data: emptyIndex(leftRoot, rightRoot), warnings };
+  for (const candidate of candidates) {
+    const aligned = alignRoots(candidate, leftRoot, rightRoot);
+    if (aligned) return { data: aligned, warnings };
   }
-  return { data: aligned, warnings };
+  return { data: salvageSideCaches(candidates, leftRoot, rightRoot), warnings };
 }
 
 interface PrefixShift {

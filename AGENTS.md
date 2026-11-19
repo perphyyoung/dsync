@@ -60,7 +60,7 @@ Electron 45 · electron-vite 6 · Vue 3 + TypeScript 6 · Tailwind CSS 4 · Vite
 - **判定只认内容哈希**，修改时间与大小只用于决定哈希缓存能否复用，不参与业务判定。
 - **MVP 只有单向同步**，索引里的 `base` 只写不读，冲突状态未启用。
 - **配对只认哈希**：两侧同哈希且各只有一个才配；同路径不同内容互相占位（`target-blocked`），本侧重复哈希标 `duplicate`。
-- **索引**：每个根目录下的 `.dsync/dsync.db`，SQLite（Node 内置 `node:sqlite`，`journal_mode=DELETE` 单文件）。全量扫描用 `writeIndex`，局部刷新/迁移/单行重算用 `patchIndex` 只改对应行。损坏时当作空索引重建。
+- **索引**：每个根目录下的 `.dsync/dsync.db`，SQLite（Node 内置 `node:sqlite`，`journal_mode=DELETE` 单文件）。全量扫描用 `writeIndex`，局部刷新/迁移/单行重算用 `patchIndex` 只改对应行。损坏时当作空索引重建。同一个根参与多个目录对时，根不匹配先尝试左右互换，再按侧复用哈希缓存（配对仍现算），不整份丢弃/告警。
 - **扫描不含方向**：`sync:scan` 只返回差异行，所有执行动作由前端 `rowDirections` / `actionForRow` 现算，单行操作与批量执行共用同一套规则。
 - **不做链式腾挪**：重排路径时目标被其他文件占用就跳过该行，不排序、不搬两次，宁可让用户手工处理。
 - **删除只进回收站**，回收站不可用时报错，不降级为永久删除。

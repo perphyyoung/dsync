@@ -3,7 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  cacheFromIndex,
   emptyIndex,
+  loadIndexPair,
   mergePairs,
   patchIndex,
   readIndex,
@@ -88,6 +90,22 @@ describe("索引读写（SQLite）", () => {
 
   it("空索引可用", () => {
     expect(emptyIndex("D:\\a", "E:\\b").pairs).toHaveLength(0);
+  });
+
+  it("根目录不匹配时按侧复用哈希缓存且不告警", async () => {
+    const a = join(work, "a");
+    const b = join(work, "b");
+    const c = join(work, "c");
+    const d = join(work, "d");
+    for (const dir of [a, b, c, d]) await mkdir(dir, { recursive: true });
+
+    await writeIndex(a, withPairs(a, b, [samplePair("a.md", "b.md", "ha")]));
+    await writeIndex(c, withPairs(c, d, [samplePair("c.md", "d.md", "hc")]));
+
+    const outcome = await loadIndexPair(a, c);
+    expect(outcome.warnings).toEqual([]);
+    expect(cacheFromIndex(outcome.data, "left").get("a.md")?.hash).toBe("ha");
+    expect(cacheFromIndex(outcome.data, "right").get("c.md")?.hash).toBe("hc");
   });
 });
 
