@@ -83,12 +83,13 @@ Electron 45 · electron-vite 6 · Vue 3 + TypeScript 6 · Tailwind CSS 4 · Vite
 - 复制后校验优先用动作携带的源侧扫描哈希（`SyncAction.sourceHash`），只读 tmp；无哈希的旧调用回退源 / 目标全量比对。不一致计入 failed 并告警。
 - 单行与批量执行共用右下角执行进度小窗：延迟 300ms 出现、完成 1.5s / 取消 2.5s 自动关闭；支持暂停 / 继续、取消（确认）、最小化胶囊、限速 10 / 50 / 100 MB/s 与失败项重试；同一时刻只允许一个执行任务。
 - 扫描与执行进度统一 500ms 节流；速度 / ETA 由主进程按 3 秒窗口计算，前端只格式化显示；进度条 500ms 线性补间。
+- 扫描哈希与复制校验走 `worker_threads` 池（electron-vite `?modulePath`）；扫描线程数存 `app_settings`，默认逻辑处理器一半、范围 1..n、恢复默认即删除记录；worker 每 100ms 批量上报字节。
 - 扫描用全屏进度页，执行用进度小窗，两者不共用界面。
 
 ## 数据
 
 - 应用数据：dev 为项目根 `ds-data/`，release 为 `userData/`；e2e 用环境变量 `DSYNC_DATA_DIR` 覆盖到临时目录。
-- 目录对档案：`dir-pairs.db`（应用级 SQLite，表 `dir_pairs`），最多 100 组；每组存左右目录、最近扫描成功时间与该组扫描条件（JSON 列）；扫描设置页只显示最近 5 组（无滚动条），可搜索全部；左右互换视为同一组；旧 `recent-pairs.json` 首次启动导入后删除。
+- 目录对档案：`dsync-main.db`（应用级 SQLite，表 `dir_pairs` + `app_settings`），最多 100 组；每组存左右目录、最近扫描成功时间与该组扫描条件（JSON 列）；扫描设置页只显示最近 5 组（无滚动条），可搜索全部；左右互换视为同一组；旧 `dir-pairs.db` 不迁移、不读取、不删除。
 - 索引：各同步根目录下的 `.dsync/dsync.db`；整个 `.dsync/` 强制排除，永不参与比较、复制、删除。
 - 日志：dev 与 e2e 写项目根 `ds.log`，release 写 `userData/ds.log`；主进程、渲染进程、e2e 共用同一份，用法见 `日志使用说明.md`。
 

@@ -1,19 +1,24 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { availableParallelism } from "node:os";
 import { rm, stat } from "node:fs/promises";
 import { join } from "node:path";
+import { Worker } from "node:worker_threads";
+import hashWorkerPath from "./hash-worker?modulePath";
 import { executeActions } from "../src/lib/execute";
 import { ExecutionController } from "../src/lib/execute-controller";
 import { ScanCancelledError, ScanController } from "../src/lib/controller";
+import { HashWorkerPool } from "../src/lib/hash-pool";
 import { runScan } from "../src/lib/pipeline";
 import { migrateMoveCaches } from "../src/lib/index-migrate";
 import { loadIndexPair } from "../src/lib/index-file";
 import { listDeleted, restoreDeleted, softDelete } from "../src/lib/recycle";
 import { readRecentPairs } from "../src/lib/recent";
-import { openDirPairsDb, type DirPairsStore } from "../src/lib/dir-pairs-db";
+import { openMainDb, type MainStore } from "../src/lib/main-db";
 import type { DirPairEntry } from "../src/lib/dir-pairs";
 import { detectStale, refreshPaths } from "../src/lib/refresh";
 import { rehashPair } from "../src/lib/rehash";
 import type {
+  AppSettings,
   ExecuteProgress,
   ExecuteRequest,
   FilterPrefs,
@@ -29,9 +34,10 @@ const devUrl = process.env["ELECTRON_RENDERER_URL"];
 const LOG_LEVELS = new Set(["error", "warn", "info", "debug"]);
 
 let mainWindow: BrowserWindow | null = null;
-let dirPairsDb: DirPairsStore | null = null;
+let mainDb: MainStore | null = null;
 let currentController: ScanController | null = null;
 let execController: ExecutionController | null = null;
+let hashPool: HashWorkerPool | null = null;
 
 /** dev 写项目根 ds-data；e2e 通过 DSYNC_DATA_DIR 隔离；release 用 userData */
 function dataRoot(): string {
@@ -49,24 +55,63 @@ function recentFilePath(): string {
   return join(dataRoot(), "recent-pairs.json");
 }
 
-function dirPairsDbPath(): string {
-  return join(dataRoot(), "dir-pairs.db");
+function mainDbPath(): string {
+  return join(dataRoot(), "dsync-main.db");
 }
 
-/** 打开应用级档案库；空库时从旧 recent-pairs.json 一次性导入并删除旧文件 */
-async function loadDirPairs(): Promise<void> {
-  dirPairsDb = openDirPairsDb(dirPairsDbPath());
-  if (dirPairsDb.list().length > 0) return;
+/** 旧 dir-pairs.db 不迁移、不删除：新库从空开始，目录对档案丢一次可接受 */
+function scanThreadsLimit(): number {
+  return Math.max(1, availableParallelism());
+}
+
+function defaultScanThreads(): number {
+  return Math.max(1, Math.floor(availableParallelism() / 2));
+}
+
+function clampScanThreads(value: number): number {
+  return Math.min(scanThreadsLimit(), Math.max(1, Math.floor(value)));
+}
+
+function readScanThreads(): number {
+  const raw = mainDb?.getSetting("scanThreads") ?? null;
+  const parsed = raw === null ? null : Number.parseInt(raw, 10);
+  return parsed !== null && Number.isFinite(parsed)
+    ? clampScanThreads(parsed)
+    : defaultScanThreads();
+}
+
+function appSettings(): AppSettings {
+  const raw = mainDb?.getSetting("scanThreads") ?? null;
+  const parsed = raw === null ? null : Number.parseInt(raw, 10);
+  const explicit = parsed !== null && Number.isFinite(parsed);
+  return {
+    scanThreads: readScanThreads(),
+    scanThreadsAuto: !explicit,
+    logicalProcessors: scanThreadsLimit(),
+  };
+}
+
+function getHashPool(): HashWorkerPool {
+  if (!hashPool) {
+    hashPool = new HashWorkerPool(() => new Worker(hashWorkerPath));
+  }
+  return hashPool;
+}
+
+/** 打开应用级主库 dsync-main.db；旧 dir-pairs.db 不迁移、不读取 */
+async function loadMainDb(): Promise<void> {
+  mainDb = openMainDb(mainDbPath());
+  if (mainDb.list().length > 0) return;
   const legacy = await readRecentPairs(recentFilePath());
   if (legacy.length === 0) return;
-  dirPairsDb.importLegacy(legacy);
+  mainDb.importLegacy(legacy);
   await rm(recentFilePath(), { force: true }).catch(() => undefined);
 }
 
 /** 扫描成功才记录：只更新使用时间，已有条件保留 */
 async function rememberPair(left: string, right: string): Promise<void> {
   try {
-    dirPairsDb?.touch(left, right);
+    mainDb?.touch(left, right);
   } catch (error) {
     log.warn(`[pairs] 写入失败：${(error as Error).message}`);
   }
@@ -179,14 +224,14 @@ ipcMain.handle("dirs:check", async (_event, raw: unknown): Promise<boolean[]> =>
 });
 
 ipcMain.handle("recent:list", (): RecentPair[] =>
-  (dirPairsDb?.recent() ?? []).map((item) => ({
+  (mainDb?.recent() ?? []).map((item) => ({
     left: item.left,
     right: item.right,
     savedAt: item.usedAt ?? "",
   })),
 );
 
-ipcMain.handle("pairs:list", (): DirPairEntry[] => dirPairsDb?.list() ?? []);
+ipcMain.handle("pairs:list", (): DirPairEntry[] => mainDb?.list() ?? []);
 
 ipcMain.handle("pairs:save", async (_event, raw: unknown): Promise<void> => {
   if (typeof raw !== "object" || raw === null) throw new Error("无效参数");
@@ -196,7 +241,7 @@ ipcMain.handle("pairs:save", async (_event, raw: unknown): Promise<void> => {
   const filters = input["filters"];
   if (typeof left !== "string" || typeof right !== "string") throw new Error("无效目录");
   if (typeof filters !== "object" || filters === null) throw new Error("无效过滤条件");
-  dirPairsDb?.save(left, right, filters as FilterPrefs);
+  mainDb?.save(left, right, filters as FilterPrefs);
 });
 
 ipcMain.handle("pairs:remove", async (_event, raw: unknown): Promise<void> => {
@@ -205,7 +250,20 @@ ipcMain.handle("pairs:remove", async (_event, raw: unknown): Promise<void> => {
   const left = input["left"];
   const right = input["right"];
   if (typeof left !== "string" || typeof right !== "string") throw new Error("无效目录");
-  dirPairsDb?.remove(left, right);
+  mainDb?.remove(left, right);
+});
+
+ipcMain.handle("settings:get", (): AppSettings => appSettings());
+
+ipcMain.handle("settings:set-scan-threads", (_event, raw: unknown): AppSettings => {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) throw new Error("无效线程数");
+  mainDb?.setSetting("scanThreads", String(clampScanThreads(raw)));
+  return appSettings();
+});
+
+ipcMain.handle("settings:reset-scan-threads", (): AppSettings => {
+  mainDb?.deleteSetting("scanThreads");
+  return appSettings();
 });
 
 ipcMain.handle("sync:scan", async (event, raw: unknown) => {
@@ -213,10 +271,15 @@ ipcMain.handle("sync:scan", async (event, raw: unknown) => {
     const request = parseScanRequest(raw);
     const sender = event.sender;
     const controller = new ScanController();
+    const threads = readScanThreads();
+    const pool = getHashPool();
+    pool.setConcurrency(threads);
     currentController = controller;
     try {
       const result = await runScan(request, {
         controller,
+        hashConcurrency: threads,
+        hashFn: (path, options) => pool.hashFile(path, options),
         onProgress: (progress) => {
           if (!sender.isDestroyed()) sender.send("sync:progress", progress);
         },
@@ -350,12 +413,14 @@ ipcMain.handle("sync:execute", async (event, raw: unknown) => {
     const controller = new ExecutionController();
     controller.setRateLimit(request.rateLimitBytesPerSec ?? 0);
     execController = controller;
+    const pool = getHashPool();
+    pool.setConcurrency(readScanThreads());
     const sender = event.sender;
     let lastAt = 0;
     try {
       const result = await executeActions(
         { ...request, actions },
-        { softDelete },
+        { softDelete, hash: (path) => pool.hashFile(path) },
         {
           controller,
           onProgress: (progress: ExecuteProgress) => {
@@ -454,13 +519,21 @@ function createWindow(): BrowserWindow {
   return win;
 }
 
+app.on("before-quit", () => {
+  hashPool?.destroy();
+  hashPool = null;
+  mainDb?.close();
+  mainDb = null;
+});
+
 app.whenReady().then(async () => {
-  await loadDirPairs();
+  await loadMainDb();
   /* 不设应用菜单：目录对与目录选择都在扫描设置页里 */
   Menu.setApplicationMenu(null);
   log.info(
     `[start] electron=${process.versions.electron} node=${process.versions.node} ` +
-      `pairs=${dirPairsDb?.list().length ?? 0} recent=${dirPairsDb?.recent().length ?? 0} log=${logPath}`,
+      `pairs=${mainDb?.list().length ?? 0} recent=${mainDb?.recent().length ?? 0} ` +
+      `scanThreads=${readScanThreads()} log=${logPath}`,
   );
   mainWindow = createWindow();
   app.on("activate", () => {

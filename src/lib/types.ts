@@ -186,6 +186,16 @@ export interface ExecuteRequest {
   rateLimitBytesPerSec?: number;
 }
 
+/** 应用级设置：存 dsync-main.db 的 app_settings 表 */
+export interface AppSettings {
+  /** 实际生效的扫描线程数 */
+  scanThreads: number;
+  /** true 表示用默认值（逻辑处理器一半），false 表示用户显式设置 */
+  scanThreadsAuto: boolean;
+  /** 当前机器可见的逻辑处理器数 */
+  logicalProcessors: number;
+}
+
 /** 执行进度：done 为已完成动作数；fileBytes* 仅当前大文件复制时有值 */
 export interface ExecuteProgress {
   done: number;

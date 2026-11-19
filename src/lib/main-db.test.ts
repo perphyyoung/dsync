@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_DIR_PAIRS } from "./dir-pairs";
-import { openDirPairsDb } from "./dir-pairs-db";
+import { openMainDb } from "./main-db";
 import type { FilterPrefs } from "./types";
 
 function filters(overrides: Partial<FilterPrefs> = {}): FilterPrefs {
@@ -24,9 +24,9 @@ function filters(overrides: Partial<FilterPrefs> = {}): FilterPrefs {
   };
 }
 
-describe("目录对档案库", () => {
+describe("应用主库", () => {
   it("保存条件不动使用排序，扫描成功才置顶", () => {
-    const store = openDirPairsDb(":memory:");
+    const store = openMainDb(":memory:");
     store.save("A", "B", filters({ sizeMin: 100 }));
     expect(store.list()[0]).toMatchObject({ usedAt: null, filters: { sizeMin: 100 } });
 
@@ -43,7 +43,7 @@ describe("目录对档案库", () => {
   });
 
   it("超过容量淘汰到上限", () => {
-    const store = openDirPairsDb(":memory:");
+    const store = openMainDb(":memory:");
     for (let i = 0; i < MAX_DIR_PAIRS + 5; i += 1) {
       store.touch(`L${i}`, `R${i}`);
     }
@@ -52,7 +52,7 @@ describe("目录对档案库", () => {
   });
 
   it("搜索匹配左右路径，空关键词回落最近 10 组", () => {
-    const store = openDirPairsDb(":memory:");
+    const store = openMainDb(":memory:");
     store.touch("D:\\notes", "E:\\notes");
     store.touch("D:\\work", "E:\\work");
     expect(store.search("NOTES")).toHaveLength(1);
@@ -62,7 +62,7 @@ describe("目录对档案库", () => {
   });
 
   it("旧 recent-pairs 记录导入后可出现在最近列表", () => {
-    const store = openDirPairsDb(":memory:");
+    const store = openMainDb(":memory:");
     store.importLegacy([{ left: "L", right: "R", savedAt: "2026-01-01T00:00:00.000Z" }]);
     expect(store.recent()[0]).toMatchObject({
       left: "L",
@@ -74,7 +74,7 @@ describe("目录对档案库", () => {
   });
 
   it("同组合重复写入不产生重复条目", () => {
-    const store = openDirPairsDb(":memory:");
+    const store = openMainDb(":memory:");
     store.touch("A", "B");
     store.touch("b", "a");
     expect(store.list()).toHaveLength(1);
@@ -82,12 +82,27 @@ describe("目录对档案库", () => {
   });
 
   it("删除后档案里不再出现", () => {
-    const store = openDirPairsDb(":memory:");
+    const store = openMainDb(":memory:");
     store.touch("A", "B");
     store.touch("C", "D");
     store.remove("A", "B");
     expect(store.list().some((item) => item.left === "A")).toBe(false);
     expect(store.list()).toHaveLength(1);
+    store.close();
+  });
+
+  it("应用设置可写入、覆盖、删除", () => {
+    const store = openMainDb(":memory:");
+    expect(store.getSetting("scanThreads")).toBeNull();
+
+    store.setSetting("scanThreads", "4");
+    expect(store.getSetting("scanThreads")).toBe("4");
+
+    store.setSetting("scanThreads", "6");
+    expect(store.getSetting("scanThreads")).toBe("6");
+
+    store.deleteSetting("scanThreads");
+    expect(store.getSetting("scanThreads")).toBeNull();
     store.close();
   });
 });

@@ -12,6 +12,10 @@ CREATE TABLE IF NOT EXISTS dir_pairs (
   used_at    TEXT,
   filters    TEXT,
   updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS app_settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
 )`;
 
 const SELECT_COLUMNS = "SELECT left, right, used_at, filters FROM dir_pairs";
@@ -68,7 +72,7 @@ function toEntry(row: Row): DirPairEntry {
   };
 }
 
-export interface DirPairsStore {
+export interface MainStore {
   list(): DirPairEntry[];
   recent(limit?: number): DirPairEntry[];
   search(keyword: string): DirPairEntry[];
@@ -80,11 +84,15 @@ export interface DirPairsStore {
   importLegacy(list: { left: string; right: string; savedAt: string }[]): void;
   /** 删除一个目录对的存档 */
   remove(left: string, right: string): void;
+  /** 应用级设置：键值对，缺失表示用默认值 */
+  getSetting(key: string): string | null;
+  setSetting(key: string, value: string): void;
+  deleteSetting(key: string): void;
   close(): void;
 }
 
-/** 目录对档案：应用级 SQLite 文件，容量 100 组 */
-export function openDirPairsDb(filePath: string): DirPairsStore {
+/** 应用级主库 dsync-main.db：目录对档案 + 应用设置，容量 100 组 */
+export function openMainDb(filePath: string): MainStore {
   if (filePath !== ":memory:") mkdirSync(dirname(filePath), { recursive: true });
   const db = new DatabaseSync(filePath);
   db.exec("PRAGMA journal_mode = DELETE");
@@ -160,6 +168,24 @@ export function openDirPairsDb(filePath: string): DirPairsStore {
     db.prepare("DELETE FROM dir_pairs WHERE pair_key = ?").run(pairKey(left, right));
   }
 
+  function getSetting(key: string): string | null {
+    const row = db.prepare("SELECT value FROM app_settings WHERE key = ?").get(key) as
+      | { value: string }
+      | undefined;
+    return row?.value ?? null;
+  }
+
+  function setSetting(key: string, value: string): void {
+    db.prepare(
+      `INSERT INTO app_settings (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    ).run(key, value);
+  }
+
+  function deleteSetting(key: string): void {
+    db.prepare("DELETE FROM app_settings WHERE key = ?").run(key);
+  }
+
   return {
     list: listAll,
     recent,
@@ -168,6 +194,9 @@ export function openDirPairsDb(filePath: string): DirPairsStore {
     touch,
     importLegacy,
     remove,
+    getSetting,
+    setSetting,
+    deleteSetting,
     close: () => db.close(),
   };
 }

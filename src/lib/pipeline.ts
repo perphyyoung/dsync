@@ -1,5 +1,5 @@
 import { RateTracker, ScanCancelledError, ScanController } from "./controller";
-import { hashFile, HASH_CONCURRENCY, mapLimit } from "./hash";
+import { hashFile, HASH_CONCURRENCY, mapLimit, type HashFileOptions } from "./hash";
 import { cacheFromIndex, collectInherited, loadIndexPair, writeIndex } from "./index-file";
 import { pairFiles } from "./pair";
 import { assertValidRootPair, resolveInsideRoot } from "./path-guard";
@@ -20,6 +20,10 @@ export interface ScanHooks {
   onProgress?: (progress: ScanProgress) => void;
   /** 外部注入的中断控制器；不传则本次扫描不可暂停 */
   controller?: ScanController;
+  /** 哈希实现：桌面端注入 worker 池，默认本地 hashFile */
+  hashFn?: (fullPath: string, options?: HashFileOptions) => Promise<string>;
+  /** 哈希并发数；默认 HASH_CONCURRENCY */
+  hashConcurrency?: number;
 }
 
 interface HashSideOutcome {
@@ -77,14 +81,16 @@ interface HashInput {
   split: CacheSplit;
   controller: ScanController;
   onBytes: (delta: number) => void;
+  hashFn: (fullPath: string, options?: HashFileOptions) => Promise<string>;
+  concurrency: number;
 }
 
 async function hashPending(input: HashInput): Promise<HashSideOutcome> {
-  const { root, split, controller, onBytes } = input;
+  const { root, split, controller, onBytes, hashFn, concurrency } = input;
   const entries = new Map(split.cached);
   const failed: IgnoredFile[] = [];
 
-  await mapLimit(split.pending, HASH_CONCURRENCY, async (file) => {
+  await mapLimit(split.pending, concurrency, async (file) => {
     for (;;) {
       if (controller.cancelled) throw new ScanCancelledError();
       await controller.waitIfPaused();
@@ -92,7 +98,7 @@ async function hashPending(input: HashInput): Promise<HashSideOutcome> {
 
       let attemptBytes = 0;
       try {
-        const hash = await hashFile(resolveInsideRoot(root, file.path), {
+        const hash = await hashFn(resolveInsideRoot(root, file.path), {
           signal: controller.signal,
           onChunk: (size) => {
             attemptBytes += size;
@@ -252,12 +258,16 @@ export async function runScan(request: ScanRequest, hooks: ScanHooks = {}): Prom
     split: leftSplit,
     controller,
     onBytes,
+    hashFn: hooks.hashFn ?? hashFile,
+    concurrency: Math.max(1, hooks.hashConcurrency ?? HASH_CONCURRENCY),
   });
   const rightHashed = await hashPending({
     root: request.rightRoot,
     split: rightSplit,
     controller,
     onBytes,
+    hashFn: hooks.hashFn ?? hashFile,
+    concurrency: Math.max(1, hooks.hashConcurrency ?? HASH_CONCURRENCY),
   });
 
   if (controller.cancelled) throw new ScanCancelledError();

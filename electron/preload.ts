@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DirPairEntry } from "../src/lib/dir-pairs";
 import type { ScanProgress } from "../src/lib/types";
 import type {
+  AppSettings,
   DeletedRecord,
   ExecuteProgress,
   ExecuteRequest,
@@ -42,6 +43,10 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.invoke("pairs:save", input),
   removePair: (input: { left: string; right: string }): Promise<void> =>
     ipcRenderer.invoke("pairs:remove", input),
+  getAppSettings: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),
+  setScanThreads: (value: number): Promise<AppSettings> =>
+    ipcRenderer.invoke("settings:set-scan-threads", value),
+  resetScanThreads: (): Promise<AppSettings> => ipcRenderer.invoke("settings:reset-scan-threads"),
   listRecycle: (request: RecycleListRequest): Promise<DeletedRecord[]> =>
     ipcRenderer.invoke("recycle:list", request),
   restoreRecycle: (request: RecycleRestoreRequest): Promise<string> =>

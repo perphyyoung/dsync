@@ -49,6 +49,7 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
   await expect(page.getByText("修改日期范围", { exact: true })).toBeVisible();
   await expect(page.getByRole("radio", { name: "不限" })).toBeChecked();
   await expect(page.getByText("跳过隐藏文件", { exact: true })).toBeVisible();
+  await expect(page.getByText("扫描线程数", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "开始扫描", exact: true })).toBeVisible();
   /* 强制重算是红色复选框：默认不选中，勾选时弹确认 */
   const forceRehash = page.getByLabel("强制重算");
@@ -100,5 +101,6 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
 
   await expect(page.getByRole("button", { name: "向左同步预览", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "向右同步预览", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "设置", exact: true })).toBeVisible();
   log.info("[e2e] 窗口骨架检查通过");
 });

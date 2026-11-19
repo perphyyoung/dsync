@@ -24,14 +24,18 @@ const dateFrom = defineModel<string>("dateFrom", { required: true });
 const dateTo = defineModel<string>("dateTo", { required: true });
 const recentDays = defineModel<number>("recentDays", { required: true });
 const skipHidden = defineModel<boolean>("skipHidden", { required: true });
+const scanThreads = defineModel<number>("scanThreads", { required: true });
+const scanThreadsAuto = defineModel<boolean>("scanThreadsAuto", { required: true });
 
-const props = defineProps<{ pairs: DirPairEntry[] }>();
+const props = defineProps<{ pairs: DirPairEntry[]; logicalProcessors: number }>();
 
 const emit = defineEmits<{
   pick: [side: Side];
   pickPair: [pair: DirPairEntry];
   removePair: [pair: DirPairEntry];
   start: [forceRehash: boolean];
+  scanThreadsChange: [value: number];
+  resetScanThreads: [];
   close: [];
 }>();
 
@@ -353,6 +357,31 @@ function confirmRemove(): void {
           <span class="ml-[10%] w-32 shrink-0 text-right text-slate-400">跳过隐藏文件</span>
           <input v-model="skipHidden" type="checkbox" class="accent-sky-500" />
           <HelpMark text="勾选后，跳过以 . 开头的文件与目录" />
+        </div>
+
+        <div class="flex items-center gap-3">
+          <span class="ml-[10%] w-32 shrink-0 text-right text-slate-400">扫描线程数</span>
+          <input
+            v-model.number="scanThreads"
+            type="number"
+            min="1"
+            :max="logicalProcessors"
+            aria-label="扫描线程数"
+            class="w-24 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200"
+            @change="emit('scanThreadsChange', scanThreads)"
+          />
+          <span class="text-slate-500">/ {{ logicalProcessors }} 逻辑处理器</span>
+          <button
+            v-if="!scanThreadsAuto"
+            type="button"
+            class="text-xs text-sky-400 hover:text-sky-300"
+            @click="emit('resetScanThreads')"
+          >
+            恢复默认
+          </button>
+          <HelpMark
+            text="应用级设置，对所有目录对生效；默认取逻辑处理器的一半。控制扫描时的并行线程数，机械硬盘建议调低。"
+          />
         </div>
       </div>
     </div>

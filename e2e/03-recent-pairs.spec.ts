@@ -32,7 +32,7 @@ test("扫描成功后目录对进入最近列表，重启后自动回填", async
   const outcome = await page.evaluate((input: ScanRequest) => window.api.scan(input), request);
   expect(outcome.cancelled).toBe(false);
 
-  const db = new DatabaseSync(join(appData, "dir-pairs.db"));
+  const db = new DatabaseSync(join(appData, "dsync-main.db"));
   try {
     const rows = db.prepare("SELECT pair_key FROM dir_pairs").all() as unknown as unknown[];
     expect(rows).toHaveLength(1);

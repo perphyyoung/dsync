@@ -10,6 +10,8 @@ import type { ExecuteProgress, ExecuteRequest, ExecuteResult, RelPath, Side } fr
 export interface ExecuteDeps {
   /** 软删除：桌面端移入内置回收站，测试注入假实现 */
   softDelete: (root: string, relPath: RelPath) => Promise<void>;
+  /** 哈希实现：桌面端注入 worker 池，默认本地 hashFile */
+  hash?: (fullPath: string) => Promise<string>;
 }
 
 export interface ExecuteHooks {
@@ -18,9 +20,13 @@ export interface ExecuteHooks {
 }
 
 /** 复制后校验：源与目标哈希一致才算成功 */
-export async function filesMatch(source: string, target: string): Promise<boolean> {
-  const sourceHash = await hashFile(source);
-  const targetHash = await hashFile(target);
+export async function filesMatch(
+  source: string,
+  target: string,
+  hash: (path: string) => Promise<string> = hashFile,
+): Promise<boolean> {
+  const sourceHash = await hash(source);
+  const targetHash = await hash(target);
   return sourceHash === targetHash;
 }
 
@@ -31,6 +37,8 @@ export const COPY_CHUNK_SIZE = 1024 * 1024;
 
 interface CopyContext {
   controller?: ExecutionController;
+  /** 哈希实现：默认本地 hashFile */
+  hash?: (path: string) => Promise<string>;
   /** done / total 为字节；bytesPerSecond 为字节/秒，etaSeconds 为剩余秒数 */
   onBytes?: (
     done: number,
@@ -130,11 +138,12 @@ async function copyAtomic(source: string, target: string, ctx: CopyContext): Pro
     }
     /* 校验：优先用扫描哈希比对 tmp（不重读源），无哈希时回退源/目标全量比对 */
     const expected = ctx.sourceHash;
+    const hash = ctx.hash ?? hashFile;
     if (expected) {
-      if ((await hashFile(tmp)) !== expected) {
+      if ((await hash(tmp)) !== expected) {
         throw new Error("校验失败：复制内容与扫描记录不一致");
       }
-    } else if (!(await filesMatch(source, tmp))) {
+    } else if (!(await filesMatch(source, tmp, hash))) {
       throw new Error("校验失败：复制内容与源不一致");
     }
     await rename(tmp, target);
@@ -199,6 +208,7 @@ export async function executeActions(
           const sourceFull = resolveInsideRoot(sourceRoot, action.fromPath ?? action.toPath);
           await copyAtomic(sourceFull, targetFull, {
             controller: hooks.controller,
+            hash: deps.hash,
             sourceHash: typeof action.sourceHash === "string" ? action.sourceHash : null,
             onBytes: (done, bytesTotal, bytesPerSecond, etaSeconds) =>
               emit(index, action.toPath, done, bytesTotal, bytesPerSecond, etaSeconds),

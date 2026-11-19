@@ -37,14 +37,14 @@
 
 进度记录：2026-11-19 完成。`pnpm check` 129 单测、`pnpm e2e` 18 条全绿。
 
-## P2 哈希 worker 与扫描线程数（已定，待执行）
+## P2 哈希 worker 与扫描线程数（已完成）
 
 ### 已定
 
 - 哈希（扫描 + 复制校验）移出主进程主线程，使用 `worker_threads` 池。
 - Worker 构建入口按 electron-vite 官方推荐：`?modulePath`（worker 文件路径 + `new Worker(path)`），备选 `?nodeWorker`。
 - 线程数读取 `os.availableParallelism()`，默认一半，**不封顶**；允许范围 1..n；64 核即 32。
-- 界面名称统一「扫描线程数」，不暴露“哈希”实现细节；tooltip 说明目录遍历仍为单线程。
+- 界面名称统一「扫描线程数」，不暴露哈希实现细节；tooltip 只保留用户可操作的信息。
 - 扫描设置页增加「扫描线程数」，应用级设置；主界面状态栏最右加 gear，打开应用级设置弹窗（复制相关设置也放这里）。
 - 存储统一到数据库：新文件 `dsync-main.db`，避免与扫描根目录下的 `.dsync/dsync.db` 混淆；新增 `app_settings` 表（key/value）。
 - **不迁移旧 `dir-pairs.db`**：旧文件原样保留、不再读取，新库从空开始；目录对档案丢一次可接受，不写迁移逻辑、不删除旧文件。
@@ -58,15 +58,17 @@
 
 ### 实施阶段
 
-- [ ] `main.ts` 数据文件路径改为 `dsync-main.db`
-- [ ] `dir-pairs-db.ts` → `main-db.ts`（或保留模块名并新增 `openMainDb`），新增 `app_settings` 表与 get/set/delete
-- [ ] `electron/hash-worker.ts`：worker 内复用 `src/lib/hash.ts`，100ms 批量上报字节
-- [ ] `src/lib/hash-pool.ts`：任务队列、并发、暂停/取消、worker 崩溃重建；worker 工厂可注入（Vitest 用假实现）
-- [ ] 扫描接入：`pipeline.ts` 的 `mapLimit` 改为向池提交；`HASH_CONCURRENCY` 由设置决定
-- [ ] 执行校验接入：同一池，串行任务
-- [ ] 设置 IPC：读取（含默认值/clamp）、写入、恢复默认
-- [ ] 扫描设置页「扫描线程数」+ 状态栏 gear 设置弹窗
-- [ ] 单测 / e2e（设置持久化）/ 文档（design、起步方案、通用语言、AGENTS、README、e2e-readme）
+- [x] `main.ts` 数据文件路径改为 `dsync-main.db`
+- [x] `main-db.ts`：应用级主库（目录对 + 应用设置），新增 `app_settings` 表与 get/set/delete
+- [x] `electron/hash-worker.ts`：worker 内复用 `src/lib/hash.ts`，100ms 批量上报字节
+- [x] `src/lib/hash-pool.ts`：任务队列、并发、暂停/取消、worker 崩溃重建；worker 工厂可注入（Vitest 用假实现）
+- [x] 扫描接入：`pipeline.ts` 的 `mapLimit` 改为向池提交；`HASH_CONCURRENCY` 由设置决定
+- [x] 执行校验接入：同一池，串行任务
+- [x] 设置 IPC：读取（含默认值/clamp）、写入、恢复默认
+- [x] 扫描设置页「扫描线程数」+ 状态栏 gear 设置弹窗
+- [x] 单测 / e2e（设置持久化）/ 文档（design、起步方案、通用语言、AGENTS、README、e2e-readme）
+
+进度记录：2026-11-19 完成。`pnpm check` 135 单测、`pnpm e2e` 19 条全绿；worker 构建为 `out/main/chunks/hash-worker-*.js`。
 
 ### 实现约束
 

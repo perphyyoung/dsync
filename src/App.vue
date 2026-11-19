@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import AppSettingsDialog from "./components/AppSettingsDialog.vue";
 import ConfirmBubble from "./components/ConfirmBubble.vue";
 import ExecuteProgressWindow from "./components/ExecuteProgressWindow.vue";
 import FileList from "./components/FileList.vue";
@@ -22,6 +23,7 @@ import { sortItems, type SortDir, type SortKey } from "./lib/sort";
 import { resolveTimeWindow } from "./lib/time-window";
 import { verifyOutcome } from "./lib/verify";
 import type {
+  AppSettings,
   DeletedRecord,
   DiffRow,
   ExecuteProgress,
@@ -94,6 +96,10 @@ let unsubscribeExecuteProgress: (() => void) | null = null;
 const forceRehashActive = ref(false);
 const progressView = ref<"hidden" | "running" | "paused" | "cancelled">("hidden");
 const settingsOpen = ref(false);
+const settingsDialogOpen = ref(false);
+const scanThreads = ref(1);
+const scanThreadsAuto = ref(true);
+const logicalProcessors = ref(1);
 const result = ref<ScanResult | null>(null);
 const selected = ref<Set<number>>(new Set());
 const toast = ref<string | null>(null);
@@ -562,8 +568,44 @@ onMounted(() => {
     await loadPairEntries();
     await restoreLastPair();
   })();
+  void loadAppSettings();
   settingsOpen.value = true;
 });
+
+function applyAppSettings(next: AppSettings): void {
+  scanThreads.value = next.scanThreads;
+  scanThreadsAuto.value = next.scanThreadsAuto;
+  logicalProcessors.value = next.logicalProcessors;
+}
+
+async function loadAppSettings(): Promise<void> {
+  try {
+    applyAppSettings(await window.api.getAppSettings());
+  } catch (error) {
+    pushAlert(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function saveScanThreads(value: number): Promise<void> {
+  try {
+    applyAppSettings(await window.api.setScanThreads(value));
+  } catch (error) {
+    pushAlert(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function resetScanThreads(): Promise<void> {
+  try {
+    applyAppSettings(await window.api.resetScanThreads());
+  } catch (error) {
+    pushAlert(error instanceof Error ? error.message : String(error));
+  }
+}
+
+function openSettingsDialog(): void {
+  settingsDialogOpen.value = true;
+  void loadAppSettings();
+}
 
 async function loadPairEntries(): Promise<void> {
   try {
@@ -1384,11 +1426,16 @@ async function executePreview(): Promise<void> {
         v-model:date-to="dateTo"
         v-model:recent-days="recentDays"
         v-model:skip-hidden="skipHidden"
+        v-model:scan-threads="scanThreads"
+        v-model:scan-threads-auto="scanThreadsAuto"
         :pairs="pairEntries"
+        :logical-processors="logicalProcessors"
         class="min-h-0 flex-1"
         @pick="pick"
         @pick-pair="pickPairRoots"
         @remove-pair="removePair"
+        @scan-threads-change="saveScanThreads"
+        @reset-scan-threads="resetScanThreads"
         @start="scan($event)"
         @close="settingsOpen = false"
       />
@@ -1675,6 +1722,16 @@ async function executePreview(): Promise<void> {
               >
                 回收站
               </button>
+
+              <button
+                type="button"
+                title="设置"
+                aria-label="设置"
+                class="rounded border border-slate-600 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+                @click="openSettingsDialog"
+              >
+                设置
+              </button>
             </div>
           </div>
         </footer>
@@ -1768,6 +1825,15 @@ async function executePreview(): Promise<void> {
     </div>
 
     <ToastBubble v-if="toast" :message="toast" />
+    <AppSettingsDialog
+      v-if="settingsDialogOpen"
+      :scan-threads="scanThreads"
+      :scan-threads-auto="scanThreadsAuto"
+      :logical-processors="logicalProcessors"
+      @close="settingsDialogOpen = false"
+      @change-scan-threads="saveScanThreads"
+      @reset-scan-threads="resetScanThreads"
+    />
     <ExecuteProgressWindow
       :visible="execVisible"
       :minimized="execMinimized"
