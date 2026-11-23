@@ -113,4 +113,3 @@ Electron 45 · electron-vite 6 · Vue 3 + TypeScript 6 · Tailwind CSS 4 · Vite
 - 定位器一律语义化，名称用 `exact: true`；动态文案用锚定正则。
 - 布局几何断言用 `data-testid` + `boundingBox()`，不要用 evaluate 遍历文本定位元素。
 - 用 `DSYNC_DATA_DIR` 隔离数据目录，不污染本机配置。
-- 超时：单条 test 上限 10s，断言与其他显式等待默认 5s。显式 `timeout` 与默认相同就不要写；不同时必须加注释说明原因，不够时先查是不是定位器写错。
