@@ -89,6 +89,9 @@ const execMinimized = ref(false);
 const execState = ref<"running" | "paused" | "cancelled" | "done">("running");
 const execRefreshing = ref(false);
 const execProgress = ref<ExecuteProgress | null>(null);
+/** 完成态展示：本次执行耗时与实际复制字节 */
+const execElapsedMs = ref(0);
+const execCopiedBytes = ref(0);
 const execSummary = ref("");
 const execFailures = ref<SyncAction[]>([]);
 /** 复制限速（MB/s），0 表示不限；本会话有效 */
@@ -107,6 +110,8 @@ const copyThreadsAuto = ref(true);
 const parallelFiles = ref(2);
 const parallelFilesAuto = ref(true);
 const diskMode = ref<DiskMode>("auto");
+/** 复制完成后自动关闭执行进度窗；取消勾选时保留窗口查看用时与平均速度 */
+const autoCloseExecWindow = ref(true);
 const logicalProcessors = ref(1);
 const result = ref<ScanResult | null>(null);
 const selected = ref<Set<number>>(new Set());
@@ -591,6 +596,7 @@ function applyAppSettings(next: AppSettings): void {
   parallelFiles.value = next.parallelFiles;
   parallelFilesAuto.value = next.parallelFilesAuto;
   diskMode.value = next.diskMode;
+  autoCloseExecWindow.value = next.autoCloseExecWindow;
   logicalProcessors.value = next.logicalProcessors;
 }
 
@@ -637,6 +643,14 @@ async function resetCopyThreads(): Promise<void> {
 async function changeDiskMode(mode: DiskMode): Promise<void> {
   try {
     applyAppSettings(await window.api.setDiskMode(mode));
+  } catch (error) {
+    pushAlert(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function saveAutoCloseExecWindow(value: boolean): Promise<void> {
+  try {
+    applyAppSettings(await window.api.setAutoCloseExecWindow(value));
   } catch (error) {
     pushAlert(error instanceof Error ? error.message : String(error));
   }
@@ -1132,6 +1146,8 @@ function resetExecWindow(total: number): void {
   execState.value = "running";
   execRefreshing.value = false;
   execSummary.value = "";
+  execElapsedMs.value = 0;
+  execCopiedBytes.value = 0;
   execProgress.value = {
     done: 0,
     total,
@@ -1210,6 +1226,8 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
     const failedPaths = new Set(outcome.failed.map((item) => item.path));
     const stalePaths = new Set(outcome.stale.map((item) => item.path));
     execFailures.value = actions.filter((action) => failedPaths.has(action.toPath));
+    execElapsedMs.value = outcome.elapsedMs;
+    execCopiedBytes.value = outcome.copiedBytes;
     execSummary.value = `复制 ${outcome.copied}，改名 ${outcome.moved}，删除 ${outcome.deleted}`;
     execState.value = outcome.cancelled ? "cancelled" : "done";
     execProgress.value = {
@@ -1253,6 +1271,12 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
     const hasFailures = outcome.failed.length > 0;
     const keepWindow = hasFailures || outcome.cancelled;
     const needsRefresh = refreshTargets.length > 0;
+    /* 关闭「自动关闭」且本次含复制时，成功完成后保留窗口查看用时与平均速度 */
+    const keepForReview =
+      !outcome.cancelled &&
+      !hasFailures &&
+      !autoCloseExecWindow.value &&
+      actions.some((action) => action.kind === "copy");
 
     if (execShowTimer) {
       clearTimeout(execShowTimer);
@@ -1263,7 +1287,7 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
       execHideTimer = null;
     }
     execRefreshing.value = needsRefresh;
-    execVisible.value = keepWindow || needsRefresh;
+    execVisible.value = keepWindow || needsRefresh || keepForReview;
     execMinimized.value = execVisible.value ? false : execMinimized.value;
 
     showToast(
@@ -1311,9 +1335,9 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
       pushRetryAlert(message, execFailures.value);
     }
 
-    /* 成功且无失败才关闭；失败保留重试，取消短暂保留 */
+    /* 成功且无失败才关闭；失败保留重试，取消短暂保留；需要查看完成态时保持打开 */
     if (!outcome.cancelled && !hasFailures) {
-      execVisible.value = false;
+      if (!keepForReview) execVisible.value = false;
     } else if (outcome.cancelled && !hasFailures) {
       execHideTimer = setTimeout(() => {
         execVisible.value = false;
@@ -1954,6 +1978,7 @@ async function executePreview(): Promise<void> {
       :parallel-files="parallelFiles"
       :parallel-files-auto="parallelFilesAuto"
       :disk-mode="diskMode"
+      :auto-close-exec-window="autoCloseExecWindow"
       :logical-processors="logicalProcessors"
       @close="settingsDialogOpen = false"
       @change-scan-threads="saveScanThreads"
@@ -1963,6 +1988,7 @@ async function executePreview(): Promise<void> {
       @change-parallel-files="saveParallelFiles"
       @reset-parallel-files="resetParallelFiles"
       @change-disk-mode="changeDiskMode"
+      @change-auto-close-exec-window="saveAutoCloseExecWindow"
     />
     <ExecuteProgressWindow
       :visible="execVisible"
@@ -1970,6 +1996,8 @@ async function executePreview(): Promise<void> {
       :state="execState"
       :refreshing="execRefreshing"
       :progress="execProgress"
+      :elapsed-ms="execElapsedMs"
+      :copied-bytes="execCopiedBytes"
       :summary="execSummary"
       :failed-count="execFailures.length"
       :rate-limit="execRateLimit"

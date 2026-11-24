@@ -219,9 +219,12 @@ export async function executeActions(
   deps: ExecuteDeps,
   hooks: ExecuteHooks = {},
 ): Promise<ExecuteResult> {
+  const startedAt = Date.now();
   const rootOf = (side: Side): string => (side === "left" ? request.leftRoot : request.rightRoot);
   const result: ExecuteResult = {
     copied: 0,
+    copiedBytes: 0,
+    elapsedMs: 0,
     moved: 0,
     deleted: 0,
     failed: [],
@@ -487,6 +490,8 @@ export async function executeActions(
 
   await Promise.all(active);
   result.cancelled = cancelled || controller?.cancelled === true;
+  result.copiedBytes = completedBytes;
+  result.elapsedMs = Date.now() - startedAt;
   if (fatal) throw fatal;
   return result;
 }

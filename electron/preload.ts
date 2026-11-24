@@ -57,6 +57,8 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.invoke("settings:reset-parallel-files"),
   setDiskMode: (mode: DiskMode): Promise<AppSettings> =>
     ipcRenderer.invoke("settings:set-disk-mode", mode),
+  setAutoCloseExecWindow: (value: boolean): Promise<AppSettings> =>
+    ipcRenderer.invoke("settings:set-auto-close-exec", value),
   listRecycle: (request: RecycleListRequest): Promise<DeletedRecord[]> =>
     ipcRenderer.invoke("recycle:list", request),
   restoreRecycle: (request: RecycleRestoreRequest): Promise<string> =>

@@ -46,6 +46,7 @@ export interface Api {
   setParallelFiles(value: number): Promise<AppSettings>;
   resetParallelFiles(): Promise<AppSettings>;
   setDiskMode(mode: DiskMode): Promise<AppSettings>;
+  setAutoCloseExecWindow(value: boolean): Promise<AppSettings>;
   listRecycle(request: RecycleListRequest): Promise<DeletedRecord[]>;
   restoreRecycle(request: RecycleRestoreRequest): Promise<string>;
   onProgress(callback: (progress: ScanProgress) => void): () => void;

@@ -12,6 +12,16 @@ export function formatSize(size: number | null): string {
   return `${(size / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
+/** 执行用时：不足 1 分钟保留 1 位小数，之后按分钟取整 */
+export function formatDuration(ms: number): string {
+  const seconds = ms / 1000;
+  if (seconds < 60) return `${seconds.toFixed(1)} 秒`;
+  const total = Math.round(seconds);
+  const minutes = Math.floor(total / 60);
+  const rest = total % 60;
+  return rest === 0 ? `${minutes} 分` : `${minutes} 分 ${rest} 秒`;
+}
+
 /** 修改日期只显示到天，本地时区 YYYY-MM-DD */
 export function formatDate(date: number | null): string {
   if (date === null) return "";

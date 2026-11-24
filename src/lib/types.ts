@@ -206,6 +206,8 @@ export interface AppSettings {
   /** true 表示用默认值（max(2, 一半)），false 表示用户显式设置 */
   parallelFilesAuto: boolean;
   diskMode: DiskMode;
+  /** 复制完成后自动关闭执行进度窗；false 时保留窗口查看用时与平均速度 */
+  autoCloseExecWindow: boolean;
   /** 当前机器可见的逻辑处理器数 */
   logicalProcessors: number;
 }
@@ -293,6 +295,10 @@ export interface CopyRecord {
 
 export interface ExecuteResult {
   copied: number;
+  /** 成功复制的字节总数，用于完成态计算平均速度 */
+  copiedBytes: number;
+  /** 本次执行耗时（毫秒） */
+  elapsedMs: number;
   moved: number;
   deleted: number;
   failed: { path: string; message: string }[];

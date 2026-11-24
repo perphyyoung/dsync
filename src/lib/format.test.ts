@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { etaHint, formatDate, formatEta, formatSize } from "./format";
+import { etaHint, formatDate, formatDuration, formatEta, formatSize } from "./format";
 
 describe("formatSize", () => {
   it("按 1024 逐级换算，非字节单位统一两位小数", () => {
@@ -14,6 +14,21 @@ describe("formatSize", () => {
 
   it("空值返回空字符串", () => {
     expect(formatSize(null)).toBe("");
+  });
+});
+
+describe("formatDuration", () => {
+  it("不足 1 分钟保留 1 位小数", () => {
+    expect(formatDuration(0)).toBe("0.0 秒");
+    expect(formatDuration(999)).toBe("1.0 秒");
+    expect(formatDuration(12_300)).toBe("12.3 秒");
+    expect(formatDuration(59_400)).toBe("59.4 秒");
+  });
+
+  it("满 1 分钟按分钟取整", () => {
+    expect(formatDuration(60_000)).toBe("1 分");
+    expect(formatDuration(65_000)).toBe("1 分 5 秒");
+    expect(formatDuration(3_600_000)).toBe("60 分");
   });
 });
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { formatEta, formatSize } from "../lib/format";
+import { formatDuration, formatEta, formatSize } from "../lib/format";
 import type { ExecuteProgress } from "../lib/types";
 import ConfirmBubble from "./ConfirmBubble.vue";
 
@@ -13,6 +13,10 @@ const props = defineProps<{
   /** 执行已结束，正在刷新列表；此时不提供关闭 / 重试 */
   refreshing: boolean;
   progress: ExecuteProgress | null;
+  /** 本次执行耗时（毫秒），完成态展示 */
+  elapsedMs: number;
+  /** 成功复制的字节总数，完成态计算平均速度 */
+  copiedBytes: number;
   summary: string;
   /** 失败动作数：> 0 时完成态显示重试入口 */
   failedCount: number;
@@ -160,6 +164,10 @@ function formatSpeed(bytes: number): string {
 
       <p v-if="state === 'done' || state === 'cancelled'" class="mt-2 text-slate-400">
         {{ summary }}
+      </p>
+      <p v-if="state === 'done' && copiedBytes > 0 && elapsedMs > 0" class="mt-1 text-slate-500">
+        用时 {{ formatDuration(elapsedMs) }} · 平均
+        {{ formatSpeed(copiedBytes / (elapsedMs / 1000)) }}/s
       </p>
       <p v-if="refreshing" class="mt-1 text-slate-500">正在刷新列表…</p>
 

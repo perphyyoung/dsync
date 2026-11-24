@@ -105,6 +105,11 @@ function readDiskMode(): DiskMode {
   return raw === "ssd" || raw === "hdd" || raw === "network" ? raw : "auto";
 }
 
+/** 未写入过记录时为 true，保持原有「完成即关窗」行为 */
+function readAutoCloseExecWindow(): boolean {
+  return (mainDb?.getSetting("autoCloseExecWindow") ?? "1") !== "0";
+}
+
 function defaultParallelFiles(): number {
   return Math.min(scanThreadsLimit(), Math.max(2, Math.floor(availableParallelism() / 2)));
 }
@@ -139,6 +144,7 @@ function appSettings(): AppSettings {
     parallelFiles: readParallelFiles(),
     parallelFilesAuto: !filesExplicit,
     diskMode: readDiskMode(),
+    autoCloseExecWindow: readAutoCloseExecWindow(),
     logicalProcessors: scanThreadsLimit(),
   };
 }
@@ -345,6 +351,12 @@ ipcMain.handle("settings:set-parallel-files", (_event, raw: unknown): AppSetting
 
 ipcMain.handle("settings:reset-parallel-files", (): AppSettings => {
   mainDb?.deleteSetting("parallelFiles");
+  return appSettings();
+});
+
+ipcMain.handle("settings:set-auto-close-exec", (_event, raw: unknown): AppSettings => {
+  if (typeof raw !== "boolean") throw new Error("无效设置");
+  mainDb?.setSetting("autoCloseExecWindow", raw ? "1" : "0");
   return appSettings();
 });
 

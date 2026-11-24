@@ -10,6 +10,7 @@ const props = defineProps<{
   parallelFiles: number;
   parallelFilesAuto: boolean;
   diskMode: DiskMode;
+  autoCloseExecWindow: boolean;
   logicalProcessors: number;
 }>();
 
@@ -22,6 +23,7 @@ const emit = defineEmits<{
   changeParallelFiles: [value: number];
   resetParallelFiles: [];
   changeDiskMode: [value: DiskMode];
+  changeAutoCloseExecWindow: [value: boolean];
 }>();
 
 const scanValue = ref(props.scanThreads);
@@ -180,6 +182,20 @@ function changeDiskMode(event: Event): void {
       </div>
       <p class="mt-1 text-xs text-slate-500">
         机械盘单文件不并行；网络盘最多 4 个文件并行；自动检测失败按机械盘处理。修改后下次执行生效。
+      </p>
+
+      <label class="mt-4 flex items-center justify-between gap-3">
+        <span class="text-slate-400">复制完成后，自动关闭进度窗</span>
+        <input
+          type="checkbox"
+          :checked="autoCloseExecWindow"
+          aria-label="复制完成后自动关闭进度窗"
+          class="accent-sky-500"
+          @change="emit('changeAutoCloseExecWindow', ($event.target as HTMLInputElement).checked)"
+        />
+      </label>
+      <p v-if="!autoCloseExecWindow" class="mt-1 text-xs text-slate-500">
+        完成后保留窗口，可查看复制总用时与平均速度。
       </p>
 
       <p class="mt-4 text-xs text-slate-500">扫描线程数修改后下次扫描生效；机械硬盘建议调低。</p>

@@ -2,20 +2,20 @@
 
 每个文件对应一类场景。两位数字前缀只表示阅读顺序，与执行顺序无关——Playwright 并行跑。
 
-| 文件                          | 覆盖范围                             |
-| ----------------------------- | ------------------------------------ |
-| `01-app-shell.spec.ts`        | 窗口骨架与菜单                       |
-| `02-scan-and-align.spec.ts`   | 扫描与结构对齐执行                   |
-| `03-recent-pairs.spec.ts`     | 最近目录对落盘与重启回填             |
-| `04-soft-delete.spec.ts`      | 右键软删除、回收站可见、重扫后消失   |
-| `05-scan-settings.spec.ts`    | 扫描设置页开关、条件摘要、缺目录告警 |
-| `06-preview-stats.spec.ts`    | 预览统计的批量开关                   |
-| `07-display-filter.spec.ts`   | 显示过滤缩小刷新与扩大提醒           |
-| `08-special.spec.ts`          | 过滤命中不列行与特殊视图             |
-| `09-execute-progress.spec.ts` | 大文件复制进度窗、最小化与恢复       |
-| `10-app-settings.spec.ts`     | 线程数与磁盘类型设置                 |
-| `11-multi-file.spec.ts`       | 并行文件数设置与多文件复制           |
-| `12-pair-switch.spec.ts`      | 换目录对摘要清空与索引复用           |
+| 文件                          | 覆盖范围                                   |
+| ----------------------------- | ------------------------------------------ |
+| `01-app-shell.spec.ts`        | 窗口骨架与菜单                             |
+| `02-scan-and-align.spec.ts`   | 扫描与结构对齐执行                         |
+| `03-recent-pairs.spec.ts`     | 最近目录对落盘与重启回填                   |
+| `04-soft-delete.spec.ts`      | 右键软删除、回收站可见、重扫后消失         |
+| `05-scan-settings.spec.ts`    | 扫描设置页开关、条件摘要、缺目录告警       |
+| `06-preview-stats.spec.ts`    | 预览统计的批量开关                         |
+| `07-display-filter.spec.ts`   | 显示过滤缩小刷新与扩大提醒                 |
+| `08-special.spec.ts`          | 过滤命中不列行与特殊视图                   |
+| `09-execute-progress.spec.ts` | 大文件复制进度窗、最小化与恢复、完成态统计 |
+| `10-app-settings.spec.ts`     | 线程数与磁盘类型设置                       |
+| `11-multi-file.spec.ts`       | 并行文件数设置与多文件复制                 |
+| `12-pair-switch.spec.ts`      | 换目录对摘要清空与索引复用                 |
 
 ## 01-app-shell.spec.ts
 
@@ -134,6 +134,7 @@
 - 扫描后点行内 `>` 触发复制；进度窗出现「同步中」，限速下拉（`复制限速`）可用；点「最小化」收成胶囊，点胶囊恢复
 - 进度统一 500ms 推送；速度/剩余时间由主进程计算，用例不做时间敏感断言
 - 完成后目标文件大小为 512MB，窗口直接关闭，成功行已就地更新；不调用目标级刷新
+- 第二个用例：设置里取消勾选「复制完成后，自动关闭进度窗」，128MB 复制完成后窗口保留，显示「用时 … · 平均 …/s」，点「关闭」后消失
 
 ## 10-app-settings.spec.ts
 

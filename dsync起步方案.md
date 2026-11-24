@@ -577,6 +577,7 @@ pick dirs → sync:scan(扫描 + 哈希 + 配对 + 索引落盘) → 渲染差�
 | D57 | 复制校验阶段与末尾进度 | 复制字节写完后先把 `bytesDone` 补满并设置 `verifyingFiles`，窗口显示「校验中」；主进程执行进度 500ms 节流增加 trailing flush，校验开始与最终进度不被丢弃 | 2026-11-20 |
 | D58 | 大小显示统一到 GB 并复用格式化 | `formatSize` 按 1024 逐级换算，KB / MB / GB 统一两位小数（B 仍为整数），文件列表 / 扫描进度 / 回收站同时生效；执行进度小窗删掉本地 `formatBytes` 改用 `formatSize`；复制速度维持 B / KB / MB，不新增 GB/s | 2026-11-24 |
 | D59 | 取消扫描后「返回」回到扫描设置页 | 进度页「已取消」态点「返回」不再回主界面，改为进入扫描设置页并保留左右目录与扫描条件，方便直接改条件重扫；仍不自动跳转，取消页照旧等用户点「返回」 | 2026-11-24 |
+| D60 | 执行完成态用时 / 平均速度与自动关闭设置 | 设置弹窗新增「复制完成后，自动关闭进度窗」，默认勾选；取消勾选后，含复制的执行成功完成时保留窗口，显示总用时（`formatDuration`）与平均速度（`copiedBytes / elapsedMs`，复用速度格式）；`ExecuteResult` 增 `elapsedMs` / `copiedBytes`，设置存 `app_settings.autoCloseExecWindow`（未写入按开启）；纯 move / soft-delete 与取消仍按原逻辑关闭 | 2026-11-24 |
 
 无待确认项。
 
