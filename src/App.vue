@@ -894,8 +894,11 @@ async function cancelScan(): Promise<void> {
   await window.api.cancelScan();
 }
 
+/** 「已取消」进度页的返回：回扫描设置页，方便直接改条件重扫 */
 function closeProgress(): void {
+  const cancelled = progressView.value === "cancelled";
   progressView.value = "hidden";
+  if (cancelled) settingsOpen.value = true;
 }
 
 function toggle(index: number): void {
