@@ -15,20 +15,20 @@ const emit = defineEmits<{
 
 <template>
   <div class="flex h-full flex-col bg-slate-950 text-slate-200">
-    <header class="flex items-center gap-3 border-b border-slate-800 px-4 py-3">
-      <span class="text-sm font-medium">回收站</span>
-      <span class="text-xs text-slate-500">共 {{ props.items.length }} 项</span>
+    <header class="flex items-center gap-3 border-b border-slate-800 px-6 py-3">
+      <h2 class="text-sm font-medium text-slate-100">回收站</h2>
+      <span class="text-xs text-slate-400">共 {{ props.items.length }} 项</span>
       <button
         type="button"
-        class="ml-auto rounded border border-slate-600 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+        class="ml-auto rounded-md border border-slate-600 px-3 py-1 text-xs text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
         @click="emit('close')"
       >
         返回
       </button>
     </header>
 
-    <div class="min-h-0 flex-1 overflow-auto px-4 py-2">
-      <p v-if="props.items.length === 0" class="px-3 py-12 text-center text-xs text-slate-600">
+    <div class="min-h-0 flex-1 overflow-auto px-6 py-2">
+      <p v-if="props.items.length === 0" class="px-3 py-12 text-center text-xs text-slate-500">
         回收站为空
       </p>
       <div v-else class="divide-y divide-slate-800">
@@ -37,14 +37,14 @@ const emit = defineEmits<{
           :key="`${item.side}-${item.id}`"
           class="flex items-center gap-3 py-2 text-xs"
         >
-          <span class="w-10 shrink-0 text-slate-500">{{
+          <span class="w-10 shrink-0 text-slate-400">{{
             item.side === "left" ? "左侧" : "右侧"
           }}</span>
           <span class="min-w-0 flex-1 truncate" :title="item.path">{{ item.path }}</span>
-          <span class="shrink-0 text-slate-500">{{ formatSize(item.size) }}</span>
+          <span class="shrink-0 text-slate-400">{{ formatSize(item.size) }}</span>
           <button
             type="button"
-            class="shrink-0 rounded border border-slate-600 px-2 py-0.5 text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            class="shrink-0 rounded-md border border-slate-600 px-2 py-0.5 text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
             :disabled="props.busy"
             @click="emit('restore', item)"
           >

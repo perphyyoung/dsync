@@ -31,13 +31,13 @@ const props = defineProps<{
     <span class="text-slate-700">·</span>
 
     <div class="flex items-center gap-2">
-      <span class="text-slate-500">显示模式</span>
-      <div class="flex items-center rounded border border-slate-600 p-0.5">
+      <span class="text-slate-400">显示模式</span>
+      <div class="flex items-center rounded-md border border-slate-600 p-0.5">
         <button
           v-for="option in VIEW_OPTIONS"
           :key="option.value"
           type="button"
-          class="rounded px-2 py-0.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+          class="h-6 rounded-md px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40"
           :class="
             viewMode === option.value
               ? 'bg-slate-700 text-slate-100'

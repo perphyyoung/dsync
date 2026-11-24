@@ -9,7 +9,7 @@ defineProps<{ text: string }>();
     <span
       role="img"
       :aria-label="text"
-      class="flex h-4 w-4 items-center justify-center rounded-full border border-slate-600 text-[10px] text-slate-500"
+      class="flex h-4 w-4 items-center justify-center rounded-full border border-slate-600 text-[0.625rem] text-slate-400"
     >
       ?
     </span>

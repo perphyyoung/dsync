@@ -37,7 +37,7 @@ function hide(): void {
     <span
       v-show="visible"
       ref="bubble"
-      class="pointer-events-none fixed z-50 whitespace-nowrap rounded border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-300 opacity-0 shadow-lg transition-opacity"
+      class="pointer-events-none fixed z-50 whitespace-nowrap rounded-md border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-300 opacity-0 shadow-lg transition-opacity"
       :class="{ 'opacity-100': visible }"
       :style="{ left: `${position.left}px`, top: `${position.top}px` }"
     >

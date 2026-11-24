@@ -75,13 +75,13 @@ function changeDiskMode(event: Event): void {
     @click.self="emit('close')"
   >
     <div
-      class="flex max-h-[85vh] w-120 flex-col rounded-xl border border-slate-700 bg-slate-900 text-sm shadow-2xl"
+      class="flex max-h-[85vh] w-120 flex-col rounded-lg border border-slate-600 bg-slate-900 text-sm shadow-2xl"
     >
       <header class="flex items-center justify-between border-b border-slate-800 px-4 py-3">
         <h2 class="text-sm font-medium text-slate-100">设置</h2>
         <button
           type="button"
-          class="rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
+          class="rounded-md border border-slate-600 px-3 py-1 text-xs text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
           @click="emit('close')"
         >
           关闭
@@ -115,10 +115,10 @@ function changeDiskMode(event: Event): void {
               min="1"
               :max="logicalProcessors"
               aria-label="扫描线程数"
-              class="h-8 w-20 rounded-md border border-slate-700 bg-slate-950 px-2 text-right text-slate-200 transition-colors hover:border-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+              class="h-8 w-20 rounded-md border border-slate-600 bg-slate-950 px-2 text-right text-slate-200 transition-colors hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
               @change="commitScan"
             />
-            <span class="w-10 text-xs text-slate-500">/ {{ logicalProcessors }}</span>
+            <span class="w-10 text-xs text-slate-400">/ {{ logicalProcessors }}</span>
           </div>
         </div>
 
@@ -149,10 +149,10 @@ function changeDiskMode(event: Event): void {
               min="1"
               :max="logicalProcessors"
               aria-label="复制线程数"
-              class="h-8 w-20 rounded-md border border-slate-700 bg-slate-950 px-2 text-right text-slate-200 transition-colors hover:border-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+              class="h-8 w-20 rounded-md border border-slate-600 bg-slate-950 px-2 text-right text-slate-200 transition-colors hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
               @change="commitCopy"
             />
-            <span class="w-10 text-xs text-slate-500">/ {{ logicalProcessors }}</span>
+            <span class="w-10 text-xs text-slate-400">/ {{ logicalProcessors }}</span>
           </div>
         </div>
 
@@ -178,10 +178,10 @@ function changeDiskMode(event: Event): void {
               min="1"
               :max="logicalProcessors"
               aria-label="并行文件数"
-              class="h-8 w-20 rounded-md border border-slate-700 bg-slate-950 px-2 text-right text-slate-200 transition-colors hover:border-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+              class="h-8 w-20 rounded-md border border-slate-600 bg-slate-950 px-2 text-right text-slate-200 transition-colors hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
               @change="commitFiles"
             />
-            <span class="w-10 text-xs text-slate-500">/ {{ logicalProcessors }}</span>
+            <span class="w-10 text-xs text-slate-400">/ {{ logicalProcessors }}</span>
           </div>
         </div>
 
@@ -197,7 +197,7 @@ function changeDiskMode(event: Event): void {
           <select
             :value="diskMode"
             aria-label="磁盘类型"
-            class="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-slate-200 transition-colors hover:border-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+            class="h-8 rounded-md border border-slate-600 bg-slate-950 px-2 text-slate-200 transition-colors hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
             @change="changeDiskMode"
           >
             <option value="auto">自动</option>

@@ -101,10 +101,11 @@ function confirmRun(): void {
     >
       <button
         type="button"
-        class="flex h-5 w-5 items-center justify-center rounded text-xs leading-none disabled:cursor-not-allowed"
+        class="flex h-5 w-5 items-center justify-center rounded-md text-xs leading-none disabled:cursor-not-allowed"
         :class="[arrowClass(entry.dirs.left), dimmed('left')]"
         :disabled="busy || entry.dirs.left.actions.length === 0"
         :title="arrowTitle(entry.dirs.left, 'left')"
+        :aria-label="arrowTitle(entry.dirs.left, 'left')"
         @click="onArrow($event, entry.index, 'left')"
       >
         &lt;
@@ -123,10 +124,11 @@ function confirmRun(): void {
 
       <button
         type="button"
-        class="flex h-5 w-5 items-center justify-center rounded text-xs leading-none disabled:cursor-not-allowed"
+        class="flex h-5 w-5 items-center justify-center rounded-md text-xs leading-none disabled:cursor-not-allowed"
         :class="[arrowClass(entry.dirs.right), dimmed('right')]"
         :disabled="busy || entry.dirs.right.actions.length === 0"
         :title="arrowTitle(entry.dirs.right, 'right')"
+        :aria-label="arrowTitle(entry.dirs.right, 'right')"
         @click="onArrow($event, entry.index, 'right')"
       >
         &gt;

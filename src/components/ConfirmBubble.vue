@@ -22,15 +22,19 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>();
     <div class="mt-3 flex justify-end gap-2 text-xs">
       <button
         type="button"
-        class="rounded border border-slate-600 px-3 py-1 text-slate-300 hover:bg-slate-800"
+        class="rounded-md border border-slate-600 px-3 py-1 text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
         @click="emit('cancel')"
       >
         {{ cancelText ?? "取消" }}
       </button>
       <button
         type="button"
-        class="rounded px-3 py-1 font-medium text-white"
-        :class="danger ? 'bg-rose-600 hover:bg-rose-500' : 'bg-emerald-600 hover:bg-emerald-500'"
+        class="rounded-md px-3 py-1 font-medium text-white transition-colors"
+        :class="
+          danger
+            ? 'bg-rose-600 hover:bg-rose-500 active:bg-rose-700'
+            : 'bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700'
+        "
         @click="emit('confirm')"
       >
         {{ confirmText }}

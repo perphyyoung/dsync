@@ -97,7 +97,7 @@ function confirmCancel(): void {
       <p class="text-base text-slate-300">已取消</p>
       <button
         type="button"
-        class="rounded border border-slate-600 px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+        class="rounded-md border border-slate-600 px-4 py-1.5 text-xs text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
         @click="emit('back')"
       >
         返回
@@ -117,15 +117,15 @@ function confirmCancel(): void {
             :style="indeterminate ? undefined : { width: `${percent}%` }"
           ></div>
         </div>
-        <div class="mt-2 flex justify-between text-xs text-slate-500">
+        <div class="mt-2 flex justify-between text-xs text-slate-400">
           <span>{{ countLabel }}</span>
           <span v-if="!indeterminate">{{ percent }}%</span>
         </div>
-        <p v-if="statusText" class="mt-1 text-center text-xs text-slate-500">{{ statusText }}</p>
+        <p v-if="statusText" class="mt-1 text-center text-xs text-slate-400">{{ statusText }}</p>
         <p
           v-if="hint"
           class="mt-1 text-center text-xs"
-          :class="hint.level === 'strong' ? 'text-amber-300' : 'text-slate-500'"
+          :class="hint.level === 'strong' ? 'text-amber-300' : 'text-slate-400'"
         >
           {{ hint.text }}
         </p>
@@ -136,7 +136,7 @@ function confirmCancel(): void {
           <button
             v-if="status === 'running'"
             type="button"
-            class="rounded border border-slate-600 px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+            class="rounded-md border border-slate-600 px-4 py-1.5 text-xs text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
             @click="pauseConfirmOpen = true"
           >
             暂停
@@ -144,7 +144,7 @@ function confirmCancel(): void {
           <button
             v-else
             type="button"
-            class="rounded bg-sky-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-sky-500"
+            class="rounded-md bg-sky-600 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-sky-500 active:bg-sky-700"
             @click="emit('resume')"
           >
             继续
@@ -163,7 +163,7 @@ function confirmCancel(): void {
         <div class="relative">
           <button
             type="button"
-            class="rounded border border-rose-800 px-4 py-1.5 text-xs text-rose-300 hover:bg-rose-950/60"
+            class="rounded-md border border-rose-800 px-4 py-1.5 text-xs text-rose-300 transition-colors hover:bg-rose-950/60 active:bg-rose-950"
             @click="cancelConfirmOpen = true"
           >
             取消

@@ -27,16 +27,16 @@ const UNITS: SizeUnit[] = ["KB", "MB", "GB"];
     class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-slate-800 px-4 py-2 text-xs"
   >
     <label class="flex items-center gap-2">
-      <span class="text-slate-500">目录层级</span>
+      <span class="text-slate-400">目录层级</span>
       <input
         v-model.number="depth"
         type="number"
         min="0"
         step="1"
         title="0 表示不限；1 只显示根目录文件"
-        class="w-20 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200"
+        class="h-7 w-20 rounded-md border border-slate-600 bg-slate-900 px-2 text-slate-200"
       />
-      <span class="text-slate-500">层</span>
+      <span class="text-slate-400">层</span>
     </label>
 
     <span class="text-slate-700">·</span>
@@ -45,7 +45,7 @@ const UNITS: SizeUnit[] = ["KB", "MB", "GB"];
       <select
         v-model="keywordMode"
         aria-label="关键字模式"
-        class="rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-slate-200"
+        class="h-7 rounded-md border border-slate-600 bg-slate-900 px-1 text-slate-200"
       >
         <option value="include">只含关键字</option>
         <option value="exclude">排除关键字</option>
@@ -55,7 +55,7 @@ const UNITS: SizeUnit[] = ["KB", "MB", "GB"];
         type="text"
         :placeholder="keywordMode === 'include' ? '输入单个词来命中' : '输入单个词来排除'"
         title="目录与文件名同时作用，只支持单个词"
-        class="w-40 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
+        class="h-7 w-40 rounded-md border border-slate-600 bg-slate-900 px-2 text-slate-200 placeholder:text-slate-600"
       />
     </div>
 
@@ -65,7 +65,7 @@ const UNITS: SizeUnit[] = ["KB", "MB", "GB"];
       <select
         v-model="suffixMode"
         aria-label="后缀模式"
-        class="rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-slate-200"
+        class="h-7 rounded-md border border-slate-600 bg-slate-900 px-1 text-slate-200"
       >
         <option value="include">只含后缀</option>
         <option value="exclude">排除后缀</option>
@@ -75,59 +75,59 @@ const UNITS: SizeUnit[] = ["KB", "MB", "GB"];
         type="text"
         placeholder="md, ts"
         title="多个后缀用逗号分隔"
-        class="w-32 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 placeholder:text-slate-600"
+        class="h-7 w-32 rounded-md border border-slate-600 bg-slate-900 px-2 text-slate-200 placeholder:text-slate-600"
       />
     </div>
 
     <span class="text-slate-700">·</span>
 
     <div class="flex items-center gap-2">
-      <span class="text-slate-500">修改日期范围</span>
+      <span class="text-slate-400">修改日期范围</span>
       <input
         v-model="dateFrom"
         type="date"
         aria-label="显示起始日期"
-        class="w-32 rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-slate-200 [color-scheme:dark]"
+        class="h-7 w-32 rounded-md border border-slate-600 bg-slate-900 px-1 text-slate-200 scheme-dark"
       />
-      <span class="text-slate-600">至</span>
+      <span class="text-slate-400">至</span>
       <input
         v-model="dateTo"
         type="date"
         aria-label="显示结束日期"
-        class="w-32 rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-slate-200 [color-scheme:dark]"
+        class="h-7 w-32 rounded-md border border-slate-600 bg-slate-900 px-1 text-slate-200 scheme-dark"
       />
     </div>
 
     <span class="text-slate-700">·</span>
 
     <div class="flex items-center gap-2">
-      <span class="text-slate-500">文件大小范围</span>
+      <span class="text-slate-400">文件大小范围</span>
       <input
         v-model.number="sizeMin"
         type="number"
         min="0"
         step="1"
         title="0 表示不限"
-        class="w-20 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200"
+        class="h-7 w-20 rounded-md border border-slate-600 bg-slate-900 px-2 text-slate-200"
       />
       <select
         v-model="sizeMinUnit"
-        class="rounded border border-slate-600 bg-slate-900 px-1 py-1 text-slate-200"
+        class="h-7 rounded-md border border-slate-600 bg-slate-900 px-1 text-slate-200"
       >
         <option v-for="unit in UNITS" :key="unit" :value="unit">{{ unit }}</option>
       </select>
-      <span class="text-slate-600">至</span>
+      <span class="text-slate-400">至</span>
       <input
         v-model.number="sizeMax"
         type="number"
         min="0"
         step="1"
         title="0 表示不限"
-        class="w-20 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200"
+        class="h-7 w-20 rounded-md border border-slate-600 bg-slate-900 px-2 text-slate-200"
       />
       <select
         v-model="sizeMaxUnit"
-        class="rounded border border-slate-600 bg-slate-900 px-1 py-1 text-slate-200"
+        class="h-7 rounded-md border border-slate-600 bg-slate-900 px-1 text-slate-200"
       >
         <option v-for="unit in UNITS" :key="unit" :value="unit">{{ unit }}</option>
       </select>
@@ -142,7 +142,7 @@ const UNITS: SizeUnit[] = ["KB", "MB", "GB"];
 
     <button
       type="button"
-      class="ml-auto rounded border border-slate-600 px-3 py-1 text-xs text-slate-300 hover:bg-slate-800"
+      class="ml-auto rounded-md border border-slate-600 px-3 py-1 text-xs text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
       title="恢复显示过滤行默认值"
       @click="emit('reset')"
     >

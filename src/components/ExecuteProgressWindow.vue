@@ -86,7 +86,7 @@ function formatSpeed(bytes: number): string {
     <button
       v-if="minimized"
       type="button"
-      class="fixed right-6 bottom-6 z-50 rounded-full border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 shadow-xl hover:bg-slate-800"
+      class="fixed right-6 bottom-6 z-50 rounded-full border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 shadow-xl transition-colors hover:bg-slate-800 active:bg-slate-700"
       title="展开同步进度"
       @click="emit('restore')"
     >
@@ -102,7 +102,7 @@ function formatSpeed(bytes: number): string {
         <button
           v-if="state === 'running' || state === 'paused'"
           type="button"
-          class="rounded border border-slate-600 px-2 py-0.5 text-slate-300 hover:bg-slate-800"
+          class="rounded-md border border-slate-600 px-2 py-0.5 text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
           title="最小化"
           @click="emit('minimize')"
         >
@@ -146,7 +146,7 @@ function formatSpeed(bytes: number): string {
       <template
         v-if="progress && progress.bytesTotal > 0 && (state === 'running' || state === 'paused')"
       >
-        <div class="mt-1.5 flex items-center justify-between text-slate-500">
+        <div class="mt-1.5 flex items-center justify-between text-slate-400">
           <span>{{ formatSize(progress.bytesDone) }} / {{ formatSize(progress.bytesTotal) }}</span>
           <span>{{ bytePercent }}%</span>
         </div>
@@ -156,7 +156,7 @@ function formatSpeed(bytes: number): string {
             :style="{ width: `${bytePercent}%` }"
           />
         </div>
-        <p v-if="speedText" class="mt-1 text-slate-500">
+        <p v-if="speedText" class="mt-1 text-slate-400">
           {{ speedText }}
           <span v-if="etaText"> · {{ etaText }}</span>
         </p>
@@ -165,21 +165,21 @@ function formatSpeed(bytes: number): string {
       <p v-if="state === 'done' || state === 'cancelled'" class="mt-2 text-slate-400">
         {{ summary }}
       </p>
-      <p v-if="state === 'done' && copiedBytes > 0 && elapsedMs > 0" class="mt-1 text-slate-500">
+      <p v-if="state === 'done' && copiedBytes > 0 && elapsedMs > 0" class="mt-1 text-slate-400">
         用时 {{ formatDuration(elapsedMs) }} · 平均
         {{ formatSpeed(copiedBytes / (elapsedMs / 1000)) }}/s
       </p>
-      <p v-if="refreshing" class="mt-1 text-slate-500">正在刷新列表…</p>
+      <p v-if="refreshing" class="mt-1 text-slate-400">正在刷新列表…</p>
 
       <div
         v-if="state === 'running' || state === 'paused'"
-        class="mt-2 flex items-center gap-2 text-slate-500"
+        class="mt-2 flex items-center gap-2 text-slate-400"
       >
         <span>限速</span>
         <select
           :value="rateLimit"
           aria-label="复制限速"
-          class="rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-slate-200"
+          class="h-7 rounded-md border border-slate-600 bg-slate-900 px-1 text-slate-200 transition-colors"
           @change="emit('rateChange', Number(($event.target as HTMLSelectElement).value))"
         >
           <option :value="0">不限</option>
@@ -193,7 +193,7 @@ function formatSpeed(bytes: number): string {
         <button
           v-if="state === 'running'"
           type="button"
-          class="rounded border border-slate-600 px-2 py-0.5 text-slate-300 hover:bg-slate-800"
+          class="rounded-md border border-slate-600 px-2 py-0.5 text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
           @click="emit('pause')"
         >
           暂停
@@ -201,7 +201,7 @@ function formatSpeed(bytes: number): string {
         <button
           v-else-if="state === 'paused'"
           type="button"
-          class="rounded border border-slate-600 px-2 py-0.5 text-slate-300 hover:bg-slate-800"
+          class="rounded-md border border-slate-600 px-2 py-0.5 text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
           @click="emit('resume')"
         >
           继续
@@ -209,7 +209,7 @@ function formatSpeed(bytes: number): string {
         <button
           v-if="state === 'running' || state === 'paused'"
           type="button"
-          class="rounded border border-rose-700 px-2 py-0.5 text-rose-300 hover:bg-rose-950/60"
+          class="rounded-md border border-rose-700 px-2 py-0.5 text-rose-300 transition-colors hover:bg-rose-950/60 active:bg-rose-950"
           @click="cancelPending = true"
         >
           取消
@@ -217,7 +217,7 @@ function formatSpeed(bytes: number): string {
         <button
           v-if="(state === 'done' || state === 'cancelled') && !refreshing"
           type="button"
-          class="rounded border border-slate-600 px-2 py-0.5 text-slate-300 hover:bg-slate-800"
+          class="rounded-md border border-slate-600 px-2 py-0.5 text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
           @click="emit('close')"
         >
           关闭
@@ -225,7 +225,7 @@ function formatSpeed(bytes: number): string {
         <button
           v-if="(state === 'done' || state === 'cancelled') && failedCount > 0 && !refreshing"
           type="button"
-          class="rounded bg-emerald-600 px-2 py-0.5 font-medium text-white hover:bg-emerald-500"
+          class="rounded-md bg-emerald-600 px-2 py-0.5 font-medium text-white transition-colors hover:bg-emerald-500 active:bg-emerald-700"
           @click="emit('retry')"
         >
           重试失败项（{{ failedCount }}）

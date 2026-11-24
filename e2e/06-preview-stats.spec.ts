@@ -51,22 +51,22 @@ test("预览统计的复选框批量控制行勾选", async ({ slot }) => {
 
   /* 互换左右目录：结果直接镜像，不需要重新扫描 */
   await page.getByTitle("左右目录互换").click();
-  await expect(page.getByText("仅右侧 2")).toBeVisible();
+  await expect(page.getByTestId("stat-rightOnly")).toHaveText(/仅右侧\s*2/);
   await expect(page.getByTitle("a.md", { exact: true })).toBeVisible();
   await expect(page.getByText("先选择左右两个目录")).toHaveCount(0);
   await page.getByTitle("左右目录互换").click();
-  await expect(page.getByText("仅左侧 2")).toBeVisible();
+  await expect(page.getByTestId("stat-leftOnly")).toHaveText(/仅左侧\s*2/);
 
   /* 向右同步：左侧两个文件复制到右侧，右侧独有文件软删除 */
   await page.getByRole("button", { name: "向右同步预览" }).click();
-  const copy = page.getByLabel(/^复制/);
+  const copy = page.getByRole("checkbox", { name: "复制" });
   const rowBoxes = page.getByLabel(/^选择第/);
   const checkedRows = (): Promise<boolean[]> =>
     rowBoxes.evaluateAll((els) => els.map((el) => (el as HTMLInputElement).checked));
 
   await expect(copy).toBeChecked();
   await expect(page.getByText("复制 2")).toBeVisible();
-  await expect(page.getByLabel(/^软删除/)).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "软删除" })).toBeChecked();
   await expect(page.getByText("软删除 1")).toBeVisible();
 
   /* 取消复制：只留下软删除那行 */

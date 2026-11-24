@@ -1624,7 +1624,7 @@ async function executePreview(): Promise<void> {
                   </span>
                   <button
                     type="button"
-                    class="shrink-0 rounded border border-slate-600 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    class="shrink-0 rounded-md border border-slate-600 px-1.5 py-0.5 text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
                     :disabled="!leftRoot"
                     title="在文件管理器中打开"
                     @click="openDir('left')"
@@ -1634,7 +1634,7 @@ async function executePreview(): Promise<void> {
                 </div>
 
                 <div
-                  class="sticky top-9 z-20 flex h-7 items-center gap-2 border-b border-slate-800 bg-slate-900 px-3 text-xs text-slate-500"
+                  class="sticky top-9 z-20 flex h-7 items-center gap-2 border-b border-slate-800 bg-slate-900 px-3 text-xs text-slate-400"
                 >
                   <button
                     type="button"
@@ -1687,9 +1687,10 @@ async function executePreview(): Promise<void> {
                 >
                   <button
                     type="button"
-                    class="rounded border border-slate-600 px-2 py-0.5 text-xs text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    class="rounded-md border border-slate-600 px-2 py-0.5 text-xs text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
                     :disabled="busy || !leftRoot || !rightRoot"
                     title="左右目录互换"
+                    aria-label="左右目录互换"
                     @click="swapRoots"
                   >
                     ⇄
@@ -1736,7 +1737,7 @@ async function executePreview(): Promise<void> {
                   </span>
                   <button
                     type="button"
-                    class="shrink-0 rounded border border-slate-600 px-1.5 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    class="shrink-0 rounded-md border border-slate-600 px-1.5 py-0.5 text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
                     :disabled="!rightRoot"
                     title="在文件管理器中打开"
                     @click="openDir('right')"
@@ -1746,7 +1747,7 @@ async function executePreview(): Promise<void> {
                 </div>
 
                 <div
-                  class="sticky top-9 z-20 flex h-7 items-center gap-2 border-b border-slate-800 bg-slate-900 px-3 text-xs text-slate-500"
+                  class="sticky top-9 z-20 flex h-7 items-center gap-2 border-b border-slate-800 bg-slate-900 px-3 text-xs text-slate-400"
                 >
                   <button
                     type="button"
@@ -1795,7 +1796,7 @@ async function executePreview(): Promise<void> {
 
             <div
               v-if="items.length === 0"
-              class="pointer-events-none absolute inset-0 flex items-center justify-center px-3 text-xs text-slate-600"
+              class="pointer-events-none absolute inset-0 flex items-center justify-center px-3 text-xs text-slate-500"
             >
               {{ emptyText }}
             </div>
@@ -1805,9 +1806,15 @@ async function executePreview(): Promise<void> {
         <footer class="border-t border-slate-800 px-4 py-2">
           <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-400">
             <div v-if="statItems.length > 0" class="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span v-for="item in statItems" :key="item.key" class="flex items-center gap-1">
+              <span
+                v-for="item in statItems"
+                :key="item.key"
+                class="flex items-center gap-1"
+                :data-testid="`stat-${item.key}`"
+              >
                 <span class="h-1.5 w-1.5 rounded-full" :class="item.dot"></span>
-                {{ item.label }} {{ item.count }}
+                <span class="text-slate-400">{{ item.label }}</span>
+                <span class="text-slate-300">{{ item.count }}</span>
               </span>
             </div>
 
@@ -1833,7 +1840,7 @@ async function executePreview(): Promise<void> {
                 </span>
                 <button
                   type="button"
-                  class="rounded bg-rose-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  class="rounded-md bg-rose-600 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-rose-500 active:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-40"
                   :disabled="busy || !preview || preview.actions.length === 0"
                   @click="executePreview"
                 >
@@ -1845,7 +1852,7 @@ async function executePreview(): Promise<void> {
                 v-for="option in PREVIEW_OPTIONS"
                 :key="option.value"
                 type="button"
-                class="min-w-24 rounded border px-3 py-1.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                class="min-w-24 rounded-md border px-3 py-1.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40"
                 :class="
                   previewSide === option.value
                     ? 'border-sky-600 bg-sky-600/20 text-sky-300'
@@ -1859,7 +1866,7 @@ async function executePreview(): Promise<void> {
 
               <button
                 type="button"
-                class="rounded border border-slate-600 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                class="rounded-md border border-slate-600 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
                 :disabled="busy"
                 @click="openRecycle"
               >
@@ -1870,7 +1877,7 @@ async function executePreview(): Promise<void> {
                 type="button"
                 title="设置"
                 aria-label="设置"
-                class="rounded border border-slate-600 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                class="rounded-md border border-slate-600 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
                 :disabled="busy"
                 @click="openSettingsDialog"
               >
@@ -1899,7 +1906,8 @@ async function executePreview(): Promise<void> {
             </button>
             <button
               type="button"
-              class="text-amber-400 hover:text-amber-200"
+              class="rounded-md px-1 text-amber-400 transition-colors hover:text-amber-200"
+              aria-label="关闭告警"
               @click="dismissAlert(index)"
             >
               ×
@@ -1933,19 +1941,19 @@ async function executePreview(): Promise<void> {
     ></div>
     <div
       v-if="rowMenu"
-      class="fixed z-50 w-44 rounded border border-slate-600 bg-slate-900 py-1 text-xs shadow-xl"
+      class="fixed z-50 w-44 rounded-md border border-slate-600 bg-slate-900 py-1 text-xs shadow-xl"
       :style="{ top: `${rowMenu.y}px`, left: `${rowMenu.x}px` }"
     >
       <button
         type="button"
-        class="block w-full px-3 py-1.5 text-left text-slate-300 hover:bg-slate-800"
+        class="block w-full px-3 py-1.5 text-left text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
         @click="requestSoftDelete"
       >
         软删除
       </button>
       <button
         type="button"
-        class="block w-full px-3 py-1.5 text-left text-slate-300 hover:bg-slate-800"
+        class="block w-full px-3 py-1.5 text-left text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
         @click="rehashFromMenu"
       >
         重算哈希

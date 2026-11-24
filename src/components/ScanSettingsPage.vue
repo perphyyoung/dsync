@@ -105,7 +105,7 @@ function confirmRemove(): void {
       <h2 class="text-sm font-medium text-slate-100">扫描设置</h2>
       <button
         type="button"
-        class="ml-auto rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
+        class="ml-auto rounded-md border border-slate-600 px-3 py-1 text-xs text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
         @click="emit('close')"
       >
         返回
@@ -122,19 +122,19 @@ function confirmRemove(): void {
               v-model="search"
               type="text"
               placeholder="搜索路径"
-              class="h-8 w-64 rounded-md border border-slate-700 bg-slate-950 px-2 pr-7 text-slate-200 transition-colors placeholder:text-slate-600 hover:border-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+              class="h-8 w-64 rounded-md border border-slate-600 bg-slate-950 px-2 pr-7 text-slate-200 transition-colors placeholder:text-slate-600 hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
             />
             <button
               v-if="search"
               type="button"
-              class="absolute top-1/2 right-1 -translate-y-1/2 rounded px-1 text-slate-500 hover:text-slate-200"
+              class="absolute top-1/2 right-1 -translate-y-1/2 rounded-md px-1 text-slate-400 transition-colors hover:text-slate-200"
               title="清空搜索"
               @click="clearSearch"
             >
               ×
             </button>
           </div>
-          <span class="text-xs text-slate-500">{{ filteredPairs.length }} 组</span>
+          <span class="text-xs text-slate-400">{{ filteredPairs.length }} 组</span>
         </div>
         <div class="flex gap-3">
           <span class="w-36 shrink-0"></span>
@@ -153,7 +153,7 @@ function confirmRemove(): void {
                   :class="
                     isSelected(pair)
                       ? 'border-sky-700 bg-sky-600/10 text-slate-100'
-                      : 'border-slate-800 text-slate-300 hover:border-slate-600 hover:bg-slate-800'
+                      : 'border-slate-800 text-slate-300 hover:border-slate-500 hover:bg-slate-800'
                   "
                   @click="pickPair(pair)"
                 >
@@ -165,8 +165,9 @@ function confirmRemove(): void {
                   <button
                     v-if="!isSelected(pair)"
                     type="button"
-                    class="rounded text-rose-400 hover:text-rose-300"
+                    class="rounded-md text-rose-400 transition-colors hover:text-rose-300"
                     title="删除目录对"
+                    aria-label="删除目录对"
                     @click="askRemove(pair)"
                   >
                     ×
@@ -174,7 +175,7 @@ function confirmRemove(): void {
                 </span>
               </div>
             </div>
-            <p v-else class="text-xs text-slate-500">
+            <p v-else class="text-xs text-slate-400">
               {{ search ? "没有匹配的目录对" : "还没有扫描成功过的目录对" }}
             </p>
           </div>
@@ -189,7 +190,7 @@ function confirmRemove(): void {
           <span class="w-36 shrink-0 text-right text-slate-400">左侧目录</span>
           <span
             data-testid="left-path"
-            class="flex h-9 min-w-0 flex-1 items-center truncate rounded-md border border-slate-700 bg-slate-950 px-2"
+            class="flex h-9 min-w-0 flex-1 items-center truncate rounded-md border border-slate-600 bg-slate-950 px-2"
             :class="leftRoot ? 'text-slate-200' : 'text-slate-600'"
             :title="leftRoot"
           >
@@ -197,7 +198,7 @@ function confirmRemove(): void {
           </span>
           <button
             type="button"
-            class="shrink-0 rounded-md border border-slate-700 px-3 py-1.5 text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
+            class="shrink-0 rounded-md border border-slate-600 px-3 py-1.5 text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
             title="更改左侧目录"
             @click="emit('pick', 'left')"
           >
@@ -209,7 +210,7 @@ function confirmRemove(): void {
           <span class="w-36 shrink-0 text-right text-slate-400">右侧目录</span>
           <span
             data-testid="right-path"
-            class="flex h-9 min-w-0 flex-1 items-center truncate rounded-md border border-slate-700 bg-slate-950 px-2"
+            class="flex h-9 min-w-0 flex-1 items-center truncate rounded-md border border-slate-600 bg-slate-950 px-2"
             :class="rightRoot ? 'text-slate-200' : 'text-slate-600'"
             :title="rightRoot"
           >
@@ -217,7 +218,7 @@ function confirmRemove(): void {
           </span>
           <button
             type="button"
-            class="shrink-0 rounded-md border border-slate-700 px-3 py-1.5 text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
+            class="shrink-0 rounded-md border border-slate-600 px-3 py-1.5 text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
             title="更改右侧目录"
             @click="emit('pick', 'right')"
           >
@@ -235,9 +236,9 @@ function confirmRemove(): void {
             type="number"
             min="0"
             step="1"
-            class="h-8 w-24 rounded-md border border-slate-700 bg-slate-950 px-2 text-slate-200 transition-colors hover:border-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+            class="h-8 w-24 rounded-md border border-slate-600 bg-slate-950 px-2 text-slate-200 transition-colors hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
           />
-          <span class="text-slate-500">层</span>
+          <span class="text-slate-400">层</span>
           <HelpMark text="0 不限，1 只扫根目录" />
         </label>
 
@@ -247,7 +248,7 @@ function confirmRemove(): void {
             v-model="includeKeywordInput"
             type="text"
             placeholder="输入单个词来命中"
-            class="h-8 w-[50vw] rounded-md border border-slate-700 bg-slate-950 px-2 text-slate-200 transition-colors placeholder:text-slate-600 hover:border-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+            class="h-8 w-[50vw] rounded-md border border-slate-600 bg-slate-950 px-2 text-slate-200 transition-colors placeholder:text-slate-600 hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
           />
         </label>
 
@@ -257,7 +258,7 @@ function confirmRemove(): void {
             v-model="excludeKeywordInput"
             type="text"
             placeholder="输入单个词来排除"
-            class="h-8 w-[50vw] rounded-md border border-slate-700 bg-slate-950 px-2 text-slate-200 transition-colors placeholder:text-slate-600 hover:border-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+            class="h-8 w-[50vw] rounded-md border border-slate-600 bg-slate-950 px-2 text-slate-200 transition-colors placeholder:text-slate-600 hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
           />
         </label>
 
@@ -268,7 +269,7 @@ function confirmRemove(): void {
               v-model="includeInput"
               type="text"
               placeholder="md, ts"
-              class="h-8 w-[50vw] rounded-md border border-slate-700 bg-slate-950 px-2 text-slate-200 transition-colors placeholder:text-slate-600 hover:border-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+              class="h-8 w-[50vw] rounded-md border border-slate-600 bg-slate-950 px-2 text-slate-200 transition-colors placeholder:text-slate-600 hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
             />
           </label>
           <ExtChips v-model="includeInput" />
@@ -280,7 +281,7 @@ function confirmRemove(): void {
             v-model="excludeInput"
             type="text"
             placeholder="log, tmp"
-            class="h-8 w-[50vw] rounded-md border border-slate-700 bg-slate-950 px-2 text-slate-200 transition-colors placeholder:text-slate-600 hover:border-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+            class="h-8 w-[50vw] rounded-md border border-slate-600 bg-slate-950 px-2 text-slate-200 transition-colors placeholder:text-slate-600 hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
           />
         </label>
 
@@ -313,7 +314,7 @@ function confirmRemove(): void {
                 step="1"
                 aria-label="最近天数"
                 :disabled="timeMode !== 'recent'"
-                class="h-8 w-16 rounded-md border border-slate-700 bg-slate-950 px-2 text-right text-slate-200 transition-colors disabled:opacity-40 hover:border-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+                class="h-8 w-16 rounded-md border border-slate-600 bg-slate-950 px-2 text-right text-slate-200 transition-colors disabled:opacity-40 hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
               />
               <span class="text-slate-400">天</span>
             </label>
@@ -331,15 +332,15 @@ function confirmRemove(): void {
                 type="date"
                 aria-label="开始日期"
                 :disabled="timeMode !== 'custom'"
-                class="h-8 w-40 rounded-md border border-slate-700 bg-slate-950 px-2 text-slate-200 transition-colors [color-scheme:dark] disabled:opacity-40 hover:border-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+                class="h-8 w-40 rounded-md border border-slate-600 bg-slate-950 px-2 text-slate-200 transition-colors scheme-dark disabled:opacity-40 hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
               />
-              <span class="text-slate-500">至</span>
+              <span class="text-slate-400">至</span>
               <input
                 v-model="dateTo"
                 type="date"
                 aria-label="结束日期"
                 :disabled="timeMode !== 'custom'"
-                class="h-8 w-40 rounded-md border border-slate-700 bg-slate-950 px-2 text-slate-200 transition-colors [color-scheme:dark] disabled:opacity-40 hover:border-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+                class="h-8 w-40 rounded-md border border-slate-600 bg-slate-950 px-2 text-slate-200 transition-colors scheme-dark disabled:opacity-40 hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
               />
             </label>
           </div>
@@ -373,10 +374,10 @@ function confirmRemove(): void {
             min="1"
             :max="logicalProcessors"
             aria-label="扫描线程数"
-            class="h-8 w-24 rounded-md border border-slate-700 bg-slate-950 px-2 text-slate-200 transition-colors hover:border-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+            class="h-8 w-24 rounded-md border border-slate-600 bg-slate-950 px-2 text-slate-200 transition-colors hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
             @change="emit('scanThreadsChange', scanThreads)"
           />
-          <span class="text-slate-500">/ {{ logicalProcessors }} 逻辑处理器</span>
+          <span class="text-slate-400">/ {{ logicalProcessors }} 逻辑处理器</span>
           <button
             v-if="!scanThreadsAuto"
             type="button"
@@ -393,7 +394,7 @@ function confirmRemove(): void {
     </div>
 
     <footer
-      class="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-800 px-6 py-2.5 text-xs text-slate-500"
+      class="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-800 px-6 py-2.5 text-xs text-slate-400"
     >
       <span>扫描只读，不会修改任何文件</span>
       <div class="ml-auto flex items-center gap-2">

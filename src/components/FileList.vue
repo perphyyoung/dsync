@@ -69,10 +69,10 @@ function dateOf(row: DiffRow): number | null {
       >
         {{ pathOf(item.row) ?? "—" }}
       </span>
-      <span class="w-20 shrink-0 text-right text-slate-500">{{
+      <span class="w-20 shrink-0 text-right text-slate-400">{{
         formatDate(dateOf(item.row))
       }}</span>
-      <span class="w-16 shrink-0 text-right text-slate-500">{{
+      <span class="w-16 shrink-0 text-right text-slate-400">{{
         formatSize(sizeOf(item.row))
       }}</span>
     </button>
