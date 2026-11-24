@@ -7,8 +7,9 @@ function pad(part: number): string {
 export function formatSize(size: number | null): string {
   if (size === null) return "";
   if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(2)} KB`;
+  if (size < 1024 * 1024 * 1024) return `${(size / 1024 / 1024).toFixed(2)} MB`;
+  return `${(size / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
 /** 修改日期只显示到天，本地时区 YYYY-MM-DD */

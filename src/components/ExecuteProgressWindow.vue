@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { formatEta } from "../lib/format";
+import { formatEta, formatSize } from "../lib/format";
 import type { ExecuteProgress } from "../lib/types";
 import ConfirmBubble from "./ConfirmBubble.vue";
 
@@ -74,13 +74,6 @@ function formatSpeed(bytes: number): string {
   const kb = bytes / 1024;
   return kb >= 1 ? `${Math.round(kb)} KB` : `${Math.round(bytes)} B`;
 }
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${Math.round(bytes)} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
-}
 </script>
 
 <template>
@@ -150,9 +143,7 @@ function formatBytes(bytes: number): string {
         v-if="progress && progress.bytesTotal > 0 && (state === 'running' || state === 'paused')"
       >
         <div class="mt-1.5 flex items-center justify-between text-slate-500">
-          <span
-            >{{ formatBytes(progress.bytesDone) }} / {{ formatBytes(progress.bytesTotal) }}</span
-          >
+          <span>{{ formatSize(progress.bytesDone) }} / {{ formatSize(progress.bytesTotal) }}</span>
           <span>{{ bytePercent }}%</span>
         </div>
         <div class="mt-1 h-1 overflow-hidden rounded bg-slate-800">

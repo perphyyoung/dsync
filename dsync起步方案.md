@@ -575,6 +575,7 @@ pick dirs → sync:scan(扫描 + 哈希 + 配对 + 索引落盘) → 渲染差�
 | D55 | 扫描进度状态行与收尾阶段 | 运行中始终显示状态行：哈希阶段显示 ETA，ETA 归零 / 字节已满显示「即将完成」，样本不足显示「正在计算哈希…」；配对 / 写索引显示阶段文案并保持 100%，不回到 0% 或「0 / 1 个文件」 | 2026-11-20 |
 | D56 | 执行结果就地更新，refresh 只做目标级兜底 | 成功 copy 用 `sourceHash` / `sizeBytes` / 当天日期直接更新行；成功 copy 的哈希用 `patchIndex` 定点写回两侧索引；move 只改路径，soft-delete 置空；只有 failed / cancelled / 缺可信哈希的行调用 refresh，只 stat / hash 该行文件，不读索引、不遍历其他文件、不 patchIndex | 2026-11-20 |
 | D57 | 复制校验阶段与末尾进度 | 复制字节写完后先把 `bytesDone` 补满并设置 `verifyingFiles`，窗口显示「校验中」；主进程执行进度 500ms 节流增加 trailing flush，校验开始与最终进度不被丢弃 | 2026-11-20 |
+| D58 | 大小显示统一到 GB 并复用格式化 | `formatSize` 按 1024 逐级换算，KB / MB / GB 统一两位小数（B 仍为整数），文件列表 / 扫描进度 / 回收站同时生效；执行进度小窗删掉本地 `formatBytes` 改用 `formatSize`；复制速度维持 B / KB / MB，不新增 GB/s | 2026-11-24 |
 
 无待确认项。
 

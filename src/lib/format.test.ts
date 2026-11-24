@@ -1,5 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { etaHint, formatDate, formatEta } from "./format";
+import { etaHint, formatDate, formatEta, formatSize } from "./format";
+
+describe("formatSize", () => {
+  it("按 1024 逐级换算，非字节单位统一两位小数", () => {
+    expect(formatSize(1023)).toBe("1023 B");
+    expect(formatSize(1024)).toBe("1.00 KB");
+    expect(formatSize(1536)).toBe("1.50 KB");
+    expect(formatSize(1024 * 1024)).toBe("1.00 MB");
+    expect(formatSize(2.5 * 1024 * 1024)).toBe("2.50 MB");
+    expect(formatSize(1024 * 1024 * 1024)).toBe("1.00 GB");
+    expect(formatSize(4973.1 * 1024 * 1024)).toBe("4.86 GB");
+  });
+
+  it("空值返回空字符串", () => {
+    expect(formatSize(null)).toBe("");
+  });
+});
 
 describe("formatDate", () => {
   it("只显示到天，月日补零", () => {
