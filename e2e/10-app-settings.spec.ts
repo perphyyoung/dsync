@@ -16,7 +16,7 @@ test("扫描/复制线程数与磁盘类型可修改、重启后保留，并可�
   await page.getByRole("button", { name: "返回", exact: true }).click();
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await expect(page.getByLabel("扫描线程数")).toHaveValue("1");
-  await expect(page.getByText("已手动设置", { exact: true })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "恢复默认", exact: true })).toHaveCount(1);
 
   /* 复制线程数与磁盘类型 */
   const copyInput = page.getByLabel("复制线程数");
@@ -29,7 +29,7 @@ test("扫描/复制线程数与磁盘类型可修改、重启后保留，并可�
   await expect
     .poll(async () => (await page.evaluate(() => window.api.getAppSettings())).diskMode)
     .toBe("hdd");
-  await expect(page.getByText("已手动设置", { exact: true })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "恢复默认", exact: true })).toHaveCount(2);
   await page.getByRole("button", { name: "关闭", exact: true }).click();
 
   await slot.relaunch();
@@ -44,7 +44,7 @@ test("扫描/复制线程数与磁盘类型可修改、重启后保留，并可�
   await slot.page.getByRole("button", { name: "设置", exact: true }).click();
   await expect(slot.page.getByLabel("复制线程数")).toHaveValue("2");
   await expect(slot.page.getByLabel("磁盘类型")).toHaveValue("hdd");
-  await expect(slot.page.getByText("已手动设置", { exact: true })).toHaveCount(1);
+  await expect(slot.page.getByRole("button", { name: "恢复默认", exact: true })).toHaveCount(1);
 
   await slot.page.getByRole("button", { name: "恢复默认", exact: true }).click();
   await slot.page.getByLabel("磁盘类型").selectOption("auto");

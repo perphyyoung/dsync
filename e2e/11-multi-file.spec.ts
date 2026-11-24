@@ -26,7 +26,7 @@ test("并行文件数可持久化，多文件复制走并行调度", async ({ sl
   await slot.page.getByRole("button", { name: "返回", exact: true }).click();
   await slot.page.getByRole("button", { name: "设置", exact: true }).click();
   await expect(slot.page.getByLabel("并行文件数")).toHaveValue("3");
-  await expect(slot.page.getByText("已手动设置", { exact: true })).toHaveCount(1);
+  await expect(slot.page.getByRole("button", { name: "恢复默认", exact: true })).toHaveCount(1);
   await slot.page.getByRole("button", { name: "关闭", exact: true }).click();
 
   const left = join(base, "left");

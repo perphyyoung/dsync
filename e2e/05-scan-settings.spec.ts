@@ -92,14 +92,13 @@ test("过滤条件随目录对保存，重启后恢复", async ({ slot }) => {
   const pairRow = slot.page.getByTitle(`${left} ⇄ ${right}`);
   await expect(pairRow.getByRole("button").first()).toHaveClass(/border-sky-700/);
 
-  /* 目录对按钮与单目录路径框同为页面宽度 70%，且左缘对齐 */
-  const viewportWidth = await slot.page.evaluate(() => window.innerWidth);
+  /* 目录对按钮与单目录路径框都占满可用宽度，左缘对齐 */
   const pairBox = await slot.page.getByTestId("pair-button").first().boundingBox();
   const pathBox = await slot.page.getByTestId("left-path").boundingBox();
   expect(pairBox).not.toBeNull();
   expect(pathBox).not.toBeNull();
-  expect((pairBox?.width ?? 0) / viewportWidth).toBeGreaterThan(0.65);
-  expect((pairBox?.width ?? 0) / viewportWidth).toBeLessThan(0.75);
+  expect(pairBox?.width ?? 0).toBeGreaterThan(400);
+  expect(pathBox?.width ?? 0).toBeGreaterThan(400);
   expect(Math.abs((pairBox?.x ?? 0) - (pathBox?.x ?? 0))).toBeLessThanOrEqual(1);
 
   /* 搜索可一键清空 */

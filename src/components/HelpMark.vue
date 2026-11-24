@@ -7,6 +7,8 @@ defineProps<{ text: string }>();
 <template>
   <Tooltip :text="text">
     <span
+      role="img"
+      :aria-label="text"
       class="flex h-4 w-4 items-center justify-center rounded-full border border-slate-600 text-[10px] text-slate-500"
     >
       ?

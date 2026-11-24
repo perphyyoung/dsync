@@ -9,6 +9,8 @@
 :root {
   /* 原生控件与滚动条跟随深色主题 */
   color-scheme: dark;
+  /* 原生 checkbox / radio 默认品牌色，局部 accent-rose 仍可覆盖 */
+  accent-color: var(--color-sky-500);
 }
 
 html,

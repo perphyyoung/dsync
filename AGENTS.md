@@ -103,7 +103,7 @@ Electron 45 · electron-vite 6 · Vue 3 + TypeScript 6 · Tailwind CSS 4 · Vite
 - `no-await-in-loop` 对目录递归与动作串行执行是刻意设计，已在 `.oxlintrc.json` 关闭。
 - renderer 不能 import 任何带 `node:` 的模块；无 Node 依赖的工具函数放 `src/lib/`（如 `exts.ts`、`format.ts`）。
 - 同步核心全部落在 `src/lib/` 并使用 `node:fs`，Vitest 在 node 环境覆盖，不依赖 Electron 运行；软删除通过参数注入，单测传假实现。
-- 布局百分比宽度必须核对包含块与行内间距：扫描设置页路径框 / 目录对统一 `70vw` + `shrink-0`，所有行统一 `gap-3`，标签从页面 10% 处右对齐（见 `design.md` 对齐原则）。
+- 布局宽度必须核对包含块与行内间距：扫描设置页路径框 / 目录对用 `flex-1 min-w-0` 占满标签列与右侧按钮之间的可用宽度，所有行统一 `gap-3`，标签列固定 144px（`w-36`）右对齐（见 `design.md` 对齐原则）。
 
 ## e2e 约定
 
