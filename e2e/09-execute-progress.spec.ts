@@ -36,8 +36,10 @@ test("大文件复制显示进度窗，可最小化与恢复", async ({ slot }) 
     await window.api.setDiskMode("ssd");
   });
 
-  /* 单行复制：非预览模式点 > 按钮 */
-  await page.getByTitle("以左侧为准同步到右侧", { exact: true }).click();
+  /* 单行复制：非预览模式点 > 按钮；悬停提示列出实际动作 */
+  const syncRight = page.getByRole("button", { name: /^以左侧为准同步到右侧/ });
+  await expect(syncRight).toHaveAttribute("title", /复制 .+/);
+  await syncRight.click();
   await expect(page.getByText("同步中", { exact: true })).toBeVisible({ timeout: 5_000 });
   /* 限速入口在执行中可见（不改速率，避免拖慢用例） */
   await expect(page.getByLabel("复制限速")).toBeVisible();
@@ -107,7 +109,7 @@ test("关闭自动关窗后，完成态保留窗口并显示用时与平均速�
   await autoClose.uncheck();
   await page.getByRole("button", { name: "关闭", exact: true }).click();
 
-  await page.getByTitle("以左侧为准同步到右侧", { exact: true }).click();
+  await page.getByRole("button", { name: /^以左侧为准同步到右侧/ }).click();
   /* 动态文案用正则（模板换行会保留在 textContent 里，空白一律用 \s+）：`用时 0.4 秒 · 平均 296 MB/s` */
   const stats = page.getByText(/用时\s+[\d.]+\s+秒\s+·\s+平均\s+[\d.]+\s+[KM]?B\/s/);
   await expect(stats).toBeVisible({ timeout: 30_000 });

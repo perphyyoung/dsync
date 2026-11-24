@@ -43,12 +43,15 @@ function arrowClass(direction: RowDirection): string {
     : "text-sky-400 hover:bg-sky-950/70";
 }
 
+/** 悬停提示：先写方向，再逐条列出本次实际动作，最多 3 条 */
 function arrowTitle(direction: RowDirection, side: "left" | "right"): string {
   if (direction.actions.length === 0) return "无内容可同步";
-  if (direction.deletes) {
-    return side === "left" ? "软删除左侧文件到回收站" : "软删除右侧文件到回收站";
+  const head = side === "left" ? "以右侧为准同步到左侧" : "以左侧为准同步到右侧";
+  const lines = direction.actions.slice(0, 3).map(describeAction);
+  if (direction.actions.length > lines.length) {
+    lines.push(`…等 ${direction.actions.length} 项动作`);
   }
-  return side === "left" ? "以右侧为准同步到左侧" : "以左侧为准同步到右侧";
+  return [head, ...lines].join("\n");
 }
 
 /** 预览模式下，非目标方向淡出 */

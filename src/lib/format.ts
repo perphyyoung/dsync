@@ -72,7 +72,13 @@ export function etaHint(seconds: number | null | undefined): EtaHint | null {
 
 /** 把一条动作写成可读的一行，用于确认框逐条列出 */
 export function describeAction(action: SyncAction): string {
-  if (action.kind === "copy") return `复制 ${action.fromPath ?? ""} → ${action.toPath}`;
+  if (action.kind === "copy") {
+    const from = action.fromPath ?? "";
+    /* 同路径复制只写一次文件名；结构对齐后目标路径不同时才显示 from → to */
+    return from && from !== action.toPath
+      ? `复制 ${from} → ${action.toPath}`
+      : `复制 ${action.toPath}`;
+  }
   if (action.kind === "move") return `改名 ${action.fromPath ?? ""} → ${action.toPath}`;
-  return `软删除：${action.toPath}`;
+  return `软删除 ${action.toPath}`;
 }

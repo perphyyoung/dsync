@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { etaHint, formatDate, formatDuration, formatEta, formatSize } from "./format";
+import {
+  describeAction,
+  etaHint,
+  formatDate,
+  formatDuration,
+  formatEta,
+  formatSize,
+} from "./format";
+import type { SyncAction } from "./types";
 
 describe("formatSize", () => {
   it("按 1024 逐级换算，非字节单位统一两位小数", () => {
@@ -88,5 +96,29 @@ describe("etaHint", () => {
     expect(hint?.level).toBe("strong");
     expect(hint?.text).toContain("建议先取消");
     expect(etaHint(36000)?.level).toBe("strong");
+  });
+});
+
+describe("describeAction", () => {
+  const base: SyncAction = {
+    kind: "copy",
+    side: "right",
+    fromPath: "a.md",
+    toPath: "a.md",
+    status: "left-only",
+    rowIndex: 0,
+  };
+
+  it("同路径复制只写一次文件名", () => {
+    expect(describeAction(base)).toBe("复制 a.md");
+  });
+
+  it("复制到不同路径时显示 from → to", () => {
+    expect(describeAction({ ...base, toPath: "b.md" })).toBe("复制 a.md → b.md");
+  });
+
+  it("改名显示 from → to，软删除只写目标路径", () => {
+    expect(describeAction({ ...base, kind: "move", toPath: "b.md" })).toBe("改名 a.md → b.md");
+    expect(describeAction({ ...base, kind: "soft-delete", fromPath: null })).toBe("软删除 a.md");
   });
 });
