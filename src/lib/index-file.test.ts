@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   cacheFromIndex,
+  collectInherited,
   emptyIndex,
   loadIndexPair,
-  mergePairs,
   patchIndex,
   readIndex,
   rebaseIndex,
@@ -107,6 +107,39 @@ describe("索引读写（SQLite）", () => {
     expect(cacheFromIndex(outcome.data, "left").get("a.md")?.hash).toBe("ha");
     expect(cacheFromIndex(outcome.data, "right").get("c.md")?.hash).toBe("hc");
   });
+
+  it("右侧的嵌套 .dsync 也按来源根解析并重定基", async () => {
+    const left = join(work, "left");
+    const right = join(work, "right");
+    await writeIndex(
+      join(right, "x"),
+      withPairs(left, join(right, "x"), [samplePair("a.md", "a.md", "h1")]),
+    );
+
+    const result = await collectInherited(left, right, [{ root: right, dir: "x" }]);
+    expect(result.warnings).toHaveLength(0);
+    expect(result.pairs).toHaveLength(1);
+    expect(result.pairs[0]).toMatchObject({
+      left: "a.md",
+      right: "x/a.md",
+      pairedBy: "inherited",
+    });
+  });
+
+  it("同一嵌套目录只读一次", async () => {
+    const left = join(work, "left");
+    const right = join(work, "right");
+    await writeIndex(
+      join(right, "x"),
+      withPairs(left, join(right, "x"), [samplePair("a.md", "a.md", "h1")]),
+    );
+
+    const result = await collectInherited(left, right, [
+      { root: right, dir: "x" },
+      { root: right, dir: "x" },
+    ]);
+    expect(result.pairs).toHaveLength(1);
+  });
 });
 
 describe("索引重定基", () => {
@@ -136,15 +169,5 @@ describe("索引重定基", () => {
   it("根目录无关时整份放弃", () => {
     const index = withPairs("D:\\work", "E:\\backup", [samplePair("a/x.md", "b/y.md")]);
     expect(rebaseIndex(index, "D:\\other", "E:\\backup")).toBeNull();
-  });
-});
-
-describe("配对合并", () => {
-  it("当前索引优先，继承的只在两侧路径都空闲时并入", () => {
-    const current = [samplePair("a.md", "b.md")];
-    const inherited = [samplePair("a.md", "c.md"), samplePair("x.md", "y.md")];
-    const merged = mergePairs(current, inherited);
-    expect(merged).toHaveLength(2);
-    expect(merged[1]).toMatchObject({ left: "x.md", right: "y.md" });
   });
 });

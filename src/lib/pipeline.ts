@@ -203,12 +203,12 @@ export async function runScan(request: ScanRequest, hooks: ScanHooks = {}): Prom
   ]);
 
   const loaded = await loadIndexPair(request.leftRoot, request.rightRoot);
-  const inherited = await collectInherited(
-    request.leftRoot,
-    request.rightRoot,
-    leftScan.nestedIndexDirs,
-  );
-  // 索引只提供哈希缓存；配对每次现算，不读回历史配对
+  const inherited = await collectInherited(request.leftRoot, request.rightRoot, [
+    ...leftScan.nestedIndexDirs.map((dir) => ({ root: request.leftRoot, dir })),
+    ...rightScan.nestedIndexDirs.map((dir) => ({ root: request.rightRoot, dir })),
+  ]);
+  // 索引只提供哈希缓存；配对每次现算，不读回历史配对。
+  // 合并按路径生效：继承的排前、当前根排后，同名 relPath 由当前根覆盖继承值。
   const cacheData = { ...loaded.data, pairs: [...inherited.pairs, ...loaded.data.pairs] };
 
   // 哈希：先预筛，再按字节推进

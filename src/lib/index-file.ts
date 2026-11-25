@@ -369,18 +369,26 @@ function depthOf(rel: RelPath): number {
   return rel.split("/").length;
 }
 
-/** 读取子孙目录里的 .dsync/dsync.db，重定基后并入当前索引 */
+/** 读取子孙目录里的 .dsync/dsync.db，重定基后并入当前索引；root 为发现该目录的一侧根 */
 export async function collectInherited(
   leftRoot: string,
   rightRoot: string,
-  nestedDirs: RelPath[],
+  nestedDirs: { root: string; dir: RelPath }[],
 ): Promise<{ pairs: PairRecord[]; warnings: string[] }> {
   const warnings: string[] = [];
   const pairs: PairRecord[] = [];
-  const ordered = [...nestedDirs].toSorted((a, b) => depthOf(a) - depthOf(b));
+  const seen = new Set<string>();
+  const ordered = nestedDirs
+    .filter(({ root, dir }) => {
+      const key = resolveInsideRoot(root, dir).toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .toSorted((a, b) => depthOf(a.dir) - depthOf(b.dir));
 
-  for (const dir of ordered) {
-    const childRoot = resolveInsideRoot(leftRoot, dir);
+  for (const { root, dir } of ordered) {
+    const childRoot = resolveInsideRoot(root, dir);
     const outcome = await readIndex(childRoot);
     if (!outcome.data) {
       if (outcome.warnings.length > 0) {
@@ -398,23 +406,6 @@ export async function collectInherited(
     }
   }
   return { pairs, warnings };
-}
-
-/** 当前索引优先；继承来的配对只在两侧路径都未被占用时生效 */
-export function mergePairs(current: PairRecord[], inherited: PairRecord[]): PairRecord[] {
-  const usedLeft = new Set(current.map((pair) => pathKey(pair.left)));
-  const usedRight = new Set(current.map((pair) => pathKey(pair.right)));
-  const merged = [...current];
-
-  for (const pair of inherited) {
-    const leftKey = pathKey(pair.left);
-    const rightKey = pathKey(pair.right);
-    if (usedLeft.has(leftKey) || usedRight.has(rightKey)) continue;
-    usedLeft.add(leftKey);
-    usedRight.add(rightKey);
-    merged.push(pair);
-  }
-  return merged;
 }
 
 /** 从索引里提取某一侧的哈希缓存 */
