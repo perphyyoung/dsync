@@ -1,12 +1,40 @@
 import { execFile } from "node:child_process";
 import { readFile, realpath } from "node:fs/promises";
 import { basename, parse } from "node:path";
+import koffi from "koffi";
 import type { DiskKind, DiskMode } from "./types";
 
 export type { DiskKind };
 
 /** 命令行探测超时：探测失败按机械盘（顺序）处理，不能拖住复制 */
 const DETECT_TIMEOUT_MS = 3000;
+
+/* Win32 seek penalty：直接查卷句柄，避免 PowerShell 冷启动 */
+const IOCTL_STORAGE_QUERY_PROPERTY = 0x002d1400;
+const STORAGE_DEVICE_SEEK_PENALTY_PROPERTY = 7;
+const PROPERTY_STANDARD_QUERY = 0;
+const FILE_SHARE_READ = 0x00000001;
+const FILE_SHARE_WRITE = 0x00000002;
+const OPEN_EXISTING = 3;
+
+const kernel32 = koffi.load("kernel32.dll");
+const STORAGE_PROPERTY_QUERY = koffi.struct("STORAGE_PROPERTY_QUERY", {
+  PropertyId: "uint32_t",
+  QueryType: "uint32_t",
+  AdditionalParameters: "uint8_t[1]",
+});
+const DEVICE_SEEK_PENALTY_DESCRIPTOR = koffi.struct("DEVICE_SEEK_PENALTY_DESCRIPTOR", {
+  Version: "uint32_t",
+  Size: "uint32_t",
+  IncursSeekPenalty: "uint8_t",
+});
+const CreateFileW = kernel32.func(
+  "uintptr_t __stdcall CreateFileW(str16 lpFileName, uint32_t dwDesiredAccess, uint32_t dwShareMode, void *lpSecurityAttributes, uint32_t dwCreationDisposition, uint32_t dwFlagsAndAttributes, void *hTemplateFile)",
+);
+const DeviceIoControl = kernel32.func(
+  "int32_t __stdcall DeviceIoControl(uintptr_t hDevice, uint32_t dwIoControlCode, const STORAGE_PROPERTY_QUERY *lpInBuffer, uint32_t nInBufferSize, _Out_ DEVICE_SEEK_PENALTY_DESCRIPTOR *lpOutBuffer, uint32_t nOutBufferSize, _Out_ uint32_t *lpBytesReturned, void *lpOverlapped)",
+);
+const CloseHandle = kernel32.func("int32_t __stdcall CloseHandle(uintptr_t hObject)");
 
 function run(command: string, args: string[]): Promise<string | null> {
   return new Promise((resolve) => {
@@ -55,12 +83,41 @@ async function detectWindows(root: string): Promise<DiskKind> {
   const letter = parsedRoot.replace(/[^A-Za-z]/g, "").slice(0, 1);
   if (!/^[A-Za-z]$/.test(letter)) return "unknown";
 
-  const script =
-    `$d = Get-Partition -DriveLetter ${letter} | Get-Disk; ` +
-    `(Get-PhysicalDisk | Where-Object DeviceId -eq $d.Number).MediaType`;
-  return parseWindowsMediaType(
-    await run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script]),
+  const handle = CreateFileW(
+    `\\\\.\\${letter}:`,
+    0,
+    FILE_SHARE_READ | FILE_SHARE_WRITE,
+    null,
+    OPEN_EXISTING,
+    0,
+    null,
   );
+  if (!handle || handle === -1 || handle === 0xffffffff || handle === 0xffffffffffffffffn) {
+    return "unknown";
+  }
+  try {
+    const query = {
+      PropertyId: STORAGE_DEVICE_SEEK_PENALTY_PROPERTY,
+      QueryType: PROPERTY_STANDARD_QUERY,
+      AdditionalParameters: Uint8Array.from([0]),
+    };
+    const descriptor = { Version: 0, Size: 0, IncursSeekPenalty: 0 };
+    const bytesReturned = [0];
+    const ok = DeviceIoControl(
+      handle,
+      IOCTL_STORAGE_QUERY_PROPERTY,
+      query,
+      koffi.sizeof(STORAGE_PROPERTY_QUERY),
+      descriptor,
+      koffi.sizeof(DEVICE_SEEK_PENALTY_DESCRIPTOR),
+      bytesReturned,
+      null,
+    );
+    if (!ok) return "unknown";
+    return descriptor.IncursSeekPenalty ? "hdd" : "ssd";
+  } finally {
+    CloseHandle(handle);
+  }
 }
 
 async function detectLinux(root: string): Promise<DiskKind> {

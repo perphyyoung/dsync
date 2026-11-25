@@ -1,6 +1,7 @@
 allowBuilds:
   electron: true
   electron-winstaller: true
+  koffi: true
 minimumReleaseAgeExclude:
   - '@vue/compiler-core@3.5.45'
   - '@vue/compiler-dom@3.5.45'

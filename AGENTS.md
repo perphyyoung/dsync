@@ -27,15 +27,15 @@ Electron 45 · electron-vite 6 · Vue 3 + TypeScript 6 · Tailwind CSS 4 · Vite
 
 ## 命令
 
-| 命令           | 用途                                          |
-| -------------- | --------------------------------------------- |
-| `pnpm dev`     | 开发模式启动                                  |
-| `pnpm test`    | Vitest 单元测试，只跑 `src/**/*.test.ts`      |
-| `pnpm e2e`     | 先 build 再跑 Playwright e2e                  |
-| `pnpm check`   | 只读质量门                                    |
-| `pnpm fix`     | 格式化 + lint 自动修复                        |
-| `pnpm build`   | 构建三端产物到 `out/`                         |
-| `pnpm release` | 打 Windows NSIS 安装包到 `release/`           |
+| 命令           | 用途                                     |
+| -------------- | ---------------------------------------- |
+| `pnpm dev`     | 开发模式启动                             |
+| `pnpm test`    | Vitest 单元测试，只跑 `src/**/*.test.ts` |
+| `pnpm e2e`     | 先 build 再跑 Playwright e2e             |
+| `pnpm check`   | 只读质量门                               |
+| `pnpm fix`     | 格式化 + lint 自动修复                   |
+| `pnpm build`   | 构建三端产物到 `out/`                    |
+| `pnpm release` | 打 Windows NSIS 安装包到 `release/`      |
 
 - `pnpm check` 顺序：`format:check → lint:oxlint → lint:eslint → type-check → test → build`。
 - e2e 不在 `check` 内，交付前单独跑 `pnpm e2e`。
@@ -43,15 +43,16 @@ Electron 45 · electron-vite 6 · Vue 3 + TypeScript 6 · Tailwind CSS 4 · Vite
 
 ## 文档分工
 
-| 文件                | 职责                                                       |
-| ------------------- | ---------------------------------------------------------- |
-| `通用语言.md`       | 术语、界面元素标准名称、中英文对照、避免使用的旧叫法       |
-| `design.md`         | 交互规范：弹窗选型、状态反馈、进度页三态、布局原则、符号约定 |
-| `dsync起步方案.md`  | 功能设计与实现状态                                         |
-| `日志使用说明.md`   | 主进程 / 渲染进程 / e2e 三部分日志用法，三处共用 `ds.log`  |
-| `e2e/e2e-readme.md` | 各 e2e 文件的测试范围，修改 e2e 时必须同步            |
+| 文件                        | 职责                                                         |
+| --------------------------- | ------------------------------------------------------------ |
+| `通用语言.md`               | 术语、界面元素标准名称、中英文对照、避免使用的旧叫法         |
+| `design.md`                 | 交互规范：弹窗选型、状态反馈、进度页三态、布局原则、符号约定 |
+| `dsync起步方案.md`          | 功能设计与实现状态                                           |
+| `日志使用说明.md`           | 主进程 / 渲染进程 / e2e 三部分日志用法，三处共用 `ds.log`    |
+| `e2e/e2e-readme.md`         | 各 e2e 文件的测试范围，修改 e2e 时必须同步                   |
+| `scripts/scripts-readme.md` | `scripts/` 下脚本用途、输入输出与运行方式，改脚本时同步      |
 
-新增术语先改 `通用语言.md`，新增交互决策先改 `design.md`，改完功能同步 `dsync起步方案.md`，改了 e2e 用例同步 `e2e/e2e-readme.md`。功能改动按四件套同步；README 功能列表、AGENTS 中的数据 / 命令变化也要同步。
+新增术语先改 `通用语言.md`，新增交互决策先改 `design.md`，改完功能同步 `dsync起步方案.md`，改了 e2e 用例同步 `e2e/e2e-readme.md`，改了 `scripts/` 脚本同步 `scripts/scripts-readme.md`。功能改动按四件套同步；README 功能列表、AGENTS 中的数据 / 命令变化也要同步。
 
 `todo.md` 只做临时进度追踪：实施前记录方案、疑问与勾选，完成后删除，不进入项目文档。
 
