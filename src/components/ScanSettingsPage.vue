@@ -46,15 +46,19 @@ const emit = defineEmits<{
 const diskButtonClass =
   "h-8 rounded-md border border-slate-600 text-xs text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700";
 
-/** 下拉显示当前有效盘型；检测中单独占位 */
-function diskValue(disk: DirDisk | null): string {
-  if (!disk) return "detecting";
-  return disk.mode !== "auto" ? disk.mode : disk.kind;
+const DISK_OPTIONS = [
+  { value: "ssd", label: "固态" },
+  { value: "other", label: "非固态" },
+] as const;
+
+/** 当前有效盘型：手动覆盖优先，否则取检测结果；检测中为 null */
+function diskKind(disk: DirDisk | null): "ssd" | "other" | null {
+  return disk ? (disk.mode !== "auto" ? disk.mode : disk.kind) : null;
 }
 
-function onDiskChange(side: Side, event: Event): void {
-  const value = (event.target as HTMLSelectElement).value;
-  if (value === "ssd" || value === "other") emit("changeDirDisk", side, value);
+function diskSegmentClass(disk: DirDisk | null, value: "ssd" | "other"): string {
+  if (diskKind(disk) !== value) return "text-slate-400 hover:text-slate-200";
+  return value === "ssd" ? "bg-emerald-700 text-white" : "bg-amber-700 text-white";
 }
 
 const forceRehash = ref(false);
@@ -214,29 +218,6 @@ function confirmRemove(): void {
           >
             {{ leftRoot || "未选择左侧目录" }}
           </span>
-          <div class="flex w-56 shrink-0 items-center justify-end gap-1.5">
-            <select
-              :value="diskValue(leftDisk)"
-              :disabled="!leftDisk"
-              :aria-busy="!leftDisk"
-              aria-label="左侧磁盘类型"
-              class="h-8 w-24 shrink-0 rounded-md border border-slate-600 bg-slate-950 px-2 text-xs text-slate-200 transition-colors disabled:cursor-wait disabled:border-slate-700 disabled:bg-slate-900 disabled:text-slate-500"
-              @change="onDiskChange('left', $event)"
-            >
-              <option v-if="!leftDisk" value="detecting">检测中</option>
-              <template v-else>
-                <option value="ssd">固态</option>
-                <option value="other">非固态</option>
-              </template>
-            </select>
-            <button
-              type="button"
-              :class="`${diskButtonClass} w-14 shrink-0`"
-              @click="emit('redetectDisk', 'left')"
-            >
-              重测
-            </button>
-          </div>
           <button
             type="button"
             :class="`${diskButtonClass} w-14 shrink-0`"
@@ -244,6 +225,34 @@ function confirmRemove(): void {
             @click="emit('pick', 'left')"
           >
             更改
+          </button>
+          <span class="h-4 w-px shrink-0 bg-slate-700" aria-hidden="true"></span>
+          <span class="w-14 shrink-0 text-right text-xs text-slate-400">
+            {{ leftDisk ? "磁盘类型" : "检测中" }}
+          </span>
+          <div
+            class="flex shrink-0 items-center rounded-md border border-slate-600 p-0.5"
+            :aria-busy="!leftDisk"
+          >
+            <button
+              v-for="k in DISK_OPTIONS"
+              :key="k.value"
+              type="button"
+              class="h-7 w-14 rounded-md text-xs transition-colors disabled:cursor-wait disabled:opacity-40"
+              :class="diskSegmentClass(leftDisk, k.value)"
+              :disabled="!leftDisk"
+              :aria-pressed="diskKind(leftDisk) === k.value"
+              @click="emit('changeDirDisk', 'left', k.value)"
+            >
+              {{ k.label }}
+            </button>
+          </div>
+          <button
+            type="button"
+            :class="`${diskButtonClass} w-14 shrink-0`"
+            @click="emit('redetectDisk', 'left')"
+          >
+            重测
           </button>
         </div>
 
@@ -257,29 +266,6 @@ function confirmRemove(): void {
           >
             {{ rightRoot || "未选择右侧目录" }}
           </span>
-          <div class="flex w-56 shrink-0 items-center justify-end gap-1.5">
-            <select
-              :value="diskValue(rightDisk)"
-              :disabled="!rightDisk"
-              :aria-busy="!rightDisk"
-              aria-label="右侧磁盘类型"
-              class="h-8 w-24 shrink-0 rounded-md border border-slate-600 bg-slate-950 px-2 text-xs text-slate-200 transition-colors disabled:cursor-wait disabled:border-slate-700 disabled:bg-slate-900 disabled:text-slate-500"
-              @change="onDiskChange('right', $event)"
-            >
-              <option v-if="!rightDisk" value="detecting">检测中</option>
-              <template v-else>
-                <option value="ssd">固态</option>
-                <option value="other">非固态</option>
-              </template>
-            </select>
-            <button
-              type="button"
-              :class="`${diskButtonClass} w-14 shrink-0`"
-              @click="emit('redetectDisk', 'right')"
-            >
-              重测
-            </button>
-          </div>
           <button
             type="button"
             :class="`${diskButtonClass} w-14 shrink-0`"
@@ -287,6 +273,34 @@ function confirmRemove(): void {
             @click="emit('pick', 'right')"
           >
             更改
+          </button>
+          <span class="h-4 w-px shrink-0 bg-slate-700" aria-hidden="true"></span>
+          <span class="w-14 shrink-0 text-right text-xs text-slate-400">
+            {{ rightDisk ? "磁盘类型" : "检测中" }}
+          </span>
+          <div
+            class="flex shrink-0 items-center rounded-md border border-slate-600 p-0.5"
+            :aria-busy="!rightDisk"
+          >
+            <button
+              v-for="k in DISK_OPTIONS"
+              :key="k.value"
+              type="button"
+              class="h-7 w-14 rounded-md text-xs transition-colors disabled:cursor-wait disabled:opacity-40"
+              :class="diskSegmentClass(rightDisk, k.value)"
+              :disabled="!rightDisk"
+              :aria-pressed="diskKind(rightDisk) === k.value"
+              @click="emit('changeDirDisk', 'right', k.value)"
+            >
+              {{ k.label }}
+            </button>
+          </div>
+          <button
+            type="button"
+            :class="`${diskButtonClass} w-14 shrink-0`"
+            @click="emit('redetectDisk', 'right')"
+          >
+            重测
           </button>
         </div>
 
