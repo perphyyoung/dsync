@@ -17,6 +17,13 @@ test("启动进扫描设置页，返回后显示窗口骨架", async ({ slot }) 
   expect(pathBox?.width ?? 0).toBeGreaterThan(400);
   await expect(page.getByTitle("更改左侧目录")).toBeVisible();
   await expect(page.getByTitle("更改右侧目录")).toBeVisible();
+  /* 目录行磁盘类型：双段按钮组 + 重测；未选目录时前缀「检测中」且两段禁用 */
+  await expect(page.getByText("检测中", { exact: true })).toHaveCount(2);
+  const ssdSegment = page.getByRole("button", { name: "固态", exact: true });
+  await expect(ssdSegment).toHaveCount(2);
+  await expect(ssdSegment.first()).toBeDisabled();
+  await expect(page.getByRole("button", { name: "非固态", exact: true })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "重测", exact: true })).toHaveCount(2);
   await expect(page.getByText("文件大小", { exact: true })).toBeVisible();
   /* 0 的含义走行末 ? 的悬停提示：问号常显，提示按空间翻转且不越出视口 */
   const sizeHint = page.getByText("0 表示该侧不限");
