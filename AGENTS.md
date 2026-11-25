@@ -79,8 +79,8 @@ Electron 45 · electron-vite 6 · Vue 3 + TypeScript 6 · Tailwind CSS 4 · Vite
 ## 复制与执行
 
 - 复制统一写 `.dsynctmp` 后 rename；失败 / 校验失败删除半成品；顺序模式取消保留半成品供续传，并行模式取消删除。
-- 单文件 ≥ 64MB 且源、目标都判定为 SSD 时按 8MB 分块并行（复制线程数默认 `max(2, 一半)`）；机械盘 / 未知强制顺序 1MB；并行模式取消删除半成品，顺序模式保留续传。
-- 多文件复制：copy 动作并行（并行文件数默认 `max(2, 一半)`；SSD 用设置值，HDD / 未知最多 2）；≥ 64MB 大文件单独走单文件分块并行；move / soft-delete 串行；进度聚合 bytesDone / bytesTotal 与 activeFiles。
+- 单文件 ≥ 64MB 且源、目标都判定为 SSD 时按 8MB 分块并行（SSD 复制线程数默认 `max(2, 一半)`）；机械盘 / 未知强制顺序 1MB；并行模式取消删除半成品，顺序模式保留续传。
+- 多文件复制：copy 动作并行（SSD 并行文件数默认 `max(2, 一半)`；仅两侧都是 SSD 时用设置值，HDD / 未知串行）；≥ 64MB 大文件单独走单文件分块并行；move / soft-delete 串行；进度聚合 bytesDone / bytesTotal 与 activeFiles。
 - 磁盘类型自动检测（Windows PowerShell / Linux sysfs / macOS diskutil），失败按机械处理；设置可手动覆盖 自动 / 固态 / 机械。
 - 小于 4MB 用 `fs.copyFile`；大于等于 4MB 用 1MB 分块读写（常量在 `execute.ts`），块边界检查暂停 / 取消；扫描时清理超过 7 天的 `.dsynctmp`（`scan.ts`）。
 - 复制后校验优先用动作携带的源侧扫描哈希（`SyncAction.sourceHash`），只读 tmp；无哈希的旧调用回退源 / 目标全量比对。不一致计入 failed 并告警。

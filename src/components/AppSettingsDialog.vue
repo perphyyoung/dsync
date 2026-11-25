@@ -6,10 +6,10 @@ import HelpMark from "./HelpMark.vue";
 const props = defineProps<{
   scanThreads: number;
   scanThreadsAuto: boolean;
-  copyThreads: number;
-  copyThreadsAuto: boolean;
-  parallelFiles: number;
-  parallelFilesAuto: boolean;
+  ssdCopyThreads: number;
+  ssdCopyThreadsAuto: boolean;
+  ssdParallelFiles: number;
+  ssdParallelFilesAuto: boolean;
   diskMode: DiskMode;
   autoCloseExecWindow: boolean;
   logicalProcessors: number;
@@ -19,17 +19,17 @@ const emit = defineEmits<{
   close: [];
   changeScanThreads: [value: number];
   resetScanThreads: [];
-  changeCopyThreads: [value: number];
-  resetCopyThreads: [];
-  changeParallelFiles: [value: number];
-  resetParallelFiles: [];
+  changeSsdCopyThreads: [value: number];
+  resetSsdCopyThreads: [];
+  changeSsdParallelFiles: [value: number];
+  resetSsdParallelFiles: [];
   changeDiskMode: [value: DiskMode];
   changeAutoCloseExecWindow: [value: boolean];
 }>();
 
 const scanValue = ref(props.scanThreads);
-const copyValue = ref(props.copyThreads);
-const filesValue = ref(props.parallelFiles);
+const ssdCopyValue = ref(props.ssdCopyThreads);
+const ssdFilesValue = ref(props.ssdParallelFiles);
 watch(
   () => props.scanThreads,
   (next) => {
@@ -37,15 +37,15 @@ watch(
   },
 );
 watch(
-  () => props.copyThreads,
+  () => props.ssdCopyThreads,
   (next) => {
-    copyValue.value = next;
+    ssdCopyValue.value = next;
   },
 );
 watch(
-  () => props.parallelFiles,
+  () => props.ssdParallelFiles,
   (next) => {
-    filesValue.value = next;
+    ssdFilesValue.value = next;
   },
 );
 
@@ -55,13 +55,13 @@ function commitScan(): void {
 }
 
 function commitCopy(): void {
-  const next = Math.round(Number(copyValue.value));
-  if (Number.isFinite(next)) emit("changeCopyThreads", next);
+  const next = Math.round(Number(ssdCopyValue.value));
+  if (Number.isFinite(next)) emit("changeSsdCopyThreads", next);
 }
 
 function commitFiles(): void {
-  const next = Math.round(Number(filesValue.value));
-  if (Number.isFinite(next)) emit("changeParallelFiles", next);
+  const next = Math.round(Number(ssdFilesValue.value));
+  if (Number.isFinite(next)) emit("changeSsdParallelFiles", next);
 }
 
 function changeDiskMode(event: Event): void {
@@ -130,25 +130,27 @@ function changeDiskMode(event: Event): void {
         <div
           class="flex min-h-9 items-center justify-between gap-3 rounded-md px-2 hover:bg-slate-800/40"
         >
-          <span class="flex items-center gap-1.5 text-slate-400">
-            复制线程数
-            <HelpMark text="默认取逻辑处理器一半（至少 2）；机械盘强制 1" />
+          <span class="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-slate-400">
+            SSD 复制线程数
+            <HelpMark
+              text="默认取逻辑处理器一半（至少 2）；仅两侧都是 SSD 且文件 ≥64MB 时生效；机械盘 / 未知按 1MB 顺序流"
+            />
           </span>
           <div class="flex items-center gap-2">
             <button
-              v-if="!copyThreadsAuto"
+              v-if="!ssdCopyThreadsAuto"
               type="button"
               class="text-xs text-sky-400 transition-colors hover:text-sky-300"
-              @click="emit('resetCopyThreads')"
+              @click="emit('resetSsdCopyThreads')"
             >
               恢复默认
             </button>
             <input
-              v-model.number="copyValue"
+              v-model.number="ssdCopyValue"
               type="number"
               min="1"
               :max="logicalProcessors"
-              aria-label="复制线程数"
+              aria-label="SSD 复制线程数"
               class="h-8 w-20 rounded-md border border-slate-600 bg-slate-950 px-2 text-right text-slate-200 transition-colors hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
               @change="commitCopy"
             />
@@ -159,25 +161,27 @@ function changeDiskMode(event: Event): void {
         <div
           class="flex min-h-9 items-center justify-between gap-3 rounded-md px-2 hover:bg-slate-800/40"
         >
-          <span class="flex items-center gap-1.5 text-slate-400">
-            并行文件数
-            <HelpMark text="默认取逻辑处理器一半（至少 2）；机械盘 / 未知最多 2" />
+          <span class="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-slate-400">
+            SSD 并行文件数
+            <HelpMark
+              text="默认取逻辑处理器一半（至少 2）；仅两侧都是 SSD 时生效；机械盘 / 未知按单文件串行"
+            />
           </span>
           <div class="flex items-center gap-2">
             <button
-              v-if="!parallelFilesAuto"
+              v-if="!ssdParallelFilesAuto"
               type="button"
               class="text-xs text-sky-400 transition-colors hover:text-sky-300"
-              @click="emit('resetParallelFiles')"
+              @click="emit('resetSsdParallelFiles')"
             >
               恢复默认
             </button>
             <input
-              v-model.number="filesValue"
+              v-model.number="ssdFilesValue"
               type="number"
               min="1"
               :max="logicalProcessors"
-              aria-label="并行文件数"
+              aria-label="SSD 并行文件数"
               class="h-8 w-20 rounded-md border border-slate-600 bg-slate-950 px-2 text-right text-slate-200 transition-colors hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
               @change="commitFiles"
             />

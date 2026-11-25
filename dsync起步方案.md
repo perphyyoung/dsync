@@ -580,6 +580,8 @@ pick dirs → sync:scan(扫描 + 哈希 + 配对 + 索引落盘) → 渲染差�
 | D60 | 执行完成态用时 / 平均速度与自动关闭设置 | 设置弹窗新增「复制完成后，自动关闭进度窗」，默认勾选；取消勾选后，含复制的执行成功完成时保留窗口，显示总用时（`formatDuration`）与平均速度（`copiedBytes / elapsedMs`，复用速度格式）；`ExecuteResult` 增 `elapsedMs` / `copiedBytes`，设置存 `app_settings.autoCloseExecWindow`（未写入按开启）；纯 move / soft-delete 与取消仍按原逻辑关闭 | 2026-11-24 |
 | D61 | 设置页说明文字统一用 tooltip | 扫描设置页的目录层级说明、设置弹窗的线程数默认值 / 磁盘类型 / 自动关闭进度窗 / 生效时机说明改为行末 `?` tooltip（`HelpMark`），删除行内说明与底部说明；是否自定义由「恢复默认」按钮是否出现表达 | 2026-11-24 |
 | D62 | 移除网络盘支持 | 磁盘类型只保留 自动 / 固态 / 机械；`DiskMode` / `DiskKind` 去掉 `network`，删除执行侧「网络盘最多 4 个文件并行」分支（网络盘按未知 / 机械最多 2）；旧 `app_settings.diskMode = "network"` 回落 `auto`；手机等跨设备场景后续走 FTP 方案 | 2026-11-25 |
+| D63 | 多文件并发仅在两侧都是 SSD 时启用 | 删除「机械 / 未知最多 2」的中间档：只有左右两侧都判定为 SSD 才按「并行文件数」并发，任一侧机械 / 未知一律单文件串行；单文件分块并行不变（两侧 SSD + ≥64MB）；「并行文件数」设置在机械 / 未知环境下不生效 | 2026-11-25 |
+| D64 | 设置项重命名为 SSD 前缀 | 「复制线程数」「并行文件数」改为「SSD 复制线程数」「SSD 并行文件数」，tooltip 明确仅两侧 SSD 生效；内部字段、IPC 与 `app_settings` 键同步改为 `ssdCopyThreads` / `ssdParallelFiles`，旧键 `copyThreads` / `parallelFiles` 在启动时删除，旧值直接丢弃 | 2026-11-25 |
 
 无待确认项。
 

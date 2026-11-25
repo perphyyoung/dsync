@@ -84,20 +84,20 @@ function readScanThreads(): number {
     : defaultScanThreads();
 }
 
-function defaultCopyThreads(): number {
+function defaultSsdCopyThreads(): number {
   return Math.min(scanThreadsLimit(), Math.max(2, Math.floor(availableParallelism() / 2)));
 }
 
-function clampCopyThreads(value: number): number {
+function clampSsdCopyThreads(value: number): number {
   return Math.min(scanThreadsLimit(), Math.max(1, Math.floor(value)));
 }
 
-function readCopyThreads(): number {
-  const raw = mainDb?.getSetting("copyThreads") ?? null;
+function readSsdCopyThreads(): number {
+  const raw = mainDb?.getSetting("ssdCopyThreads") ?? null;
   const parsed = raw === null ? null : Number.parseInt(raw, 10);
   return parsed !== null && Number.isFinite(parsed)
-    ? clampCopyThreads(parsed)
-    : defaultCopyThreads();
+    ? clampSsdCopyThreads(parsed)
+    : defaultSsdCopyThreads();
 }
 
 function readDiskMode(): DiskMode {
@@ -110,39 +110,39 @@ function readAutoCloseExecWindow(): boolean {
   return (mainDb?.getSetting("autoCloseExecWindow") ?? "1") !== "0";
 }
 
-function defaultParallelFiles(): number {
+function defaultSsdParallelFiles(): number {
   return Math.min(scanThreadsLimit(), Math.max(2, Math.floor(availableParallelism() / 2)));
 }
 
-function clampParallelFiles(value: number): number {
+function clampSsdParallelFiles(value: number): number {
   return Math.min(scanThreadsLimit(), Math.max(1, Math.floor(value)));
 }
 
-function readParallelFiles(): number {
-  const raw = mainDb?.getSetting("parallelFiles") ?? null;
+function readSsdParallelFiles(): number {
+  const raw = mainDb?.getSetting("ssdParallelFiles") ?? null;
   const parsed = raw === null ? null : Number.parseInt(raw, 10);
   return parsed !== null && Number.isFinite(parsed)
-    ? clampParallelFiles(parsed)
-    : defaultParallelFiles();
+    ? clampSsdParallelFiles(parsed)
+    : defaultSsdParallelFiles();
 }
 
 function appSettings(): AppSettings {
   const rawScan = mainDb?.getSetting("scanThreads") ?? null;
   const parsedScan = rawScan === null ? null : Number.parseInt(rawScan, 10);
   const scanExplicit = parsedScan !== null && Number.isFinite(parsedScan);
-  const rawCopy = mainDb?.getSetting("copyThreads") ?? null;
+  const rawCopy = mainDb?.getSetting("ssdCopyThreads") ?? null;
   const parsedCopy = rawCopy === null ? null : Number.parseInt(rawCopy, 10);
   const copyExplicit = parsedCopy !== null && Number.isFinite(parsedCopy);
-  const rawFiles = mainDb?.getSetting("parallelFiles") ?? null;
+  const rawFiles = mainDb?.getSetting("ssdParallelFiles") ?? null;
   const parsedFiles = rawFiles === null ? null : Number.parseInt(rawFiles, 10);
   const filesExplicit = parsedFiles !== null && Number.isFinite(parsedFiles);
   return {
     scanThreads: readScanThreads(),
     scanThreadsAuto: !scanExplicit,
-    copyThreads: readCopyThreads(),
-    copyThreadsAuto: !copyExplicit,
-    parallelFiles: readParallelFiles(),
-    parallelFilesAuto: !filesExplicit,
+    ssdCopyThreads: readSsdCopyThreads(),
+    ssdCopyThreadsAuto: !copyExplicit,
+    ssdParallelFiles: readSsdParallelFiles(),
+    ssdParallelFilesAuto: !filesExplicit,
     diskMode: readDiskMode(),
     autoCloseExecWindow: readAutoCloseExecWindow(),
     logicalProcessors: scanThreadsLimit(),
@@ -159,6 +159,9 @@ function getHashPool(): HashWorkerPool {
 /** 打开应用级主库 dsync-main.db；旧 dir-pairs.db 不迁移、不读取 */
 async function loadMainDb(): Promise<void> {
   mainDb = openMainDb(mainDbPath());
+  /* 设置项已重命名为 SSD 前缀，旧键直接丢弃 */
+  mainDb.deleteSetting("copyThreads");
+  mainDb.deleteSetting("parallelFiles");
   if (mainDb.list().length > 0) return;
   const legacy = await readRecentPairs(recentFilePath());
   if (legacy.length === 0) return;
@@ -324,14 +327,14 @@ ipcMain.handle("settings:reset-scan-threads", (): AppSettings => {
   return appSettings();
 });
 
-ipcMain.handle("settings:set-copy-threads", (_event, raw: unknown): AppSettings => {
+ipcMain.handle("settings:set-ssd-copy-threads", (_event, raw: unknown): AppSettings => {
   if (typeof raw !== "number" || !Number.isFinite(raw)) throw new Error("无效线程数");
-  mainDb?.setSetting("copyThreads", String(clampCopyThreads(raw)));
+  mainDb?.setSetting("ssdCopyThreads", String(clampSsdCopyThreads(raw)));
   return appSettings();
 });
 
-ipcMain.handle("settings:reset-copy-threads", (): AppSettings => {
-  mainDb?.deleteSetting("copyThreads");
+ipcMain.handle("settings:reset-ssd-copy-threads", (): AppSettings => {
+  mainDb?.deleteSetting("ssdCopyThreads");
   return appSettings();
 });
 
@@ -343,14 +346,14 @@ ipcMain.handle("settings:set-disk-mode", (_event, raw: unknown): AppSettings => 
   return appSettings();
 });
 
-ipcMain.handle("settings:set-parallel-files", (_event, raw: unknown): AppSettings => {
+ipcMain.handle("settings:set-ssd-parallel-files", (_event, raw: unknown): AppSettings => {
   if (typeof raw !== "number" || !Number.isFinite(raw)) throw new Error("无效并行文件数");
-  mainDb?.setSetting("parallelFiles", String(clampParallelFiles(raw)));
+  mainDb?.setSetting("ssdParallelFiles", String(clampSsdParallelFiles(raw)));
   return appSettings();
 });
 
-ipcMain.handle("settings:reset-parallel-files", (): AppSettings => {
-  mainDb?.deleteSetting("parallelFiles");
+ipcMain.handle("settings:reset-ssd-parallel-files", (): AppSettings => {
+  mainDb?.deleteSetting("ssdParallelFiles");
   return appSettings();
 });
 
@@ -528,8 +531,8 @@ ipcMain.handle("sync:execute", async (event, raw: unknown) => {
     execController = controller;
     const pool = getHashPool();
     pool.setConcurrency(readScanThreads());
-    const copyThreads = readCopyThreads();
-    const parallelFiles = readParallelFiles();
+    const ssdCopyThreads = readSsdCopyThreads();
+    const ssdParallelFiles = readSsdParallelFiles();
     const diskMode = readDiskMode();
     const sender = event.sender;
     let lastAt = 0;
@@ -571,8 +574,8 @@ ipcMain.handle("sync:execute", async (event, raw: unknown) => {
         {
           softDelete,
           hash: (path) => pool.hashFile(path),
-          copyThreads,
-          parallelFiles,
+          ssdCopyThreads,
+          ssdParallelFiles,
           diskKind: (root) => detectDiskType(root, diskMode),
         },
         {

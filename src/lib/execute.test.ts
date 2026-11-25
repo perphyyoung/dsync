@@ -208,7 +208,7 @@ describe("执行复制", () => {
 
     const result = await executeActions(
       request(left, right, actions),
-      { softDelete, hash, parallelFiles: 2, diskKind: async () => "ssd" },
+      { softDelete, hash, ssdParallelFiles: 2, diskKind: async () => "ssd" },
       { onProgress: (next) => progress.push(next) },
     );
 

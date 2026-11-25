@@ -4,20 +4,20 @@ import { expect, test } from "./fixtures";
 import { log } from "./e2e-logger";
 import type { ExecuteRequest } from "../src/lib/types";
 
-test("并行文件数可持久化，多文件复制走并行调度", async ({ slot }) => {
+test("SSD 并行文件数可持久化，多文件复制走并行调度", async ({ slot }) => {
   test.setTimeout(60_000);
   const { page, base } = slot;
 
   await expect(page.getByText("扫描设置", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "返回", exact: true }).click();
   await page.getByRole("button", { name: "设置", exact: true }).click();
-  const filesInput = page.getByLabel("并行文件数");
+  const filesInput = page.getByLabel("SSD 并行文件数");
   await expect(filesInput).toBeVisible();
   await filesInput.fill("3");
   await filesInput.blur();
   await page.getByLabel("磁盘类型").selectOption("ssd");
   await expect
-    .poll(async () => (await page.evaluate(() => window.api.getAppSettings())).parallelFiles)
+    .poll(async () => (await page.evaluate(() => window.api.getAppSettings())).ssdParallelFiles)
     .toBe(3);
   await page.getByRole("button", { name: "关闭", exact: true }).click();
 
@@ -25,7 +25,7 @@ test("并行文件数可持久化，多文件复制走并行调度", async ({ sl
   await expect(slot.page.getByText("扫描设置", { exact: true })).toBeVisible();
   await slot.page.getByRole("button", { name: "返回", exact: true }).click();
   await slot.page.getByRole("button", { name: "设置", exact: true }).click();
-  await expect(slot.page.getByLabel("并行文件数")).toHaveValue("3");
+  await expect(slot.page.getByLabel("SSD 并行文件数")).toHaveValue("3");
   await expect(slot.page.getByRole("button", { name: "恢复默认", exact: true })).toHaveCount(1);
   await slot.page.getByRole("button", { name: "关闭", exact: true }).click();
 
@@ -54,5 +54,5 @@ test("并行文件数可持久化，多文件复制走并行调度", async ({ sl
     expect(await readFile(join(right, `f${index}.txt`), "utf8")).toBe(value);
   }
 
-  log.info("[e2e] 并行文件数持久化与多文件复制完成");
+  log.info("[e2e] SSD 并行文件数持久化与多文件复制完成");
 });

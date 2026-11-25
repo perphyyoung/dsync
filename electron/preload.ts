@@ -48,13 +48,14 @@ contextBridge.exposeInMainWorld("api", {
   setScanThreads: (value: number): Promise<AppSettings> =>
     ipcRenderer.invoke("settings:set-scan-threads", value),
   resetScanThreads: (): Promise<AppSettings> => ipcRenderer.invoke("settings:reset-scan-threads"),
-  setCopyThreads: (value: number): Promise<AppSettings> =>
-    ipcRenderer.invoke("settings:set-copy-threads", value),
-  resetCopyThreads: (): Promise<AppSettings> => ipcRenderer.invoke("settings:reset-copy-threads"),
-  setParallelFiles: (value: number): Promise<AppSettings> =>
-    ipcRenderer.invoke("settings:set-parallel-files", value),
-  resetParallelFiles: (): Promise<AppSettings> =>
-    ipcRenderer.invoke("settings:reset-parallel-files"),
+  setSsdCopyThreads: (value: number): Promise<AppSettings> =>
+    ipcRenderer.invoke("settings:set-ssd-copy-threads", value),
+  resetSsdCopyThreads: (): Promise<AppSettings> =>
+    ipcRenderer.invoke("settings:reset-ssd-copy-threads"),
+  setSsdParallelFiles: (value: number): Promise<AppSettings> =>
+    ipcRenderer.invoke("settings:set-ssd-parallel-files", value),
+  resetSsdParallelFiles: (): Promise<AppSettings> =>
+    ipcRenderer.invoke("settings:reset-ssd-parallel-files"),
   setDiskMode: (mode: DiskMode): Promise<AppSettings> =>
     ipcRenderer.invoke("settings:set-disk-mode", mode),
   setAutoCloseExecWindow: (value: boolean): Promise<AppSettings> =>

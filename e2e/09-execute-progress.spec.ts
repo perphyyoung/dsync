@@ -32,7 +32,7 @@ test("大文件复制显示进度窗，可最小化与恢复", async ({ slot }) 
 
   /* 强制走单文件并行路径：设置 2 个分块线程、磁盘按固态处理 */
   await page.evaluate(async () => {
-    await window.api.setCopyThreads(2);
+    await window.api.setSsdCopyThreads(2);
     await window.api.setDiskMode("ssd");
   });
 

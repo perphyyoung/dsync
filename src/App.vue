@@ -105,10 +105,10 @@ const settingsOpen = ref(false);
 const settingsDialogOpen = ref(false);
 const scanThreads = ref(1);
 const scanThreadsAuto = ref(true);
-const copyThreads = ref(2);
-const copyThreadsAuto = ref(true);
-const parallelFiles = ref(2);
-const parallelFilesAuto = ref(true);
+const ssdCopyThreads = ref(2);
+const ssdCopyThreadsAuto = ref(true);
+const ssdParallelFiles = ref(2);
+const ssdParallelFilesAuto = ref(true);
 const diskMode = ref<DiskMode>("auto");
 /** 复制完成后自动关闭执行进度窗；取消勾选时保留窗口查看用时与平均速度 */
 const autoCloseExecWindow = ref(true);
@@ -591,10 +591,10 @@ onMounted(() => {
 function applyAppSettings(next: AppSettings): void {
   scanThreads.value = next.scanThreads;
   scanThreadsAuto.value = next.scanThreadsAuto;
-  copyThreads.value = next.copyThreads;
-  copyThreadsAuto.value = next.copyThreadsAuto;
-  parallelFiles.value = next.parallelFiles;
-  parallelFilesAuto.value = next.parallelFilesAuto;
+  ssdCopyThreads.value = next.ssdCopyThreads;
+  ssdCopyThreadsAuto.value = next.ssdCopyThreadsAuto;
+  ssdParallelFiles.value = next.ssdParallelFiles;
+  ssdParallelFilesAuto.value = next.ssdParallelFilesAuto;
   diskMode.value = next.diskMode;
   autoCloseExecWindow.value = next.autoCloseExecWindow;
   logicalProcessors.value = next.logicalProcessors;
@@ -624,17 +624,17 @@ async function resetScanThreads(): Promise<void> {
   }
 }
 
-async function saveCopyThreads(value: number): Promise<void> {
+async function saveSsdCopyThreads(value: number): Promise<void> {
   try {
-    applyAppSettings(await window.api.setCopyThreads(value));
+    applyAppSettings(await window.api.setSsdCopyThreads(value));
   } catch (error) {
     pushAlert(error instanceof Error ? error.message : String(error));
   }
 }
 
-async function resetCopyThreads(): Promise<void> {
+async function resetSsdCopyThreads(): Promise<void> {
   try {
-    applyAppSettings(await window.api.resetCopyThreads());
+    applyAppSettings(await window.api.resetSsdCopyThreads());
   } catch (error) {
     pushAlert(error instanceof Error ? error.message : String(error));
   }
@@ -656,17 +656,17 @@ async function saveAutoCloseExecWindow(value: boolean): Promise<void> {
   }
 }
 
-async function saveParallelFiles(value: number): Promise<void> {
+async function saveSsdParallelFiles(value: number): Promise<void> {
   try {
-    applyAppSettings(await window.api.setParallelFiles(value));
+    applyAppSettings(await window.api.setSsdParallelFiles(value));
   } catch (error) {
     pushAlert(error instanceof Error ? error.message : String(error));
   }
 }
 
-async function resetParallelFiles(): Promise<void> {
+async function resetSsdParallelFiles(): Promise<void> {
   try {
-    applyAppSettings(await window.api.resetParallelFiles());
+    applyAppSettings(await window.api.resetSsdParallelFiles());
   } catch (error) {
     pushAlert(error instanceof Error ? error.message : String(error));
   }
@@ -1981,20 +1981,20 @@ async function executePreview(): Promise<void> {
       v-if="settingsDialogOpen"
       :scan-threads="scanThreads"
       :scan-threads-auto="scanThreadsAuto"
-      :copy-threads="copyThreads"
-      :copy-threads-auto="copyThreadsAuto"
-      :parallel-files="parallelFiles"
-      :parallel-files-auto="parallelFilesAuto"
+      :ssd-copy-threads="ssdCopyThreads"
+      :ssd-copy-threads-auto="ssdCopyThreadsAuto"
+      :ssd-parallel-files="ssdParallelFiles"
+      :ssd-parallel-files-auto="ssdParallelFilesAuto"
       :disk-mode="diskMode"
       :auto-close-exec-window="autoCloseExecWindow"
       :logical-processors="logicalProcessors"
       @close="settingsDialogOpen = false"
       @change-scan-threads="saveScanThreads"
       @reset-scan-threads="resetScanThreads"
-      @change-copy-threads="saveCopyThreads"
-      @reset-copy-threads="resetCopyThreads"
-      @change-parallel-files="saveParallelFiles"
-      @reset-parallel-files="resetParallelFiles"
+      @change-ssd-copy-threads="saveSsdCopyThreads"
+      @reset-ssd-copy-threads="resetSsdCopyThreads"
+      @change-ssd-parallel-files="saveSsdParallelFiles"
+      @reset-ssd-parallel-files="resetSsdParallelFiles"
       @change-disk-mode="changeDiskMode"
       @change-auto-close-exec-window="saveAutoCloseExecWindow"
     />

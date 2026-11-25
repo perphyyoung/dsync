@@ -197,14 +197,14 @@ export interface AppSettings {
   scanThreads: number;
   /** true 表示用默认值（逻辑处理器一半），false 表示用户显式设置 */
   scanThreadsAuto: boolean;
-  /** 实际生效的复制线程数（单文件分块并发） */
-  copyThreads: number;
+  /** 实际生效的 SSD 复制线程数（单文件分块并发） */
+  ssdCopyThreads: number;
   /** true 表示用默认值（SSD 下 max(2, 一半)），false 表示用户显式设置 */
-  copyThreadsAuto: boolean;
-  /** 实际生效的并行文件数（多文件复制） */
-  parallelFiles: number;
+  ssdCopyThreadsAuto: boolean;
+  /** 实际生效的 SSD 并行文件数（多文件复制） */
+  ssdParallelFiles: number;
   /** true 表示用默认值（max(2, 一半)），false 表示用户显式设置 */
-  parallelFilesAuto: boolean;
+  ssdParallelFilesAuto: boolean;
   diskMode: DiskMode;
   /** 复制完成后自动关闭执行进度窗；false 时保留窗口查看用时与平均速度 */
   autoCloseExecWindow: boolean;

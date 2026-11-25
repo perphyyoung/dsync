@@ -21,10 +21,10 @@ export interface ExecuteDeps {
   softDelete: (root: string, relPath: RelPath) => Promise<void>;
   /** 哈希实现：桌面端注入 worker 池，默认本地 hashFile */
   hash?: (fullPath: string) => Promise<string>;
-  /** 单文件并行分块数；默认 1（顺序） */
-  copyThreads?: number;
-  /** 多文件并行数；默认 1（顺序） */
-  parallelFiles?: number;
+  /** SSD 单文件并行分块数；默认 1（顺序） */
+  ssdCopyThreads?: number;
+  /** SSD 多文件并行数；默认 1（顺序） */
+  ssdParallelFiles?: number;
   /** 磁盘类型探测：默认 unknown（按机械盘处理） */
   diskKind?: (root: string) => Promise<DiskKind>;
 }
@@ -265,20 +265,15 @@ export async function executeActions(
     totalBytes += size;
   }
 
-  /* 多文件并发：SSD 用设置值；机械/未知最多 2 */
-  let fileConcurrency = Math.max(1, Math.floor(deps.parallelFiles ?? 1));
-  if (fileConcurrency > 1 && actions.some((action) => action.kind === "copy")) {
+  /* 多文件并发：只有两侧都是 SSD 才按设置值并行，机械/未知一律串行 */
+  let fileConcurrency = 1;
+  if (actions.some((action) => action.kind === "copy")) {
     const [leftKind, rightKind] = await Promise.all([
       kindOf(request.leftRoot),
       kindOf(request.rightRoot),
     ]);
-    if (
-      leftKind === "hdd" ||
-      rightKind === "hdd" ||
-      leftKind === "unknown" ||
-      rightKind === "unknown"
-    ) {
-      fileConcurrency = Math.min(fileConcurrency, 2);
+    if (leftKind === "ssd" && rightKind === "ssd") {
+      fileConcurrency = Math.max(1, Math.floor(deps.ssdParallelFiles ?? 1));
     }
   }
 
@@ -344,10 +339,10 @@ export async function executeActions(
 
     /* 单文件并行：只在两侧都确认 SSD 且文件够大时启用；未知/机械一律顺序 */
     let parallelConcurrency = 1;
-    if (sourceSize >= PARALLEL_COPY_THRESHOLD && (deps.copyThreads ?? 1) > 1) {
+    if (sourceSize >= PARALLEL_COPY_THRESHOLD && (deps.ssdCopyThreads ?? 1) > 1) {
       const [sourceKind, targetKind] = await Promise.all([kindOf(sourceRoot), kindOf(targetRoot)]);
       if (sourceKind === "ssd" && targetKind === "ssd") {
-        parallelConcurrency = Math.max(1, Math.floor(deps.copyThreads ?? 1));
+        parallelConcurrency = Math.max(1, Math.floor(deps.ssdCopyThreads ?? 1));
       }
     }
 

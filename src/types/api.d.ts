@@ -41,10 +41,10 @@ export interface Api {
   getAppSettings(): Promise<AppSettings>;
   setScanThreads(value: number): Promise<AppSettings>;
   resetScanThreads(): Promise<AppSettings>;
-  setCopyThreads(value: number): Promise<AppSettings>;
-  resetCopyThreads(): Promise<AppSettings>;
-  setParallelFiles(value: number): Promise<AppSettings>;
-  resetParallelFiles(): Promise<AppSettings>;
+  setSsdCopyThreads(value: number): Promise<AppSettings>;
+  resetSsdCopyThreads(): Promise<AppSettings>;
+  setSsdParallelFiles(value: number): Promise<AppSettings>;
+  resetSsdParallelFiles(): Promise<AppSettings>;
   setDiskMode(mode: DiskMode): Promise<AppSettings>;
   setAutoCloseExecWindow(value: boolean): Promise<AppSettings>;
   listRecycle(request: RecycleListRequest): Promise<DeletedRecord[]>;
