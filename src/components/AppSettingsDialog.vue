@@ -161,7 +161,7 @@ function changeDiskMode(event: Event): void {
         >
           <span class="flex items-center gap-1.5 text-slate-400">
             并行文件数
-            <HelpMark text="默认取逻辑处理器一半（至少 2）；机械盘 / 未知最多 2，网络最多 4" />
+            <HelpMark text="默认取逻辑处理器一半（至少 2）；机械盘 / 未知最多 2" />
           </span>
           <div class="flex items-center gap-2">
             <button
@@ -190,9 +190,7 @@ function changeDiskMode(event: Event): void {
         >
           <span class="flex items-center gap-1.5 text-slate-400">
             磁盘类型
-            <HelpMark
-              text="机械盘单文件不并行；网络盘最多 4 个文件并行；自动检测失败按机械盘处理；修改后下次执行生效"
-            />
+            <HelpMark text="机械盘单文件不并行；自动检测失败按机械盘处理；修改后下次执行生效" />
           </span>
           <select
             :value="diskMode"
@@ -203,7 +201,6 @@ function changeDiskMode(event: Event): void {
             <option value="auto">自动</option>
             <option value="ssd">固态</option>
             <option value="hdd">机械</option>
-            <option value="network">网络</option>
           </select>
         </div>
 

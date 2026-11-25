@@ -265,7 +265,7 @@ export async function executeActions(
     totalBytes += size;
   }
 
-  /* 多文件并发：SSD 用设置值；机械/未知最多 2；网络最多 4 */
+  /* 多文件并发：SSD 用设置值；机械/未知最多 2 */
   let fileConcurrency = Math.max(1, Math.floor(deps.parallelFiles ?? 1));
   if (fileConcurrency > 1 && actions.some((action) => action.kind === "copy")) {
     const [leftKind, rightKind] = await Promise.all([
@@ -279,8 +279,6 @@ export async function executeActions(
       rightKind === "unknown"
     ) {
       fileConcurrency = Math.min(fileConcurrency, 2);
-    } else if (leftKind === "network" || rightKind === "network") {
-      fileConcurrency = Math.min(fileConcurrency, 4);
     }
   }
 
@@ -344,7 +342,7 @@ export async function executeActions(
     activeFiles = activeBytes.size;
     emitProgress(action.toPath, 0, sourceSize);
 
-    /* 单文件并行：只在两侧都确认 SSD 且文件够大时启用；未知/机械/网络一律顺序 */
+    /* 单文件并行：只在两侧都确认 SSD 且文件够大时启用；未知/机械一律顺序 */
     let parallelConcurrency = 1;
     if (sourceSize >= PARALLEL_COPY_THRESHOLD && (deps.copyThreads ?? 1) > 1) {
       const [sourceKind, targetKind] = await Promise.all([kindOf(sourceRoot), kindOf(targetRoot)]);

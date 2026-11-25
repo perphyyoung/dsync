@@ -102,7 +102,7 @@ function readCopyThreads(): number {
 
 function readDiskMode(): DiskMode {
   const raw = mainDb?.getSetting("diskMode");
-  return raw === "ssd" || raw === "hdd" || raw === "network" ? raw : "auto";
+  return raw === "ssd" || raw === "hdd" ? raw : "auto";
 }
 
 /** 未写入过记录时为 true，保持原有「完成即关窗」行为 */
@@ -336,7 +336,7 @@ ipcMain.handle("settings:reset-copy-threads", (): AppSettings => {
 });
 
 ipcMain.handle("settings:set-disk-mode", (_event, raw: unknown): AppSettings => {
-  if (raw !== "auto" && raw !== "ssd" && raw !== "hdd" && raw !== "network") {
+  if (raw !== "auto" && raw !== "ssd" && raw !== "hdd") {
     throw new Error("无效磁盘类型");
   }
   mainDb?.setSetting("diskMode", raw);

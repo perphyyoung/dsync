@@ -188,8 +188,8 @@ export interface ExecuteRequest {
   rateLimitBytesPerSec?: number;
 }
 
-/** 磁盘类型：auto 自动检测，ssd / hdd / network 手动覆盖 */
-export type DiskMode = "auto" | "ssd" | "hdd" | "network";
+/** 磁盘类型：auto 自动检测，ssd / hdd 手动覆盖 */
+export type DiskMode = "auto" | "ssd" | "hdd";
 
 /** 应用级设置：存 dsync-main.db 的 app_settings 表 */
 export interface AppSettings {
