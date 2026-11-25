@@ -698,9 +698,9 @@ async function redetectDirDisk(side: "left" | "right"): Promise<void> {
   } catch (error) {
     pushAlert(error instanceof Error ? error.message : String(error));
     if ((side === "left" ? leftRoot.value : rightRoot.value) !== root) return;
-    const unknown: DirDisk = { mode: "auto", kind: "unknown" };
-    if (side === "left") leftDisk.value = unknown;
-    else rightDisk.value = unknown;
+    const fallback: DirDisk = { mode: "auto", kind: "other" };
+    if (side === "left") leftDisk.value = fallback;
+    else rightDisk.value = fallback;
   }
 }
 

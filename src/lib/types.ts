@@ -192,11 +192,11 @@ export interface ExecuteRequest {
   diskKinds?: { left: DiskKind; right: DiskKind };
 }
 
-/** 磁盘类型：auto 自动检测，ssd / hdd 手动覆盖 */
-export type DiskMode = "auto" | "ssd" | "hdd";
+/** 磁盘类型：auto 自动检测，ssd / other 手动覆盖 */
+export type DiskMode = "auto" | "ssd" | "other";
 
-/** 实际盘型；unknown 表示检测失败（按机械处理） */
-export type DiskKind = "ssd" | "hdd" | "unknown";
+/** 实际盘型；other 覆盖 HDD / USB / 检测失败等所有非 SSD */
+export type DiskKind = "ssd" | "other";
 
 /** 单目录盘型：mode 为手动覆盖，kind 为检测结果 */
 export interface DirDisk {

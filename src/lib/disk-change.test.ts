@@ -3,11 +3,11 @@ import { evaluateDiskChange } from "./disk-change";
 
 describe("evaluateDiskChange", () => {
   it("快照缺失时回填，不视为变化", () => {
-    expect(evaluateDiskChange(null, { left: "ssd", right: "hdd" })).toEqual({
+    expect(evaluateDiskChange(null, { left: "ssd", right: "other" })).toEqual({
       changed: false,
       reason: "filled",
     });
-    expect(evaluateDiskChange(undefined, { left: "unknown", right: "unknown" })).toEqual({
+    expect(evaluateDiskChange(undefined, { left: "other", right: "other" })).toEqual({
       changed: false,
       reason: "filled",
     });
@@ -18,19 +18,19 @@ describe("evaluateDiskChange", () => {
       evaluateDiskChange({ left: "ssd", right: "ssd" }, { left: "ssd", right: "ssd" }),
     ).toEqual({ changed: false });
     expect(
-      evaluateDiskChange({ left: "hdd", right: "unknown" }, { left: "hdd", right: "unknown" }),
+      evaluateDiskChange({ left: "other", right: "other" }, { left: "other", right: "other" }),
     ).toEqual({ changed: false });
   });
 
   it("任一侧变化都算变化", () => {
     expect(
-      evaluateDiskChange({ left: "ssd", right: "ssd" }, { left: "hdd", right: "ssd" }).changed,
+      evaluateDiskChange({ left: "ssd", right: "ssd" }, { left: "other", right: "ssd" }).changed,
     ).toBe(true);
     expect(
-      evaluateDiskChange({ left: "ssd", right: "ssd" }, { left: "ssd", right: "unknown" }).changed,
+      evaluateDiskChange({ left: "ssd", right: "ssd" }, { left: "ssd", right: "other" }).changed,
     ).toBe(true);
     expect(
-      evaluateDiskChange({ left: "hdd", right: "hdd" }, { left: "ssd", right: "ssd" }).changed,
+      evaluateDiskChange({ left: "other", right: "other" }, { left: "ssd", right: "ssd" }).changed,
     ).toBe(true);
   });
 });

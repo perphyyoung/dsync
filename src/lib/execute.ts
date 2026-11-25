@@ -25,7 +25,7 @@ export interface ExecuteDeps {
   ssdCopyThreads?: number;
   /** SSD 多文件并行数；默认 1（顺序） */
   ssdParallelFiles?: number;
-  /** 磁盘类型探测：默认 unknown（按机械盘处理） */
+  /** 磁盘类型探测：默认 other（按机械盘处理） */
   diskKind?: (root: string) => Promise<DiskKind>;
 }
 
@@ -240,8 +240,8 @@ export async function executeActions(
   const kindOf = (root: string): Promise<DiskKind> => {
     const cached = kindCache.get(root);
     if (cached) return cached;
-    const pending = (deps.diskKind?.(root) ?? Promise.resolve<DiskKind>("unknown")).catch(
-      () => "unknown" as DiskKind,
+    const pending = (deps.diskKind?.(root) ?? Promise.resolve<DiskKind>("other")).catch(
+      () => "other" as DiskKind,
     );
     kindCache.set(root, pending);
     return pending;

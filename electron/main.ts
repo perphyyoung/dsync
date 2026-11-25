@@ -256,7 +256,7 @@ function parseScanRequest(value: unknown): ScanRequest {
 const ACTION_KINDS = new Set<SyncAction["kind"]>(["copy", "move", "soft-delete"]);
 
 function isDiskKind(value: unknown): value is DiskKind {
-  return value === "ssd" || value === "hdd" || value === "unknown";
+  return value === "ssd" || value === "other";
 }
 
 function parseExecuteRequest(value: unknown): ExecuteRequest {
@@ -395,7 +395,7 @@ ipcMain.handle("dir:set-disk", async (_event, raw: unknown): Promise<DirDisk> =>
   const root = input["root"];
   const mode = input["mode"];
   if (typeof root !== "string" || !root) throw new Error("无效目录");
-  if (mode !== "auto" && mode !== "ssd" && mode !== "hdd") throw new Error("无效磁盘类型");
+  if (mode !== "auto" && mode !== "ssd" && mode !== "other") throw new Error("无效磁盘类型");
   return setDirDiskMode(root, mode);
 });
 

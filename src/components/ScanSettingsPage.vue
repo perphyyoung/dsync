@@ -54,8 +54,7 @@ function diskValue(disk: DirDisk | null): string {
 
 function onDiskChange(side: Side, event: Event): void {
   const value = (event.target as HTMLSelectElement).value;
-  if (value === "ssd" || value === "hdd") emit("changeDirDisk", side, value);
-  else if (value === "unknown") emit("changeDirDisk", side, "auto");
+  if (value === "ssd" || value === "other") emit("changeDirDisk", side, value);
 }
 
 const forceRehash = ref(false);
@@ -226,9 +225,8 @@ function confirmRemove(): void {
             >
               <option v-if="!leftDisk" value="detecting">检测中</option>
               <template v-else>
-                <option value="unknown">未知</option>
                 <option value="ssd">固态</option>
-                <option value="hdd">机械</option>
+                <option value="other">非固态</option>
               </template>
             </select>
             <button
@@ -270,9 +268,8 @@ function confirmRemove(): void {
             >
               <option v-if="!rightDisk" value="detecting">检测中</option>
               <template v-else>
-                <option value="unknown">未知</option>
                 <option value="ssd">固态</option>
-                <option value="hdd">机械</option>
+                <option value="other">非固态</option>
               </template>
             </select>
             <button

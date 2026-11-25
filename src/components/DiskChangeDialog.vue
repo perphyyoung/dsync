@@ -14,9 +14,7 @@ const emit = defineEmits<{
 }>();
 
 function kindText(kind: DiskKind): string {
-  if (kind === "ssd") return "SSD";
-  if (kind === "hdd") return "机械";
-  return "未知";
+  return kind === "ssd" ? "固态" : "非固态";
 }
 </script>
 
