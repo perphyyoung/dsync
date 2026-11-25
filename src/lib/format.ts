@@ -40,6 +40,14 @@ export function formatEta(seconds: number | null | undefined): string | null {
   if (seconds < 10) return `剩余约 ${Math.max(1, Math.round(seconds))} 秒`;
   if (seconds < 60) return `剩余约 ${Math.round(seconds / 5) * 5} 秒`;
 
+  /* 10 分钟内分秒并显，让用户看清进度；更长才退化到整分钟 */
+  if (seconds < 600) {
+    const total = Math.round(seconds / 5) * 5;
+    const minutes = Math.floor(total / 60);
+    const secs = total % 60;
+    return secs === 0 ? `剩余约 ${minutes} 分钟` : `剩余约 ${minutes} 分 ${secs} 秒`;
+  }
+
   const totalMinutes = Math.max(1, Math.round(seconds / 60));
   if (totalMinutes < 60) return `剩余约 ${totalMinutes} 分钟`;
 
@@ -55,8 +63,8 @@ export interface EtaHint {
   level: "tip" | "strong";
 }
 
-/** 5 分钟起给缩小范围的建议，1 小时起明确建议取消后分批 */
-const HINT_MIN_SECONDS = 300;
+/** 10 分钟起给缩小范围的建议，1 小时起明确建议取消后分批 */
+const HINT_MIN_SECONDS = 600;
 const HINT_STRONG_SECONDS = 3600;
 
 export function etaHint(seconds: number | null | undefined): EtaHint | null {

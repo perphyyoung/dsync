@@ -88,4 +88,17 @@ describe("RateTracker", () => {
     tracker.reset();
     expect(tracker.rate(1000)).toBeNull();
   });
+
+  it("ETA 涨慢跌快，抑制颤振", () => {
+    const tracker = new RateTracker();
+    tracker.record(0, 0);
+    tracker.record(1000, 1000); // 1000/s，剩余 9000 → 9s
+    expect(tracker.eta(10000, 1000)).toBe(9);
+
+    tracker.record(1100, 2000); // 跌到 550/s，原始 ETA 16.2，只报到 10
+    expect(tracker.eta(10000, 2000)).toBe(10);
+
+    tracker.record(5000, 2500); // 升到 2000/s，原始 ETA 2.5，一次降到 6
+    expect(tracker.eta(10000, 2500)).toBe(6);
+  });
 });

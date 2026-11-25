@@ -59,8 +59,9 @@ export class ScanController {
 export class RateTracker {
   private samples: { time: number; done: number }[] = [];
   private readonly windowMs: number;
+  private smoothedEta: number | null = null;
 
-  constructor(windowMs = 3000) {
+  constructor(windowMs = 20000) {
     this.windowMs = windowMs;
   }
 
@@ -72,6 +73,7 @@ export class RateTracker {
   /** 恢复后清空，避免把暂停时长算进速度 */
   reset(): void {
     this.samples = [];
+    this.smoothedEta = null;
   }
 
   /** 每秒完成量；跨度不足 1 秒时返回 null */
@@ -92,10 +94,21 @@ export class RateTracker {
     const last = this.samples[this.samples.length - 1];
     if (!last) return null;
     const remaining = total - last.done;
-    if (remaining <= 0) return 0;
+    if (remaining <= 0) {
+      this.smoothedEta = 0;
+      return 0;
+    }
     const speed = this.rate(now);
     if (speed === null) return null;
-    return Math.round(remaining / speed);
+    const raw = remaining / speed;
+    if (this.smoothedEta === null) {
+      this.smoothedEta = raw;
+    } else {
+      /* 涨慢跌快：坏消息慢报、好消息快报，抑制显示颤振 */
+      const alpha = raw > this.smoothedEta ? 0.2 : 0.6;
+      this.smoothedEta += alpha * (raw - this.smoothedEta);
+    }
+    return Math.round(this.smoothedEta);
   }
 
   private prune(now: number): void {

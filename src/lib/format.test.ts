@@ -64,6 +64,12 @@ describe("formatEta", () => {
     expect(formatEta(1800)).toBe("剩余约 30 分钟");
   });
 
+  it("10 分钟内分秒并显，看清进度", () => {
+    expect(formatEta(90)).toBe("剩余约 1 分 30 秒");
+    expect(formatEta(130)).toBe("剩余约 2 分 10 秒");
+    expect(formatEta(595)).toBe("剩余约 9 分 55 秒");
+  });
+
   it("小时级按 5 分钟取整", () => {
     expect(formatEta(3599)).toBe("剩余约 1 小时");
     expect(formatEta(4500)).toBe("剩余约 1 小时 15 分钟");
@@ -78,13 +84,13 @@ describe("formatEta", () => {
 });
 
 describe("etaHint", () => {
-  it("低于 5 分钟不提示", () => {
-    expect(etaHint(299)).toBeNull();
+  it("低于 10 分钟不提示", () => {
+    expect(etaHint(599)).toBeNull();
     expect(etaHint(null)).toBeNull();
   });
 
-  it("满 5 分钟提示可缩小范围", () => {
-    expect(etaHint(300)).toEqual({
+  it("满 10 分钟提示可缩小范围", () => {
+    expect(etaHint(600)).toEqual({
       text: "耗时较长，可用过滤条件缩小范围，或随时暂停",
       level: "tip",
     });
