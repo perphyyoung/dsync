@@ -4,6 +4,8 @@ import type { ScanProgress } from "../src/lib/types";
 import type {
   AppSettings,
   DeletedRecord,
+  DirDisk,
+  DiskKind,
   DiskMode,
   ExecuteProgress,
   ExecuteRequest,
@@ -56,8 +58,15 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.invoke("settings:set-ssd-parallel-files", value),
   resetSsdParallelFiles: (): Promise<AppSettings> =>
     ipcRenderer.invoke("settings:reset-ssd-parallel-files"),
-  setDiskMode: (mode: DiskMode): Promise<AppSettings> =>
-    ipcRenderer.invoke("settings:set-disk-mode", mode),
+  getDirDisk: (root: string): Promise<DirDisk> => ipcRenderer.invoke("dir:get-disk", root),
+  setDirDisk: (root: string, mode: DiskMode): Promise<DirDisk> =>
+    ipcRenderer.invoke("dir:set-disk", { root, mode }),
+  checkDiskChange: (input: {
+    leftRoot: string;
+    rightRoot: string;
+    scanKinds?: { left: DiskKind; right: DiskKind } | null;
+  }): Promise<{ changed: boolean; now: { left: DiskKind; right: DiskKind }; reason?: string }> =>
+    ipcRenderer.invoke("dir:check-disk-change", input),
   setAutoCloseExecWindow: (value: boolean): Promise<AppSettings> =>
     ipcRenderer.invoke("settings:set-auto-close-exec", value),
   listRecycle: (request: RecycleListRequest): Promise<DeletedRecord[]> =>

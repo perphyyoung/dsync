@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
 import { readFile, realpath } from "node:fs/promises";
 import { basename, parse } from "node:path";
-import type { DiskMode } from "./types";
+import type { DiskKind, DiskMode } from "./types";
 
-export type DiskKind = "ssd" | "hdd" | "unknown";
+export type { DiskKind };
 
 /** 命令行探测超时：探测失败按机械盘（顺序）处理，不能拖住复制 */
 const DETECT_TIMEOUT_MS = 3000;

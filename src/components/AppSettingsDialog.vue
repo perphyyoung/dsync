@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import type { DiskMode } from "../lib/types";
 import HelpMark from "./HelpMark.vue";
 
 const props = defineProps<{
@@ -10,7 +9,6 @@ const props = defineProps<{
   ssdCopyThreadsAuto: boolean;
   ssdParallelFiles: number;
   ssdParallelFilesAuto: boolean;
-  diskMode: DiskMode;
   autoCloseExecWindow: boolean;
   logicalProcessors: number;
 }>();
@@ -23,7 +21,6 @@ const emit = defineEmits<{
   resetSsdCopyThreads: [];
   changeSsdParallelFiles: [value: number];
   resetSsdParallelFiles: [];
-  changeDiskMode: [value: DiskMode];
   changeAutoCloseExecWindow: [value: boolean];
 }>();
 
@@ -62,10 +59,6 @@ function commitCopy(): void {
 function commitFiles(): void {
   const next = Math.round(Number(ssdFilesValue.value));
   if (Number.isFinite(next)) emit("changeSsdParallelFiles", next);
-}
-
-function changeDiskMode(event: Event): void {
-  emit("changeDiskMode", (event.target as HTMLSelectElement).value as DiskMode);
 }
 </script>
 
@@ -187,25 +180,6 @@ function changeDiskMode(event: Event): void {
             />
             <span class="w-10 text-xs text-slate-400">/ {{ logicalProcessors }}</span>
           </div>
-        </div>
-
-        <div
-          class="flex min-h-9 items-center justify-between gap-3 rounded-md px-2 hover:bg-slate-800/40"
-        >
-          <span class="flex items-center gap-1.5 text-slate-400">
-            磁盘类型
-            <HelpMark text="机械盘单文件不并行；自动检测失败按机械盘处理；修改后下次执行生效" />
-          </span>
-          <select
-            :value="diskMode"
-            aria-label="磁盘类型"
-            class="h-8 rounded-md border border-slate-600 bg-slate-950 px-2 text-slate-200 transition-colors hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
-            @change="changeDiskMode"
-          >
-            <option value="auto">自动</option>
-            <option value="ssd">固态</option>
-            <option value="hdd">机械</option>
-          </select>
         </div>
 
         <h3

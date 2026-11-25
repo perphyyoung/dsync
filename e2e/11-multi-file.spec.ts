@@ -15,7 +15,6 @@ test("SSD 并行文件数可持久化，多文件复制走并行调度", async (
   await expect(filesInput).toBeVisible();
   await filesInput.fill("3");
   await filesInput.blur();
-  await page.getByLabel("磁盘类型").selectOption("ssd");
   await expect
     .poll(async () => (await page.evaluate(() => window.api.getAppSettings())).ssdParallelFiles)
     .toBe(3);
@@ -46,6 +45,14 @@ test("SSD 并行文件数可持久化，多文件复制走并行调度", async (
     rowIndex: index,
     sizeBytes: value.length,
   }));
+
+  await slot.page.evaluate(
+    async ({ left: leftRoot, right: rightRoot }) => {
+      await window.api.setDirDisk(leftRoot, "ssd");
+      await window.api.setDirDisk(rightRoot, "ssd");
+    },
+    { left, right },
+  );
 
   const input: ExecuteRequest = { leftRoot: left, rightRoot: right, actions };
   const result = await slot.page.evaluate(async (request) => window.api.execute(request), input);

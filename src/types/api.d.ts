@@ -2,6 +2,8 @@ import type { DirPairEntry } from "../lib/dir-pairs";
 import type {
   AppSettings,
   DeletedRecord,
+  DirDisk,
+  DiskKind,
   DiskMode,
   ExecuteProgress,
   ExecuteRequest,
@@ -45,7 +47,13 @@ export interface Api {
   resetSsdCopyThreads(): Promise<AppSettings>;
   setSsdParallelFiles(value: number): Promise<AppSettings>;
   resetSsdParallelFiles(): Promise<AppSettings>;
-  setDiskMode(mode: DiskMode): Promise<AppSettings>;
+  getDirDisk(root: string): Promise<DirDisk>;
+  setDirDisk(root: string, mode: DiskMode): Promise<DirDisk>;
+  checkDiskChange(input: {
+    leftRoot: string;
+    rightRoot: string;
+    scanKinds?: { left: DiskKind; right: DiskKind } | null;
+  }): Promise<{ changed: boolean; now: { left: DiskKind; right: DiskKind }; reason?: string }>;
   setAutoCloseExecWindow(value: boolean): Promise<AppSettings>;
   listRecycle(request: RecycleListRequest): Promise<DeletedRecord[]>;
   restoreRecycle(request: RecycleRestoreRequest): Promise<string>;

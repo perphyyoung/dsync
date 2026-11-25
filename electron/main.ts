@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import { availableParallelism } from "node:os";
 import { rm, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { Worker } from "node:worker_threads";
 import hashWorkerPath from "./hash-worker?modulePath";
 import { executeActions } from "../src/lib/execute";
@@ -9,6 +9,7 @@ import { ExecutionController } from "../src/lib/execute-controller";
 import { ScanCancelledError, ScanController } from "../src/lib/controller";
 import { HashWorkerPool } from "../src/lib/hash-pool";
 import { detectDiskType } from "../src/lib/disk-type";
+import { evaluateDiskChange } from "../src/lib/disk-change";
 import { runScan } from "../src/lib/pipeline";
 import { migrateMoveCaches } from "../src/lib/index-migrate";
 import { loadIndexPair, patchIndex } from "../src/lib/index-file";
@@ -22,6 +23,8 @@ import { rehashPair } from "../src/lib/rehash";
 import type {
   AppSettings,
   CopyRecord,
+  DirDisk,
+  DiskKind,
   DiskMode,
   ExecuteProgress,
   ExecuteRequest,
@@ -100,9 +103,38 @@ function readSsdCopyThreads(): number {
     : defaultSsdCopyThreads();
 }
 
-function readDiskMode(): DiskMode {
-  const raw = mainDb?.getSetting("diskMode");
-  return raw === "ssd" || raw === "hdd" ? raw : "auto";
+/** 单目录盘型内存缓存：key 为规范化绝对路径，应用重启后清空 */
+const dirDiskCache = new Map<string, DirDisk>();
+
+function diskCacheKey(root: string): string {
+  return resolve(root);
+}
+
+/** 读缓存；缺失时自动探测并写入 */
+async function detectDirDisk(root: string): Promise<DirDisk> {
+  const key = diskCacheKey(root);
+  const cached = dirDiskCache.get(key);
+  if (cached) return cached;
+  const kind = await detectDiskType(root, "auto");
+  const entry: DirDisk = { mode: "auto", kind };
+  dirDiskCache.set(key, entry);
+  return entry;
+}
+
+async function diskKindOf(root: string): Promise<DiskKind> {
+  return (await detectDirDisk(root)).kind;
+}
+
+/** 手动指定或恢复自动；auto 清缓存后重测 */
+async function setDirDiskMode(root: string, mode: DiskMode): Promise<DirDisk> {
+  const key = diskCacheKey(root);
+  if (mode === "auto") {
+    dirDiskCache.delete(key);
+    return detectDirDisk(root);
+  }
+  const entry: DirDisk = { mode, kind: mode };
+  dirDiskCache.set(key, entry);
+  return entry;
 }
 
 /** 未写入过记录时为 true，保持原有「完成即关窗」行为 */
@@ -143,7 +175,6 @@ function appSettings(): AppSettings {
     ssdCopyThreadsAuto: !copyExplicit,
     ssdParallelFiles: readSsdParallelFiles(),
     ssdParallelFilesAuto: !filesExplicit,
-    diskMode: readDiskMode(),
     autoCloseExecWindow: readAutoCloseExecWindow(),
     logicalProcessors: scanThreadsLimit(),
   };
@@ -159,9 +190,10 @@ function getHashPool(): HashWorkerPool {
 /** 打开应用级主库 dsync-main.db；旧 dir-pairs.db 不迁移、不读取 */
 async function loadMainDb(): Promise<void> {
   mainDb = openMainDb(mainDbPath());
-  /* 设置项已重命名为 SSD 前缀，旧键直接丢弃 */
+  /* 设置项已重命名或改为单目录属性，旧键直接丢弃 */
   mainDb.deleteSetting("copyThreads");
   mainDb.deleteSetting("parallelFiles");
+  mainDb.deleteSetting("diskMode");
   if (mainDb.list().length > 0) return;
   const legacy = await readRecentPairs(recentFilePath());
   if (legacy.length === 0) return;
@@ -223,6 +255,10 @@ function parseScanRequest(value: unknown): ScanRequest {
 /** 白名单从 SyncAction["kind"] 推导：新增动作类型时这里会编译报错，不会静默漏掉 */
 const ACTION_KINDS = new Set<SyncAction["kind"]>(["copy", "move", "soft-delete"]);
 
+function isDiskKind(value: unknown): value is DiskKind {
+  return value === "ssd" || value === "hdd" || value === "unknown";
+}
+
 function parseExecuteRequest(value: unknown): ExecuteRequest {
   if (typeof value !== "object" || value === null) throw new Error("无效执行参数");
   const input = value as Record<string, unknown>;
@@ -248,11 +284,21 @@ function parseExecuteRequest(value: unknown): ExecuteRequest {
       ? Math.round(rawRate)
       : undefined;
 
+  const rawKinds = input["diskKinds"];
+  let diskKinds: { left: DiskKind; right: DiskKind } | undefined;
+  if (typeof rawKinds === "object" && rawKinds !== null) {
+    const kinds = rawKinds as Record<string, unknown>;
+    const left = kinds["left"];
+    const right = kinds["right"];
+    if (isDiskKind(left) && isDiskKind(right)) diskKinds = { left, right };
+  }
+
   return {
     leftRoot,
     rightRoot,
     actions: valid,
     ...(rateLimitBytesPerSec ? { rateLimitBytesPerSec } : {}),
+    ...(diskKinds ? { diskKinds } : {}),
   };
 }
 
@@ -338,13 +384,50 @@ ipcMain.handle("settings:reset-ssd-copy-threads", (): AppSettings => {
   return appSettings();
 });
 
-ipcMain.handle("settings:set-disk-mode", (_event, raw: unknown): AppSettings => {
-  if (raw !== "auto" && raw !== "ssd" && raw !== "hdd") {
-    throw new Error("无效磁盘类型");
-  }
-  mainDb?.setSetting("diskMode", raw);
-  return appSettings();
+ipcMain.handle("dir:get-disk", async (_event, raw: unknown): Promise<DirDisk> => {
+  if (typeof raw !== "string" || !raw) throw new Error("无效目录");
+  return detectDirDisk(raw);
 });
+
+ipcMain.handle("dir:set-disk", async (_event, raw: unknown): Promise<DirDisk> => {
+  if (typeof raw !== "object" || raw === null) throw new Error("无效参数");
+  const input = raw as Record<string, unknown>;
+  const root = input["root"];
+  const mode = input["mode"];
+  if (typeof root !== "string" || !root) throw new Error("无效目录");
+  if (mode !== "auto" && mode !== "ssd" && mode !== "hdd") throw new Error("无效磁盘类型");
+  return setDirDiskMode(root, mode);
+});
+
+ipcMain.handle(
+  "dir:check-disk-change",
+  async (
+    _event,
+    raw: unknown,
+  ): Promise<{ changed: boolean; now: { left: DiskKind; right: DiskKind }; reason?: string }> => {
+    if (typeof raw !== "object" || raw === null) throw new Error("无效参数");
+    const input = raw as Record<string, unknown>;
+    const leftRoot = input["leftRoot"];
+    const rightRoot = input["rightRoot"];
+    const rawKinds = input["scanKinds"];
+    if (typeof leftRoot !== "string" || typeof rightRoot !== "string") throw new Error("无效目录");
+
+    /* 强制重测：绕过缓存，确保执行前拿到最新盘型 */
+    dirDiskCache.delete(diskCacheKey(leftRoot));
+    dirDiskCache.delete(diskCacheKey(rightRoot));
+    const [left, right] = await Promise.all([detectDirDisk(leftRoot), detectDirDisk(rightRoot)]);
+    const now = { left: left.kind, right: right.kind };
+
+    const scan =
+      typeof rawKinds === "object" &&
+      rawKinds !== null &&
+      typeof (rawKinds as Record<string, unknown>)["left"] === "string" &&
+      typeof (rawKinds as Record<string, unknown>)["right"] === "string"
+        ? (rawKinds as { left: DiskKind; right: DiskKind })
+        : null;
+    return { ...evaluateDiskChange(scan, now), now };
+  },
+);
 
 ipcMain.handle("settings:set-ssd-parallel-files", (_event, raw: unknown): AppSettings => {
   if (typeof raw !== "number" || !Number.isFinite(raw)) throw new Error("无效并行文件数");
@@ -381,6 +464,11 @@ ipcMain.handle("sync:scan", async (event, raw: unknown) => {
           if (!sender.isDestroyed()) sender.send("sync:progress", progress);
         },
       });
+      const [leftDisk, rightDisk] = await Promise.all([
+        detectDirDisk(request.leftRoot),
+        detectDirDisk(request.rightRoot),
+      ]);
+      result.diskKinds = { left: leftDisk.kind, right: rightDisk.kind };
       await rememberPair(request.leftRoot, request.rightRoot);
       log.info(
         `[scan] left=${request.leftRoot} right=${request.rightRoot} ` +
@@ -533,7 +621,6 @@ ipcMain.handle("sync:execute", async (event, raw: unknown) => {
     pool.setConcurrency(readScanThreads());
     const ssdCopyThreads = readSsdCopyThreads();
     const ssdParallelFiles = readSsdParallelFiles();
-    const diskMode = readDiskMode();
     const sender = event.sender;
     let lastAt = 0;
     let pendingProgress: ExecuteProgress | null = null;
@@ -576,7 +663,14 @@ ipcMain.handle("sync:execute", async (event, raw: unknown) => {
           hash: (path) => pool.hashFile(path),
           ssdCopyThreads,
           ssdParallelFiles,
-          diskKind: (root) => detectDiskType(root, diskMode),
+          diskKind: (root) => {
+            const snapshot = request.diskKinds;
+            if (snapshot) {
+              const side = root === request.leftRoot ? "left" : "right";
+              return Promise.resolve(snapshot[side]);
+            }
+            return diskKindOf(root);
+          },
         },
         {
           controller,

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { pairKey, type DirPairEntry } from "../lib/dir-pairs";
-import type { Side, SizeUnit, TimeMode } from "../lib/types";
+import type { DirDisk, DiskMode, Side, SizeUnit, TimeMode } from "../lib/types";
 import ConfirmBubble from "./ConfirmBubble.vue";
 import ExtChips from "./ExtChips.vue";
 import HelpMark from "./HelpMark.vue";
@@ -26,6 +26,8 @@ const recentDays = defineModel<number>("recentDays", { required: true });
 const skipHidden = defineModel<boolean>("skipHidden", { required: true });
 const scanThreads = defineModel<number>("scanThreads", { required: true });
 const scanThreadsAuto = defineModel<boolean>("scanThreadsAuto", { required: true });
+const leftDisk = defineModel<DirDisk | null>("leftDisk", { required: true });
+const rightDisk = defineModel<DirDisk | null>("rightDisk", { required: true });
 
 const props = defineProps<{ pairs: DirPairEntry[]; logicalProcessors: number }>();
 
@@ -36,8 +38,25 @@ const emit = defineEmits<{
   start: [forceRehash: boolean];
   scanThreadsChange: [value: number];
   resetScanThreads: [];
+  changeDirDisk: [side: Side, mode: DiskMode];
+  redetectDisk: [side: Side];
   close: [];
 }>();
+
+const diskButtonClass =
+  "h-8 rounded-md border border-slate-600 text-xs text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700";
+
+/** 下拉显示当前有效盘型；检测中单独占位 */
+function diskValue(disk: DirDisk | null): string {
+  if (!disk) return "detecting";
+  return disk.mode !== "auto" ? disk.mode : disk.kind;
+}
+
+function onDiskChange(side: Side, event: Event): void {
+  const value = (event.target as HTMLSelectElement).value;
+  if (value === "ssd" || value === "hdd") emit("changeDirDisk", side, value);
+  else if (value === "unknown") emit("changeDirDisk", side, "auto");
+}
 
 const forceRehash = ref(false);
 const rehashConfirmOpen = ref(false);
@@ -190,15 +209,39 @@ function confirmRemove(): void {
           <span class="w-36 shrink-0 text-right text-slate-400">左侧目录</span>
           <span
             data-testid="left-path"
-            class="flex h-9 min-w-0 flex-1 items-center truncate rounded-md border border-slate-600 bg-slate-950 px-2"
+            class="flex h-8 min-w-0 flex-1 items-center truncate rounded-md border border-slate-600 bg-slate-950 px-2"
             :class="leftRoot ? 'text-slate-200' : 'text-slate-600'"
             :title="leftRoot"
           >
             {{ leftRoot || "未选择左侧目录" }}
           </span>
+          <div class="flex w-56 shrink-0 items-center justify-end gap-1.5">
+            <select
+              :value="diskValue(leftDisk)"
+              :disabled="!leftDisk"
+              :aria-busy="!leftDisk"
+              aria-label="左侧磁盘类型"
+              class="h-8 w-24 shrink-0 rounded-md border border-slate-600 bg-slate-950 px-2 text-xs text-slate-200 transition-colors disabled:cursor-wait disabled:border-slate-700 disabled:bg-slate-900 disabled:text-slate-500"
+              @change="onDiskChange('left', $event)"
+            >
+              <option v-if="!leftDisk" value="detecting">检测中</option>
+              <template v-else>
+                <option value="unknown">未知</option>
+                <option value="ssd">固态</option>
+                <option value="hdd">机械</option>
+              </template>
+            </select>
+            <button
+              type="button"
+              :class="`${diskButtonClass} w-14 shrink-0`"
+              @click="emit('redetectDisk', 'left')"
+            >
+              重测
+            </button>
+          </div>
           <button
             type="button"
-            class="shrink-0 rounded-md border border-slate-600 px-3 py-1.5 text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
+            :class="`${diskButtonClass} w-14 shrink-0`"
             title="更改左侧目录"
             @click="emit('pick', 'left')"
           >
@@ -210,15 +253,39 @@ function confirmRemove(): void {
           <span class="w-36 shrink-0 text-right text-slate-400">右侧目录</span>
           <span
             data-testid="right-path"
-            class="flex h-9 min-w-0 flex-1 items-center truncate rounded-md border border-slate-600 bg-slate-950 px-2"
+            class="flex h-8 min-w-0 flex-1 items-center truncate rounded-md border border-slate-600 bg-slate-950 px-2"
             :class="rightRoot ? 'text-slate-200' : 'text-slate-600'"
             :title="rightRoot"
           >
             {{ rightRoot || "未选择右侧目录" }}
           </span>
+          <div class="flex w-56 shrink-0 items-center justify-end gap-1.5">
+            <select
+              :value="diskValue(rightDisk)"
+              :disabled="!rightDisk"
+              :aria-busy="!rightDisk"
+              aria-label="右侧磁盘类型"
+              class="h-8 w-24 shrink-0 rounded-md border border-slate-600 bg-slate-950 px-2 text-xs text-slate-200 transition-colors disabled:cursor-wait disabled:border-slate-700 disabled:bg-slate-900 disabled:text-slate-500"
+              @change="onDiskChange('right', $event)"
+            >
+              <option v-if="!rightDisk" value="detecting">检测中</option>
+              <template v-else>
+                <option value="unknown">未知</option>
+                <option value="ssd">固态</option>
+                <option value="hdd">机械</option>
+              </template>
+            </select>
+            <button
+              type="button"
+              :class="`${diskButtonClass} w-14 shrink-0`"
+              @click="emit('redetectDisk', 'right')"
+            >
+              重测
+            </button>
+          </div>
           <button
             type="button"
-            class="shrink-0 rounded-md border border-slate-600 px-3 py-1.5 text-slate-300 transition-colors hover:bg-slate-800 active:bg-slate-700"
+            :class="`${diskButtonClass} w-14 shrink-0`"
             title="更改右侧目录"
             @click="emit('pick', 'right')"
           >

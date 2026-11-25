@@ -31,5 +31,8 @@ export function mirrorScanResult(result: ScanResult): ScanResult {
       duplicateRight: result.stats.duplicateLeft,
     },
     warnings: result.warnings,
+    ...(result.diskKinds
+      ? { diskKinds: { left: result.diskKinds.right, right: result.diskKinds.left } }
+      : {}),
   };
 }

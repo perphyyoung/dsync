@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import AppSettingsDialog from "./components/AppSettingsDialog.vue";
 import ConfirmBubble from "./components/ConfirmBubble.vue";
+import DiskChangeDialog from "./components/DiskChangeDialog.vue";
 import ExecuteProgressWindow from "./components/ExecuteProgressWindow.vue";
 import FileList from "./components/FileList.vue";
 import FilterPanel from "./components/FilterPanel.vue";
@@ -27,6 +28,8 @@ import type {
   AppSettings,
   DeletedRecord,
   DiffRow,
+  DirDisk,
+  DiskKind,
   DiskMode,
   ExecuteProgress,
   FilterPrefs,
@@ -109,7 +112,16 @@ const ssdCopyThreads = ref(2);
 const ssdCopyThreadsAuto = ref(true);
 const ssdParallelFiles = ref(2);
 const ssdParallelFilesAuto = ref(true);
-const diskMode = ref<DiskMode>("auto");
+const leftDisk = ref<DirDisk | null>(null);
+const rightDisk = ref<DirDisk | null>(null);
+/** 按 pairKey 记住「重启前不再提醒」 */
+const diskChangeMuted = ref(new Set<string>());
+/** 盘型变化确认弹窗的待决状态 */
+const diskChangePrompt = ref<{
+  scan: { left: DiskKind; right: DiskKind };
+  now: { left: DiskKind; right: DiskKind };
+  resolve: (choice: "continue" | "cancel" | "rescan") => void;
+} | null>(null);
 /** 复制完成后自动关闭执行进度窗；取消勾选时保留窗口查看用时与平均速度 */
 const autoCloseExecWindow = ref(true);
 const logicalProcessors = ref(1);
@@ -245,6 +257,8 @@ function upsertLocalPair(used: boolean): void {
 // 目录变化：结果作废并按目录对加载条件；互换时结果由 swapRoots 直接镜像
 let swappingRoots = false;
 watch([leftRoot, rightRoot], () => {
+  void loadDirDisk("left");
+  void loadDirDisk("right");
   if (swappingRoots) {
     swappingRoots = false;
     return;
@@ -595,7 +609,6 @@ function applyAppSettings(next: AppSettings): void {
   ssdCopyThreadsAuto.value = next.ssdCopyThreadsAuto;
   ssdParallelFiles.value = next.ssdParallelFiles;
   ssdParallelFilesAuto.value = next.ssdParallelFilesAuto;
-  diskMode.value = next.diskMode;
   autoCloseExecWindow.value = next.autoCloseExecWindow;
   logicalProcessors.value = next.logicalProcessors;
 }
@@ -640,12 +653,77 @@ async function resetSsdCopyThreads(): Promise<void> {
   }
 }
 
-async function changeDiskMode(mode: DiskMode): Promise<void> {
+async function loadDirDisk(side: "left" | "right"): Promise<void> {
+  const root = side === "left" ? leftRoot.value : rightRoot.value;
+  if (!root) {
+    if (side === "left") leftDisk.value = null;
+    else rightDisk.value = null;
+    return;
+  }
   try {
-    applyAppSettings(await window.api.setDiskMode(mode));
+    const disk = await window.api.getDirDisk(root);
+    /* 异步返回时目录可能已换，丢弃过期结果 */
+    if ((side === "left" ? leftRoot.value : rightRoot.value) !== root) return;
+    if (side === "left") leftDisk.value = disk;
+    else rightDisk.value = disk;
+  } catch {
+    /* 检测失败按未知处理 */
+  }
+}
+
+async function saveDirDisk(side: "left" | "right", mode: DiskMode): Promise<void> {
+  const root = side === "left" ? leftRoot.value : rightRoot.value;
+  if (!root) return;
+  try {
+    const disk = await window.api.setDirDisk(root, mode);
+    if ((side === "left" ? leftRoot.value : rightRoot.value) !== root) return;
+    if (side === "left") leftDisk.value = disk;
+    else rightDisk.value = disk;
   } catch (error) {
     pushAlert(error instanceof Error ? error.message : String(error));
   }
+}
+
+async function redetectDirDisk(side: "left" | "right"): Promise<void> {
+  const root = side === "left" ? leftRoot.value : rightRoot.value;
+  if (!root) return;
+  /* 立即显示检测中，检测完成再回填 */
+  if (side === "left") leftDisk.value = null;
+  else rightDisk.value = null;
+  try {
+    const disk = await window.api.setDirDisk(root, "auto");
+    if ((side === "left" ? leftRoot.value : rightRoot.value) !== root) return;
+    if (side === "left") leftDisk.value = disk;
+    else rightDisk.value = disk;
+  } catch (error) {
+    pushAlert(error instanceof Error ? error.message : String(error));
+    if ((side === "left" ? leftRoot.value : rightRoot.value) !== root) return;
+    const unknown: DirDisk = { mode: "auto", kind: "unknown" };
+    if (side === "left") leftDisk.value = unknown;
+    else rightDisk.value = unknown;
+  }
+}
+
+/** 盘型变化确认：返回用户选择 */
+function askDiskChange(
+  scanKinds: { left: DiskKind; right: DiskKind },
+  now: { left: DiskKind; right: DiskKind },
+): Promise<"continue" | "cancel" | "rescan"> {
+  return new Promise((resolve) => {
+    diskChangePrompt.value = { scan: scanKinds, now, resolve };
+  });
+}
+
+function answerDiskChange(choice: "continue" | "cancel" | "rescan"): void {
+  const prompt = diskChangePrompt.value;
+  if (!prompt) return;
+  diskChangePrompt.value = null;
+  prompt.resolve(choice);
+}
+
+function muteDiskChange(): void {
+  diskChangeMuted.value.add(pairKey(leftRoot.value, rightRoot.value));
+  answerDiskChange("continue");
 }
 
 async function saveAutoCloseExecWindow(value: boolean): Promise<void> {
@@ -1210,6 +1288,35 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
   if (busy.value) return;
   const activeLeft = leftRoot.value;
   const activeRight = rightRoot.value;
+
+  /* 解包 Vue 响应式代理，IPC 只能克隆普通对象 */
+  const snapshot = result.value?.diskKinds;
+  const scanKinds = snapshot ? { left: snapshot.left, right: snapshot.right } : null;
+
+  /* 盘型与扫描快照不一致时先确认；静音按目录对 */
+  if (actions.some((action) => action.kind === "copy")) {
+    const key = pairKey(activeLeft, activeRight);
+    if (!diskChangeMuted.value.has(key) && scanKinds) {
+      try {
+        const check = await window.api.checkDiskChange({
+          leftRoot: activeLeft,
+          rightRoot: activeRight,
+          scanKinds,
+        });
+        if (check.changed) {
+          const choice = await askDiskChange(scanKinds, check.now);
+          if (choice === "cancel") return;
+          if (choice === "rescan") {
+            settingsOpen.value = true;
+            return;
+          }
+        }
+      } catch (error) {
+        pushAlert(error instanceof Error ? error.message : String(error));
+      }
+    }
+  }
+
   executing.value = true;
   execFailures.value = [];
   resetExecWindow(actions.length);
@@ -1220,6 +1327,7 @@ async function runActions(actions: SyncAction[], label: string): Promise<void> {
       rightRoot: activeRight,
       actions,
       rateLimitBytesPerSec: execRateLimit.value * 1024 * 1024,
+      ...(scanKinds ? { diskKinds: scanKinds } : {}),
     });
 
     /* 文件操作已结束：成功行直接用执行结果更新，失败 / 无法确定的行才做目标级刷新 */
@@ -1570,6 +1678,8 @@ async function executePreview(): Promise<void> {
         v-model:skip-hidden="skipHidden"
         v-model:scan-threads="scanThreads"
         v-model:scan-threads-auto="scanThreadsAuto"
+        v-model:left-disk="leftDisk"
+        v-model:right-disk="rightDisk"
         :pairs="pairEntries"
         :logical-processors="logicalProcessors"
         class="min-h-0 flex-1"
@@ -1578,6 +1688,8 @@ async function executePreview(): Promise<void> {
         @remove-pair="removePair"
         @scan-threads-change="saveScanThreads"
         @reset-scan-threads="resetScanThreads"
+        @change-dir-disk="saveDirDisk"
+        @redetect-disk="redetectDirDisk"
         @start="scan($event)"
         @close="settingsOpen = false"
       />
@@ -1985,7 +2097,6 @@ async function executePreview(): Promise<void> {
       :ssd-copy-threads-auto="ssdCopyThreadsAuto"
       :ssd-parallel-files="ssdParallelFiles"
       :ssd-parallel-files-auto="ssdParallelFilesAuto"
-      :disk-mode="diskMode"
       :auto-close-exec-window="autoCloseExecWindow"
       :logical-processors="logicalProcessors"
       @close="settingsDialogOpen = false"
@@ -1995,8 +2106,16 @@ async function executePreview(): Promise<void> {
       @reset-ssd-copy-threads="resetSsdCopyThreads"
       @change-ssd-parallel-files="saveSsdParallelFiles"
       @reset-ssd-parallel-files="resetSsdParallelFiles"
-      @change-disk-mode="changeDiskMode"
       @change-auto-close-exec-window="saveAutoCloseExecWindow"
+    />
+    <DiskChangeDialog
+      v-if="diskChangePrompt"
+      :scan="diskChangePrompt.scan"
+      :now="diskChangePrompt.now"
+      @continue="answerDiskChange('continue')"
+      @cancel="answerDiskChange('cancel')"
+      @rescan="answerDiskChange('rescan')"
+      @mute="muteDiskChange"
     />
     <ExecuteProgressWindow
       :visible="execVisible"

@@ -125,6 +125,8 @@ export interface ScanResult {
   stats: ScanStats;
   /** 索引损坏、校验不符等提示，不阻断扫描 */
   warnings: string[];
+  /** 扫描时左右盘型快照，供执行前对比；旧数据可能缺失 */
+  diskKinds?: { left: DiskKind; right: DiskKind };
 }
 
 /** sync:scan 的返回：用户取消时没有结果 */
@@ -186,10 +188,21 @@ export interface ExecuteRequest {
   actions: SyncAction[];
   /** 复制限速（字节/秒），0 或不传表示不限；执行中可通过 IPC 调整 */
   rateLimitBytesPerSec?: number;
+  /** 扫描时的盘型快照；执行前对比后由渲染进程传入，避免执行中重复探测 */
+  diskKinds?: { left: DiskKind; right: DiskKind };
 }
 
 /** 磁盘类型：auto 自动检测，ssd / hdd 手动覆盖 */
 export type DiskMode = "auto" | "ssd" | "hdd";
+
+/** 实际盘型；unknown 表示检测失败（按机械处理） */
+export type DiskKind = "ssd" | "hdd" | "unknown";
+
+/** 单目录盘型：mode 为手动覆盖，kind 为检测结果 */
+export interface DirDisk {
+  mode: DiskMode;
+  kind: DiskKind;
+}
 
 /** 应用级设置：存 dsync-main.db 的 app_settings 表 */
 export interface AppSettings {
@@ -205,7 +218,6 @@ export interface AppSettings {
   ssdParallelFiles: number;
   /** true 表示用默认值（max(2, 一半)），false 表示用户显式设置 */
   ssdParallelFilesAuto: boolean;
-  diskMode: DiskMode;
   /** 复制完成后自动关闭执行进度窗；false 时保留窗口查看用时与平均速度 */
   autoCloseExecWindow: boolean;
   /** 当前机器可见的逻辑处理器数 */
