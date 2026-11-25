@@ -108,6 +108,14 @@ function clearSearch(): void {
   searchInput.value?.focus();
 }
 
+/** 拆出目录前缀与最后一段，供目录对高亮末节 */
+function pathParts(path: string): { dir: string; base: string } {
+  const at = path.lastIndexOf("\\");
+  return at < 0
+    ? { dir: "", base: path }
+    : { dir: path.slice(0, at + 1), base: path.slice(at + 1) };
+}
+
 const removeTarget = ref<DirPairEntry | null>(null);
 
 function askRemove(pair: DirPairEntry): void {
@@ -136,9 +144,9 @@ function confirmRemove(): void {
 
     <section class="border-b border-slate-800 px-6 py-3">
       <div class="flex w-full flex-col gap-2 text-sm">
-        <div class="flex items-center gap-3">
-          <span class="w-36 shrink-0 text-right text-slate-400">最近目录对</span>
-          <div class="relative">
+        <div class="grid grid-cols-[9rem_1fr_9rem] items-center gap-3">
+          <span class="text-right text-slate-400">最近目录对</span>
+          <div class="relative mx-auto w-64">
             <input
               ref="searchInput"
               v-model="search"
@@ -156,12 +164,15 @@ function confirmRemove(): void {
               ×
             </button>
           </div>
-          <span class="text-xs text-slate-400">{{ filteredPairs.length }} 组</span>
+          <span class="text-right text-xs text-slate-400">{{ filteredPairs.length }} 组</span>
         </div>
         <div class="flex gap-3">
           <span class="w-36 shrink-0"></span>
-          <div class="min-w-0 flex-1">
-            <div v-if="filteredPairs.length > 0" class="space-y-1">
+          <div
+            class="flex min-w-0 flex-1 flex-col gap-1"
+            :class="pairs.length > 0 ? 'min-h-[196px]' : ''"
+          >
+            <template v-if="filteredPairs.length > 0">
               <div
                 v-for="pair in filteredPairs"
                 :key="`${pair.left}|${pair.right}`"
@@ -179,25 +190,39 @@ function confirmRemove(): void {
                   "
                   @click="pickPair(pair)"
                 >
-                  <span class="min-w-0 flex-1 truncate text-right">{{ pair.left }}</span>
+                  <span class="flex min-w-0 flex-1 items-center justify-end">
+                    <span class="min-w-0 truncate text-slate-500">{{
+                      pathParts(pair.left).dir
+                    }}</span>
+                    <span class="shrink-0 font-medium text-slate-100">{{
+                      pathParts(pair.left).base
+                    }}</span>
+                  </span>
                   <span class="mx-1 shrink-0 text-slate-600">⇄</span>
-                  <span class="min-w-0 flex-1 truncate">{{ pair.right }}</span>
+                  <span class="flex min-w-0 flex-1 items-center">
+                    <span class="min-w-0 truncate text-slate-500">{{
+                      pathParts(pair.right).dir
+                    }}</span>
+                    <span class="shrink-0 font-medium text-slate-100">{{
+                      pathParts(pair.right).base
+                    }}</span>
+                  </span>
                 </button>
-                <span class="flex w-4 shrink-0 justify-center">
+                <span class="flex w-12 shrink-0 justify-center">
                   <button
                     v-if="!isSelected(pair)"
                     type="button"
-                    class="rounded-md text-rose-400 transition-colors hover:text-rose-300"
+                    class="rounded-md px-1 text-xs text-slate-400 transition-colors hover:text-rose-400"
                     title="删除目录对"
                     aria-label="删除目录对"
                     @click="askRemove(pair)"
                   >
-                    ×
+                    删除
                   </button>
                 </span>
               </div>
-            </div>
-            <p v-else class="text-xs text-slate-400">
+            </template>
+            <p v-else class="m-auto text-xs text-slate-400">
               {{ search ? "没有匹配的目录对" : "还没有扫描成功过的目录对" }}
             </p>
           </div>
